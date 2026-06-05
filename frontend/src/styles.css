@@ -1,0 +1,197 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..700;1,14..32,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-inter: 'Inter', system-ui, sans-serif;
+
+  /* Brand */
+  --color-gold:       #B8922A;
+  --color-gold-light: #F5EDD9;
+  --color-gold-mid:   #E8D5A8;
+  --color-gold-hover: #A07C22;
+
+  /* Backgrounds */
+  --color-bg:         #F5F3EE;
+  --color-surface:    #FFFFFF;
+  --color-surface2:   #FAFAF8;
+
+  /* Borders */
+  --color-border:     #E2D9C8;
+  --color-border-mid: #CFC5B0;
+
+  /* Text */
+  --color-text:       #1C1917;
+  --color-muted:      #78716C;
+  --color-light:      #A8A29E;
+
+  /* Status */
+  --color-green:      #16A34A;
+  --color-green-bg:   #DCFCE7;
+  --color-red:        #DC2626;
+  --color-red-bg:     #FEE2E2;
+  --color-amber:      #D97706;
+  --color-amber-bg:   #FEF3C7;
+
+  /* Category */
+  --color-bar:        #7C3AED;
+  --color-bar-bg:     #EDE9FE;
+  --color-kitchen:    #0D9488;
+  --color-kitchen-bg: #CCFBF1;
+  --color-hookah:     #EA580C;
+  --color-hookah-bg:  #FFEDD5;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-inter);
+  min-height: 100vh;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+input, button, select, textarea { font-family: inherit; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-mid); border-radius: 2px; }
+
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 8px); }
+
+@layer components {
+
+  /* ── Card ─────────────────────────────────────────── */
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+  .card-sm { padding: 0.75rem; }
+
+  /* ── Input ────────────────────────────────────────── */
+  .field {
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: 8px;
+    color: var(--color-text);
+    font-size: 0.9rem;
+    padding: 0.6rem 0.75rem;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.15s;
+  }
+  .field:focus { border-color: var(--color-gold); }
+  .field::placeholder { color: var(--color-light); }
+
+  /* ── Button ───────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 0 1rem;
+    height: 40px;
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s, transform 0.08s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.45; pointer-events: none; }
+
+  .btn-primary {
+    background: var(--color-gold);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--color-gold-hover); }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--color-gold);
+    border: 1.5px solid var(--color-gold);
+  }
+  .btn-outline:hover { background: var(--color-gold-light); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-muted);
+    border: 1.5px solid var(--color-border);
+  }
+  .btn-ghost:hover { background: var(--color-bg); }
+
+  .btn-lg { height: 48px; font-size: 0.95rem; padding: 0 1.5rem; border-radius: 10px; }
+  .btn-sm { height: 32px; font-size: 0.78rem; padding: 0 0.75rem; border-radius: 6px; }
+  .btn-full { width: 100%; }
+
+  /* ── Badge ────────────────────────────────────────── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+  .badge-green  { background: var(--color-green-bg);  color: var(--color-green); }
+  .badge-red    { background: var(--color-red-bg);    color: var(--color-red); }
+  .badge-amber  { background: var(--color-amber-bg);  color: var(--color-amber); }
+  .badge-gray   { background: #F3F0EB;                color: var(--color-muted); }
+  .badge-gold   { background: var(--color-gold-light);color: var(--color-gold-hover); }
+
+  /* ── Category chip ────────────────────────────────── */
+  .cat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1.5px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+  }
+  .cat-chip-bar     { color: var(--color-bar);     background: var(--color-bar-bg);     border-color: var(--color-bar-bg); }
+  .cat-chip-kitchen { color: var(--color-kitchen); background: var(--color-kitchen-bg); border-color: var(--color-kitchen-bg); }
+  .cat-chip-hookah  { color: var(--color-hookah);  background: var(--color-hookah-bg);  border-color: var(--color-hookah-bg); }
+  .cat-chip-active-bar     { border-color: var(--color-bar);     }
+  .cat-chip-active-kitchen { border-color: var(--color-kitchen); }
+  .cat-chip-active-hookah  { border-color: var(--color-hookah);  }
+  .cat-chip-inactive { color: var(--color-muted); background: var(--color-bg); border-color: var(--color-border); }
+
+  /* ── Menu item card ───────────────────────────────── */
+  .menu-card {
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: 10px;
+    padding: 0.7rem;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.12s, box-shadow 0.12s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .menu-card:active { transform: scale(0.97); }
+  .menu-card.in-cart {
+    border-color: var(--color-gold);
+    background: var(--color-gold-light);
+  }
+
+  /* ── Section heading ──────────────────────────────── */
+  .section-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+}

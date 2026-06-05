@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.angular/
+.git/
+.idea/
+.vscode/
+*.mjs
+check_app.mjs
