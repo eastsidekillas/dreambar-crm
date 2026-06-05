@@ -75,11 +75,15 @@ export class ApiService {
   getActiveOrders(): Observable<Order[]> {
     return this.http.get<Order[]>(`${BASE}/orders/active/`);
   }
-  createOrder(data: { shift: number; table_number: string; guests?: number; notes: string; items: { menu_item: number; quantity: number }[] }): Observable<Order> {
+  createOrder(data: { shift: number; table_number: string; guests?: number; notes: string; items?: { menu_item: number; quantity: number; guest_no?: number }[] }): Observable<Order> {
     return this.http.post<Order>(`${BASE}/orders/`, data);
   }
-  addItemToOrder(orderId: number, menuItemId: number, quantity: number): Observable<Order> {
-    return this.http.post<Order>(`${BASE}/orders/${orderId}/add_item/`, { menu_item: menuItemId, quantity });
+  addItemToOrder(orderId: number, menuItemId: number, quantity: number, guestNo = 0): Observable<Order> {
+    return this.http.post<Order>(`${BASE}/orders/${orderId}/add_item/`, { menu_item: menuItemId, quantity, guest_no: guestNo });
+  }
+  /** Перенести позицию на другого гостя (0 — общая позиция). */
+  setItemGuest(orderId: number, itemId: number, guestNo: number): Observable<Order> {
+    return this.http.post<Order>(`${BASE}/orders/${orderId}/item/${itemId}/guest/`, { guest_no: guestNo });
   }
   removeItemFromOrder(orderId: number, itemId: number): Observable<Order> {
     return this.http.delete<Order>(`${BASE}/orders/${orderId}/remove_item/${itemId}/`);

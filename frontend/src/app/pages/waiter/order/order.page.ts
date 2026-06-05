@@ -20,11 +20,33 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
         <div class="flex items-center justify-between px-3 py-2 mb-3 rounded-xl"
              style="background:var(--color-gold-light);border:1px solid var(--color-gold-mid)">
           <span class="text-xs font-medium" style="color:var(--color-gold-hover)">
-            ➕ Дозаказ к столу «{{ t.table_number || 'Стол' }}»
+            🍽 Стол «{{ t.table_number || 'Стол' }}»@if (t.guests) { · 👥 {{ t.guests }} }
           </span>
-          <button (click)="cart.setTarget(null)" class="text-xs font-semibold" style="color:var(--color-gold-hover)">Отменить</button>
+          <button (click)="cart.setTarget(null)" class="text-xs font-semibold" style="color:var(--color-gold-hover)">Закрыть меню</button>
         </div>
       }
+
+      <!-- ── Active guest selector ───────────────────── -->
+      <div class="mb-3">
+        <p class="section-title mb-1.5">Записать на гостя</p>
+        <div class="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4" style="scrollbar-width:none">
+          <button (click)="activeGuest.set(0)"
+                  class="flex-shrink-0 px-3 h-9 rounded-full text-xs font-semibold"
+                  [style.background]="activeGuest() === 0 ? 'var(--color-gold)' : 'var(--color-bg)'"
+                  [style.color]="activeGuest() === 0 ? 'white' : 'var(--color-muted)'"
+                  [style.border]="'1.5px solid var(--color-border)'">👥 Общий</button>
+          @for (g of guestList(); track g) {
+            <button (click)="activeGuest.set(g)"
+                    class="flex-shrink-0 w-9 h-9 rounded-full text-xs font-bold"
+                    [style.background]="activeGuest() === g ? 'var(--color-gold)' : 'var(--color-bg)'"
+                    [style.color]="activeGuest() === g ? 'white' : 'var(--color-muted)'"
+                    [style.border]="'1.5px solid var(--color-border)'">{{ g }}</button>
+          }
+          <button (click)="addGuest()"
+                  class="flex-shrink-0 w-9 h-9 rounded-full text-base font-bold"
+                  style="background:var(--color-bg);color:var(--color-muted);border:1.5px dashed var(--color-border-mid)">＋</button>
+        </div>
+      </div>
 
       <!-- ── Category tabs ───────────────────────────── -->
       <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-4" style="scrollbar-width:none">
@@ -43,14 +65,14 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
 
         <div class="grid grid-cols-2 gap-2.5">
           @for (item of current()!.items; track item.id) {
-            <div class="menu-card" [class.in-cart]="cart.qty(item.id) > 0"
+            <div class="menu-card" [class.in-cart]="cart.qty(item.id, activeGuest()) > 0"
                  (click)="add(item)">
 
-              <!-- Qty badge -->
-              @if (cart.qty(item.id) > 0) {
+              <!-- Qty badge (for active guest) -->
+              @if (cart.qty(item.id, activeGuest()) > 0) {
                 <span class="absolute top-2 right-2 flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white"
                       style="background:var(--color-gold)">
-                  {{ cart.qty(item.id) }}
+                  {{ cart.qty(item.id, activeGuest()) }}
                 </span>
               }
 
@@ -98,8 +120,21 @@ export class OrderPage implements OnInit {
   menuByCategory = signal<MenuByCategory[]>([]);
   selectedCatId  = signal<number | null>(null);
 
+  /** На какого гостя записываются новые позиции. 0 — общая. */
+  activeGuest = signal(0);
+  /** Сколько кнопок-гостей показать (можно расширить кнопкой ＋). */
+  private extraGuests = signal(0);
+
   categories = computed(() => this.menuByCategory());
   current    = computed(() => this.menuByCategory().find(c => c.id === this.selectedCatId()) ?? null);
+
+  /** Список номеров гостей 1..N (из числа гостей за столом, корзины и ручных добавлений). */
+  guestList = computed<number[]>(() => {
+    const fromTable = this.cart.target()?.guests ?? 0;
+    const fromCart  = this.cart.items().reduce((m, c) => Math.max(m, c.guestNo), 0);
+    const n = Math.max(fromTable, fromCart, this.extraGuests(), 1);
+    return Array.from({ length: n }, (_, i) => i + 1);
+  });
 
   constructor(private api: ApiService) {}
 
@@ -108,10 +143,18 @@ export class OrderPage implements OnInit {
       this.menuByCategory.set(data);
       if (data.length) this.selectedCatId.set(data[0].id);
     });
+    // По умолчанию пишем на первого гостя, если стол с гостями; иначе — общий.
+    this.activeGuest.set(this.cart.target()?.guests ? 1 : 0);
   }
 
   selectCat(id: number) { this.selectedCatId.set(id); }
-  add(item: MenuItem)   { this.cart.add(item); }
+  add(item: MenuItem)   { this.cart.add(item, this.activeGuest()); }
+
+  addGuest() {
+    const next = this.guestList().length + 1;
+    this.extraGuests.set(next);
+    this.activeGuest.set(next);
+  }
 
   meta(type: string) {
     return CAT_TYPE_META[type] ?? { color: 'var(--color-muted)', bg: 'var(--color-bg)', icon: '•' };

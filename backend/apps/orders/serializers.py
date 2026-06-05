@@ -40,13 +40,13 @@ class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
         fields = ['id', 'menu_item', 'menu_item_name', 'menu_item_type',
-                  'quantity', 'unit_price', 'subtotal', 'receipt']
+                  'quantity', 'unit_price', 'subtotal', 'guest_no', 'receipt']
 
 
 class OrderItemCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
-        fields = ['menu_item', 'quantity']
+        fields = ['menu_item', 'quantity', 'guest_no']
 
     def create(self, validated_data):
         menu_item = validated_data['menu_item']

@@ -1,7 +1,8 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { MenuItem, Order } from '../../core/models';
 
-export interface CartItem { item: MenuItem; qty: number; }
+/** Строка корзины. guestNo: 0 — общая позиция, 1..N — конкретный гость. */
+export interface CartItem { item: MenuItem; qty: number; guestNo: number; }
 
 @Injectable({ providedIn: 'root' })
 export class CartService {
@@ -18,24 +19,29 @@ export class CartService {
 
   setTarget(order: Order | null): void { this._target.set(order); }
 
-  add(item: MenuItem): void {
+  /** Позиции одного блюда для разных гостей — это разные строки. */
+  private find(items: CartItem[], itemId: number, guestNo: number): number {
+    return items.findIndex(c => c.item.id === itemId && c.guestNo === guestNo);
+  }
+
+  add(item: MenuItem, guestNo = 0): void {
     const cur = this._items();
-    const idx = cur.findIndex(c => c.item.id === item.id);
+    const idx = this.find(cur, item.id, guestNo);
     if (idx >= 0) {
       const u = [...cur];
       u[idx] = { ...u[idx], qty: u[idx].qty + 1 };
       this._items.set(u);
     } else {
-      this._items.set([...cur, { item, qty: 1 }]);
+      this._items.set([...cur, { item, qty: 1, guestNo }]);
     }
   }
 
-  remove(itemId: number): void {
+  remove(itemId: number, guestNo = 0): void {
     const cur = this._items();
-    const idx = cur.findIndex(c => c.item.id === itemId);
+    const idx = this.find(cur, itemId, guestNo);
     if (idx < 0) return;
     if (cur[idx].qty === 1) {
-      this._items.set(cur.filter(c => c.item.id !== itemId));
+      this._items.set(cur.filter((_, i) => i !== idx));
     } else {
       const u = [...cur];
       u[idx] = { ...u[idx], qty: u[idx].qty - 1 };
@@ -43,8 +49,9 @@ export class CartService {
     }
   }
 
-  qty(itemId: number): number {
-    return this._items().find(c => c.item.id === itemId)?.qty ?? 0;
+  /** Количество блюда у конкретного гостя. */
+  qty(itemId: number, guestNo = 0): number {
+    return this._items().find(c => c.item.id === itemId && c.guestNo === guestNo)?.qty ?? 0;
   }
 
   clear(): void { this._items.set([]); this._target.set(null); }

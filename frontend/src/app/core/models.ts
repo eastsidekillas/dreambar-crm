@@ -118,6 +118,7 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  guest_no: number;          // 0 = общая позиция, 1..N — гость
   receipt: number | null;
 }
 

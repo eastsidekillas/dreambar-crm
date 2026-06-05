@@ -25,6 +25,10 @@ const PAYMENTS: { value: PaymentMethod; label: string; icon: string }[] = [
         <span class="badge badge-gray">{{ orders().length }} занято</span>
       </div>
 
+      <button (click)="openNewTable()" class="btn btn-primary btn-full" style="height:48px">
+        ＋ Новый стол
+      </button>
+
       @for (o of orders(); track o.id) {
         <div class="card">
           <!-- Header -->
@@ -44,21 +48,63 @@ const PAYMENTS: { value: PaymentMethod; label: string; icon: string }[] = [
             </span>
           </div>
 
-          <!-- Items -->
-          <div class="space-y-1 mb-3">
-            @for (item of unpaidItems(o); track item.id) {
-              <div class="flex items-center gap-2 text-sm">
-                <span class="flex-1" style="color:var(--color-text)">{{ item.menu_item_name }}</span>
-                <span style="color:var(--color-muted)">× {{ item.quantity }}</span>
-                <span class="font-medium" style="color:var(--color-gold-hover); min-width:56px; text-align:right">
-                  {{ item.subtotal | number:'1.0-0' }} ₽
-                </span>
-              </div>
-            }
-            @if (!unpaidItems(o).length) {
-              <p class="text-xs" style="color:var(--color-muted)">Все позиции оплачены, ожидается закрытие.</p>
-            }
-          </div>
+          <!-- View toggle -->
+          @if (unpaidItems(o).length) {
+            <div class="flex gap-2 mb-2">
+              <button (click)="setSplitView(o.id, false)" class="btn btn-sm" style="flex:1"
+                      [class]="!splitView(o.id) ? 'btn-primary' : 'btn-outline'">Общий счёт</button>
+              <button (click)="setSplitView(o.id, true)" class="btn btn-sm" style="flex:1"
+                      [class]="splitView(o.id) ? 'btn-primary' : 'btn-outline'">Раздельно</button>
+            </div>
+          }
+
+          <!-- Items: flat (общий) -->
+          @if (!splitView(o.id)) {
+            <div class="space-y-1 mb-3">
+              @for (item of unpaidItems(o); track item.id) {
+                <div class="flex items-center gap-2 text-sm">
+                  <span class="flex-1" style="color:var(--color-text)">{{ item.menu_item_name }}</span>
+                  <span style="color:var(--color-muted)">× {{ item.quantity }}</span>
+                  <span class="font-medium" style="color:var(--color-gold-hover); min-width:56px; text-align:right">
+                    {{ item.subtotal | number:'1.0-0' }} ₽
+                  </span>
+                </div>
+              }
+              @if (!unpaidItems(o).length) {
+                <p class="text-xs" style="color:var(--color-muted)">Все позиции оплачены, ожидается закрытие.</p>
+              }
+            </div>
+          }
+
+          <!-- Items: grouped by guest (раздельно) -->
+          @if (splitView(o.id)) {
+            <div class="space-y-2 mb-3">
+              @for (grp of guestGroups(o); track grp.guest) {
+                <div class="rounded-lg p-2" style="background:var(--color-bg)">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-bold" style="color:var(--color-text)">{{ guestLabel(grp.guest) }}</span>
+                    <span class="text-xs font-bold" style="color:var(--color-gold-hover)">{{ grp.total | number:'1.0-0' }} ₽</span>
+                  </div>
+                  @for (item of grp.items; track item.id) {
+                    <div class="flex items-center gap-2 text-sm py-0.5">
+                      <span class="flex-1 truncate" style="color:var(--color-text)">{{ item.menu_item_name }}</span>
+                      <span style="color:var(--color-muted)">× {{ item.quantity }}</span>
+                    </div>
+                    <!-- move between guests -->
+                    <div class="flex gap-1 flex-wrap pb-1.5">
+                      @for (g of guestOptions(o); track g) {
+                        <button (click)="moveItem(o, item, g)"
+                                class="px-2 h-6 rounded-full text-xs font-semibold"
+                                [style.background]="item.guest_no === g ? 'var(--color-gold)' : 'transparent'"
+                                [style.color]="item.guest_no === g ? 'white' : 'var(--color-muted)'"
+                                [style.border]="'1px solid var(--color-border)'">{{ g === 0 ? 'Общий' : g }}</button>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
 
           <!-- Already issued receipts (partial split) -->
           @if (o.receipts.length) {
@@ -84,10 +130,39 @@ const PAYMENTS: { value: PaymentMethod; label: string; icon: string }[] = [
         <div class="card text-center py-12">
           <span class="text-4xl block mb-3">🍽</span>
           <p style="color:var(--color-muted)">Нет открытых столов</p>
-          <button (click)="goMenu()" class="btn btn-primary btn-sm mt-3">Открыть стол</button>
+          <button (click)="openNewTable()" class="btn btn-primary btn-sm mt-3">Открыть стол</button>
         </div>
       }
     </div>
+
+    <!-- ── New table dialog ───────────────────────────── -->
+    @if (newTable()) {
+      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closeNewTable()"></div>
+      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
+           style="background:white;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
+        <div class="flex justify-center pt-3 pb-1 cursor-pointer" (click)="closeNewTable()">
+          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3" style="border-bottom:1px solid var(--color-border)">
+          <h2 class="font-bold text-base">🍽 Новый стол</h2>
+          <button (click)="closeNewTable()" class="btn btn-ghost btn-sm">✕</button>
+        </div>
+        <div class="px-4 py-4 space-y-3">
+          <div>
+            <label class="section-title block mb-1.5">Стол / зона</label>
+            <input [(ngModel)]="ntTable" placeholder="Стол 5, VIP-1, Бар" class="field" style="height:44px" />
+          </div>
+          <div>
+            <label class="section-title block mb-1.5">Гостей</label>
+            <input [(ngModel)]="ntGuests" type="number" min="0" class="field" style="height:44px" />
+          </div>
+          <button (click)="createTable()" [disabled]="creating() || !ntTable.trim()"
+                  class="btn btn-primary btn-full" style="height:48px">
+            {{ creating() ? '⏳ ...' : 'Открыть стол и перейти в меню →' }}
+          </button>
+        </div>
+      </div>
+    }
 
     <!-- ── Checkout modal ─────────────────────────────── -->
     @if (checkout(); as co) {
@@ -151,7 +226,7 @@ const PAYMENTS: { value: PaymentMethod; label: string; icon: string }[] = [
             <div class="mb-3">
               @if (split()) {
                 <div class="flex items-center justify-between mb-1">
-                  <span class="section-title">Чек {{ b + 1 }}</span>
+                  <span class="section-title">{{ billLabel(b) }}</span>
                   <span class="font-bold text-sm" style="color:var(--color-gold-hover)">{{ billTotal(b) | number:'1.0-0' }} ₽</span>
                 </div>
               } @else {
@@ -190,6 +265,16 @@ export class TablesPage implements OnInit {
   payments = PAYMENTS;
   orders = signal<Order[]>([]);
 
+  // new table dialog state
+  private shiftId: number | null = null;
+  newTable = signal(false);
+  creating = signal(false);
+  ntTable = '';
+  ntGuests: number | null = null;
+
+  // per-card «Общий/Раздельно» view
+  private splitViewMap = signal<Record<number, boolean>>({});
+
   // checkout modal state
   checkout = signal<Order | null>(null);
   split = signal(false);
@@ -197,6 +282,7 @@ export class TablesPage implements OnInit {
   submitting = signal(false);
   private assignMap = signal<Record<number, number>>({});  // item_id -> bill index
   private payMap = signal<Record<number, PaymentMethod>>({}); // bill index -> method
+  private billGuests = signal<number[]>([]);     // bill index -> guest_no (для подписи чека)
 
   coItems = computed(() => {
     const o = this.checkout();
@@ -204,16 +290,78 @@ export class TablesPage implements OnInit {
   });
   billIndexes = computed(() => Array.from({ length: this.bills() }, (_, i) => i));
 
-  /** Максимум чеков = число гостей за столом (если не указано — до 12). */
+  /** Максимум чеков = число гостей за столом (но не меньше уже открытых чеков). */
   maxBills = computed(() => {
     const g = this.checkout()?.guests ?? 0;
-    return g > 0 ? g : 12;
+    return Math.max(g > 0 ? g + 1 : 12, this.bills());
   });
 
-  ngOnInit() { this.load(); }
+  ngOnInit() {
+    this.load();
+    this.api.getCurrentShift().subscribe({ next: s => this.shiftId = s?.id ?? null, error: () => {} });
+  }
 
   load() {
     this.api.getActiveOrders().subscribe(o => this.orders.set(o));
+  }
+
+  // ── new table ──────────────────────────────────────────────────
+  openNewTable() { this.ntTable = ''; this.ntGuests = null; this.creating.set(false); this.newTable.set(true); }
+  closeNewTable() { this.newTable.set(false); }
+
+  createTable() {
+    if (this.creating() || !this.ntTable.trim()) return;
+    if (!this.shiftId) { this.toast.error('Нет открытой смены'); return; }
+    this.creating.set(true);
+    this.api.createOrder({
+      shift: this.shiftId, table_number: this.ntTable.trim(), guests: this.ntGuests || 0, notes: '', items: [],
+    }).subscribe({
+      next: order => {
+        this.cart.setTarget(order);
+        this.newTable.set(false);
+        this.router.navigate(['/waiter/order']);
+      },
+      error: () => { this.creating.set(false); this.toast.error('Не удалось открыть стол'); },
+    });
+  }
+
+  // ── per-guest grouping (раздельный вид карточки) ────────────────
+  splitView(orderId: number): boolean { return !!this.splitViewMap()[orderId]; }
+  setSplitView(orderId: number, on: boolean) {
+    this.splitViewMap.update(m => ({ ...m, [orderId]: on }));
+  }
+
+  guestLabel(guest: number): string { return guest === 0 ? '👥 Общий' : 'Гость ' + guest; }
+
+  /** Доступные номера гостей для переноса: [0 (общий), 1..N]. */
+  guestOptions(o: Order): number[] {
+    const used = this.unpaidItems(o).reduce((m, i) => Math.max(m, i.guest_no), 0);
+    const n = Math.max(o.guests ?? 0, used);
+    return [0, ...Array.from({ length: n }, (_, i) => i + 1)];
+  }
+
+  /** Группы неоплаченных позиций по гостям (только непустые), отсортированы по номеру. */
+  guestGroups(o: Order): { guest: number; items: OrderItem[]; total: number }[] {
+    const byGuest = new Map<number, OrderItem[]>();
+    for (const it of this.unpaidItems(o)) {
+      (byGuest.get(it.guest_no) ?? byGuest.set(it.guest_no, []).get(it.guest_no)!).push(it);
+    }
+    return [...byGuest.keys()].sort((a, b) => a - b).map(guest => {
+      const items = byGuest.get(guest)!;
+      return { guest, items, total: items.reduce((s, i) => s + +i.subtotal, 0) };
+    });
+  }
+
+  moveItem(o: Order, item: OrderItem, guest: number) {
+    if (item.guest_no === guest) return;
+    this.api.setItemGuest(o.id, item.id, guest).subscribe({
+      next: updated => this.replaceOrder(updated),
+      error: () => this.toast.error('Не удалось перенести позицию'),
+    });
+  }
+
+  private replaceOrder(updated: Order) {
+    this.orders.update(list => list.map(o => o.id === updated.id ? updated : o));
   }
 
   // ── helpers per order ──────────────────────────────────────────
@@ -229,7 +377,6 @@ export class TablesPage implements OnInit {
     this.cart.setTarget(o);
     this.router.navigate(['/waiter/order']);
   }
-  goMenu() { this.router.navigate(['/waiter/order']); }
 
   reprint(receiptId: number) {
     this.api.getReceipts().subscribe(list => {
@@ -241,26 +388,60 @@ export class TablesPage implements OnInit {
   // ── checkout modal ─────────────────────────────────────────────
   openCheckout(o: Order) {
     this.checkout.set(o);
-    this.split.set(false);
-    this.bills.set(1);
     this.submitting.set(false);
-    const am: Record<number, number> = {};
-    this.unpaidItems(o).forEach(i => am[i.id] = 0);
-    this.assignMap.set(am);
-    this.payMap.set({ 0: 'cash' });
+    // Предзаполняем чеки по гостям: если за столом >1 гостя с позициями —
+    // сразу раздельный счёт, по чеку на гостя (редактируется вручную).
+    const distinct = [...new Set(this.unpaidItems(o).map(i => i.guest_no))].sort((a, b) => a - b);
+    if (distinct.length > 1) {
+      this.applyGuestGrouping(o, distinct);
+    } else {
+      this.split.set(false);
+      this.bills.set(1);
+      const am: Record<number, number> = {};
+      this.unpaidItems(o).forEach(i => am[i.id] = 0);
+      this.assignMap.set(am);
+      this.payMap.set({ 0: 'cash' });
+      this.billGuests.set(distinct.length ? distinct : [0]);
+    }
   }
   closeCheckout() { this.checkout.set(null); }
 
-  /** Переключение режима. При включении «Раздельно» сразу создаём по чеку на гостя. */
+  /** Разложить позиции по чекам соответственно гостю. */
+  private applyGuestGrouping(o: Order, distinct: number[]) {
+    this.split.set(true);
+    this.bills.set(distinct.length);
+    const am: Record<number, number> = {};
+    this.unpaidItems(o).forEach(i => am[i.id] = distinct.indexOf(i.guest_no));
+    this.assignMap.set(am);
+    const pm: Record<number, PaymentMethod> = {};
+    distinct.forEach((_, idx) => pm[idx] = 'cash');
+    this.payMap.set(pm);
+    this.billGuests.set(distinct);
+  }
+
+  /** Переключение режима. При включении «Раздельно» группируем по гостям. */
   setSplit(on: boolean) {
-    this.split.set(on);
-    if (on && this.bills() < 2) {
-      const target = Math.min(this.maxBills(), Math.max(2, this.checkout()?.guests ?? 2));
-      this.bills.set(target);
-      const pm = { ...this.payMap() };
-      for (let i = 0; i < target; i++) if (!(i in pm)) pm[i] = 'cash';
-      this.payMap.set(pm);
+    const o = this.checkout();
+    if (!o) return;
+    if (on) {
+      const distinct = [...new Set(this.unpaidItems(o).map(i => i.guest_no))].sort((a, b) => a - b);
+      // если все позиции на одном «госте» — делаем хотя бы 2 пустых чека
+      this.applyGuestGrouping(o, distinct.length > 1 ? distinct : [0, 1]);
+    } else {
+      this.split.set(false);
+      this.bills.set(1);
+      const am: Record<number, number> = {};
+      this.unpaidItems(o).forEach(i => am[i.id] = 0);
+      this.assignMap.set(am);
+      this.payMap.set({ 0: 'cash' });
     }
+  }
+
+  /** Подпись чека: имя гостя, если чек соответствует гостю; иначе «Чек N». */
+  billLabel(bill: number): string {
+    const g = this.billGuests()[bill];
+    if (g === undefined) return 'Чек ' + (bill + 1);
+    return g === 0 ? 'Общий счёт' : 'Гость ' + g;
   }
 
   assign(itemId: number, bill: number) {

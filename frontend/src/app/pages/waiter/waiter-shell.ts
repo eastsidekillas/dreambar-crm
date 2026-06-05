@@ -148,8 +148,8 @@ export class WaiterShell implements OnInit {
 
     switch (this.auth.role()) {
       case 'wardrobe':  return [tickets, history];
-      case 'admin':     return [order, tables, tickets, history, admin];
-      default:          return [order, tables, tickets, history]; // waiter, bartender
+      case 'admin':     return [tables, order, tickets, history, admin];
+      default:          return [tables, order, tickets, history]; // waiter, bartender
     }
   });
 
@@ -180,7 +180,7 @@ export class WaiterShell implements OnInit {
     // Новая посадка: заказ остаётся ОТКРЫТЫМ, пока компания сидит за столом.
     this.api.createOrder({
       shift: s.id, table_number: payload.table, guests: payload.guests, notes: '',
-      items: this.cart.items().map(c => ({ menu_item: c.item.id, quantity: c.qty }))
+      items: this.cart.items().map(c => ({ menu_item: c.item.id, quantity: c.qty, guest_no: c.guestNo }))
     }).subscribe({
       next: () => {
         this.afterSubmit();
@@ -193,7 +193,7 @@ export class WaiterShell implements OnInit {
 
   /** Дозаказ: добавляем позиции корзины в уже открытую посадку. */
   private appendToSession(orderId: number) {
-    const calls = this.cart.items().map(c => this.api.addItemToOrder(orderId, c.item.id, c.qty));
+    const calls = this.cart.items().map(c => this.api.addItemToOrder(orderId, c.item.id, c.qty, c.guestNo));
     forkJoin(calls.length ? calls : [of(null)]).subscribe({
       next: () => {
         this.afterSubmit();

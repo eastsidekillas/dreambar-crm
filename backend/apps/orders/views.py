@@ -246,6 +246,32 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Позиция не найдена.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(OrderSerializer(order).data)
 
+    @action(detail=True, methods=['post'], url_path='item/(?P<item_id>[^/.]+)/guest')
+    def set_item_guest(self, request, pk=None, item_id=None):
+        """Перенести позицию на другого гостя (раздельный счёт).
+
+        Тело: {"guest_no": <int>}. 0 — общая позиция. Менять можно только у
+        ещё не оплаченных позиций открытого заказа.
+        """
+        order = self.get_object()
+        if order.status != 'open':
+            return Response({'detail': 'Нельзя изменить закрытый заказ.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            guest_no = int(request.data.get('guest_no'))
+        except (TypeError, ValueError):
+            return Response({'detail': 'Некорректный номер гостя.'}, status=status.HTTP_400_BAD_REQUEST)
+        if guest_no < 0:
+            return Response({'detail': 'Некорректный номер гостя.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            item = order.items.get(pk=item_id)
+        except OrderItem.DoesNotExist:
+            return Response({'detail': 'Позиция не найдена.'}, status=status.HTTP_404_NOT_FOUND)
+        if item.receipt_id is not None:
+            return Response({'detail': 'Позиция уже оплачена.'}, status=status.HTTP_400_BAD_REQUEST)
+        item.guest_no = guest_no
+        item.save(update_fields=['guest_no'])
+        return Response(OrderSerializer(order).data)
+
     @action(detail=False, methods=['get'])
     def my_orders(self, request):
         shift = Shift.objects.filter(is_open=True).first()

@@ -15,7 +15,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/waiter/waiter-shell').then(m => m.WaiterShell),
     canActivate: [authGuard],
     children: [
-      { path: '', redirectTo: 'order', pathMatch: 'full' },
+      { path: '', redirectTo: 'tables', pathMatch: 'full' },
       {
         path: 'order',
         loadComponent: () => import('./pages/waiter/order/order.page').then(m => m.OrderPage)

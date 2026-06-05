@@ -159,6 +159,9 @@ class OrderItem(models.Model):
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     kitchen_status = models.CharField(max_length=10, choices=KITCHEN_STATUS, default='new')
+    # Гость, заказавший позицию (для раздельного счёта). 0 — общая/нераспределённая
+    # позиция (напр. кальян на компанию); 1..N — конкретный гость за столом.
+    guest_no = models.PositiveSmallIntegerField(default=0, verbose_name='Гость')
     # На какой чек попала позиция при закрытии счёта. NULL — ещё не оплачена.
     # Позволяет делить счёт компании на несколько чеков (раздельный счёт).
     receipt = models.ForeignKey(

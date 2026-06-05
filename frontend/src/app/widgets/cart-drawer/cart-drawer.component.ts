@@ -39,27 +39,30 @@ export interface CartSubmit { table: string; guests: number; }
 
         <!-- Items list -->
         <div class="overflow-y-auto flex-1 px-4 py-2">
-          @for (c of cart.items(); track c.item.id) {
+          @for (c of cart.items(); track c.item.id + '-' + c.guestNo) {
             <div class="flex items-center gap-3 py-3"
                  style="border-bottom:1px solid var(--color-border)">
 
               <!-- Info -->
               <div class="flex-1 min-w-0">
                 <p class="font-medium text-sm truncate">{{ c.item.name }}</p>
-                @if (c.item.volume) {
-                  <p class="text-xs" style="color:var(--color-muted)">{{ c.item.volume }}</p>
-                }
+                <p class="text-xs flex items-center gap-1.5" style="color:var(--color-muted)">
+                  <span class="badge" [class]="c.guestNo ? 'badge-gold' : 'badge-gray'">
+                    {{ c.guestNo ? 'Гость ' + c.guestNo : 'Общий' }}
+                  </span>
+                  @if (c.item.volume) { {{ c.item.volume }} }
+                </p>
               </div>
 
               <!-- Qty controls -->
               <div class="flex items-center gap-2 flex-shrink-0">
-                <button (click)="cart.remove(c.item.id)"
+                <button (click)="cart.remove(c.item.id, c.guestNo)"
                         class="flex items-center justify-center w-8 h-8 rounded-full font-bold"
                         style="background:var(--color-bg);border:1.5px solid var(--color-border);color:var(--color-text)">
                   −
                 </button>
                 <span class="w-5 text-center font-bold text-sm">{{ c.qty }}</span>
-                <button (click)="cart.add(c.item)"
+                <button (click)="cart.add(c.item, c.guestNo)"
                         class="flex items-center justify-center w-8 h-8 rounded-full font-bold text-white"
                         style="background:var(--color-gold)">
                   +
