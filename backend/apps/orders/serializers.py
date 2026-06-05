@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Shift, MenuCategory, MenuItem, Order, OrderItem, EntryTicket
+from .models import Shift, MenuCategory, MenuItem, Order, OrderItem, EntryTicket, Receipt
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -40,7 +40,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
         fields = ['id', 'menu_item', 'menu_item_name', 'menu_item_type',
-                  'quantity', 'unit_price', 'subtotal']
+                  'quantity', 'unit_price', 'subtotal', 'receipt']
 
 
 class OrderItemCreateSerializer(serializers.ModelSerializer):
@@ -54,16 +54,47 @@ class OrderItemCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+class ReceiptItemSerializer(serializers.ModelSerializer):
+    """Позиция в составе чека (read-only снимок для печати)."""
+    menu_item_name = serializers.CharField(source='menu_item.name', read_only=True)
+    menu_item_type = serializers.CharField(source='menu_item.category.type', read_only=True)
+    subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'menu_item_name', 'menu_item_type', 'quantity', 'unit_price', 'subtotal']
+
+
+class ReceiptSerializer(serializers.ModelSerializer):
+    items = ReceiptItemSerializer(many=True, read_only=True)
+    code = serializers.CharField(read_only=True)
+    waiter_name = serializers.SerializerMethodField()
+    payment_label = serializers.CharField(source='get_payment_method_display', read_only=True)
+
+    class Meta:
+        model = Receipt
+        fields = ['id', 'order', 'shift', 'number', 'code', 'table_number',
+                  'waiter', 'waiter_name', 'payment_method', 'payment_label',
+                  'total', 'issued_at', 'items']
+
+    def get_waiter_name(self, obj):
+        if obj.waiter:
+            return obj.waiter.get_full_name() or obj.waiter.username
+        return None
+
+
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
+    receipts = ReceiptSerializer(many=True, read_only=True)
     total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    is_paid = serializers.BooleanField(read_only=True)
     waiter_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
-        fields = ['id', 'shift', 'waiter', 'waiter_name', 'table_number',
+        fields = ['id', 'shift', 'waiter', 'waiter_name', 'table_number', 'guests',
                   'status', 'created_at', 'updated_at', 'closed_at', 'notes',
-                  'items', 'total']
+                  'items', 'receipts', 'total', 'is_paid']
         read_only_fields = ['waiter', 'created_at', 'updated_at', 'closed_at']
 
     def get_waiter_name(self, obj):
@@ -77,7 +108,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ['id', 'shift', 'table_number', 'notes', 'items']
+        fields = ['id', 'shift', 'table_number', 'guests', 'notes', 'items']
         read_only_fields = ['id']
 
     def create(self, validated_data):

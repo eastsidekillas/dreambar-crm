@@ -3,10 +3,12 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import {
-  Shift, MenuByCategory, MenuItem, Order, EntryTicket,
+  Shift, MenuByCategory, MenuItem, Order, EntryTicket, Receipt, PaymentMethod,
   DashboardData, ShiftAnalytics, TopItem, MonthlyData, MenuCategory,
   Employee, EmployeeActivity, KitchenData, KitchenStatus
 } from '../models';
+
+export interface BillSpec { item_ids: number[]; payment_method: PaymentMethod; }
 
 import { environment } from '../../../environments/environment';
 
@@ -69,7 +71,11 @@ export class ApiService {
   getMyOrders(): Observable<Order[]> {
     return this.http.get<Order[]>(`${BASE}/orders/my_orders/`);
   }
-  createOrder(data: { shift: number; table_number: string; notes: string; items: { menu_item: number; quantity: number }[] }): Observable<Order> {
+  /** Открытые посадки текущей смены (занятые столы). */
+  getActiveOrders(): Observable<Order[]> {
+    return this.http.get<Order[]>(`${BASE}/orders/active/`);
+  }
+  createOrder(data: { shift: number; table_number: string; guests?: number; notes: string; items: { menu_item: number; quantity: number }[] }): Observable<Order> {
     return this.http.post<Order>(`${BASE}/orders/`, data);
   }
   addItemToOrder(orderId: number, menuItemId: number, quantity: number): Observable<Order> {
@@ -78,11 +84,20 @@ export class ApiService {
   removeItemFromOrder(orderId: number, itemId: number): Observable<Order> {
     return this.http.delete<Order>(`${BASE}/orders/${orderId}/remove_item/${itemId}/`);
   }
-  closeOrder(orderId: number): Observable<Order> {
-    return this.http.post<Order>(`${BASE}/orders/${orderId}/close/`, {});
+  closeOrder(orderId: number, paymentMethod: PaymentMethod = 'cash'): Observable<{ order: Order; receipt: Receipt }> {
+    return this.http.post<{ order: Order; receipt: Receipt }>(`${BASE}/orders/${orderId}/close/`, { payment_method: paymentMethod });
+  }
+  /** Закрыть счёт: один чек или раздельный счёт (несколько чеков). */
+  checkoutOrder(orderId: number, bills: BillSpec[]): Observable<{ order: Order; receipts: Receipt[] }> {
+    return this.http.post<{ order: Order; receipts: Receipt[] }>(`${BASE}/orders/${orderId}/checkout/`, { bills });
   }
   cancelOrder(orderId: number): Observable<Order> {
     return this.http.post<Order>(`${BASE}/orders/${orderId}/cancel/`, {});
+  }
+  getReceipts(shiftId?: number): Observable<Receipt[]> {
+    let params = new HttpParams().set('page_size', '500');
+    if (shiftId) params = params.set('shift', shiftId);
+    return unpage(this.http.get<Receipt[] | Paginated<Receipt>>(`${BASE}/receipts/`, { params }));
   }
 
   // ── Tickets ──────────────────────────────────────────────────────

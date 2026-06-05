@@ -1,5 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { MenuItem } from '../../core/models';
+import { MenuItem, Order } from '../../core/models';
 
 export interface CartItem { item: MenuItem; qty: number; }
 
@@ -7,10 +7,16 @@ export interface CartItem { item: MenuItem; qty: number; }
 export class CartService {
   private _items = signal<CartItem[]>([]);
 
+  /** Если задано — корзина пополняет существующую посадку, а не создаёт новую. */
+  private _target = signal<Order | null>(null);
+  readonly target = this._target.asReadonly();
+
   readonly items    = this._items.asReadonly();
   readonly total    = computed(() => this._items().reduce((s, c) => s + c.item.price * c.qty, 0));
   readonly count    = computed(() => this._items().reduce((s, c) => s + c.qty, 0));
   readonly hasItems = computed(() => this._items().length > 0);
+
+  setTarget(order: Order | null): void { this._target.set(order); }
 
   add(item: MenuItem): void {
     const cur = this._items();
@@ -41,5 +47,5 @@ export class CartService {
     return this._items().find(c => c.item.id === itemId)?.qty ?? 0;
   }
 
-  clear(): void { this._items.set([]); }
+  clear(): void { this._items.set([]); this._target.set(null); }
 }

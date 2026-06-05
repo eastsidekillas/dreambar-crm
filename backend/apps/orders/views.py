@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Q, Sum, Count, F
 from django.contrib.auth.models import User
 from rest_framework import viewsets, status
@@ -7,12 +8,39 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
 
-from .models import Shift, MenuCategory, MenuItem, Order, OrderItem, EntryTicket, UserProfile
+from .models import Shift, MenuCategory, MenuItem, Order, OrderItem, EntryTicket, UserProfile, Receipt
 from .serializers import (
     ShiftSerializer, MenuCategorySerializer, MenuItemSerializer,
     MenuItemWriteSerializer, OrderSerializer, OrderCreateSerializer,
     OrderItemSerializer, OrderItemCreateSerializer, EntryTicketSerializer,
+    ReceiptSerializer,
 )
+
+
+def _issue_receipt(order, items, payment_method, user):
+    """Сформировать один чек по заказу для переданных позиций.
+
+    Привязывает позиции к чеку, фиксирует сумму. Если после этого в заказе не
+    осталось неоплаченных позиций — закрывает заказ (стол освобождается).
+    Возвращает созданный объект Receipt.
+    """
+    total = sum(it.subtotal for it in items)
+    receipt = Receipt.objects.create(
+        order=order,
+        shift=order.shift,
+        number=Receipt.next_number(order.shift),
+        table_number=order.table_number,
+        waiter=order.waiter,
+        payment_method=payment_method,
+        total=total,
+    )
+    OrderItem.objects.filter(pk__in=[it.pk for it in items]).update(receipt=receipt)
+
+    if not order.items.filter(receipt__isnull=True).exists():
+        order.status = 'closed'
+        order.closed_at = timezone.now()
+        order.save(update_fields=['status', 'closed_at', 'updated_at'])
+    return receipt
 
 
 class ShiftViewSet(viewsets.ModelViewSet):
@@ -108,13 +136,86 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):
+        """Закрыть заказ одним чеком на все неоплаченные позиции."""
         order = self.get_object()
         if order.status != 'open':
             return Response({'detail': 'Заказ уже закрыт или отменён.'}, status=status.HTTP_400_BAD_REQUEST)
-        order.status = 'closed'
-        order.closed_at = timezone.now()
-        order.save()
-        return Response(OrderSerializer(order).data)
+        unpaid = list(order.items.filter(receipt__isnull=True))
+        if not unpaid:
+            return Response({'detail': 'В заказе нет позиций для чека.'}, status=status.HTTP_400_BAD_REQUEST)
+        payment_method = request.data.get('payment_method', 'cash')
+        with transaction.atomic():
+            receipt = _issue_receipt(order, unpaid, payment_method, request.user)
+        return Response({
+            'order': OrderSerializer(order).data,
+            'receipt': ReceiptSerializer(receipt).data,
+        })
+
+    @action(detail=True, methods=['post'])
+    def checkout(self, request, pk=None):
+        """Сформировать чек(и) по заказу.
+
+        Тело запроса:
+          - `payment_method`: способ оплаты (для одиночного чека);
+          - `item_ids`: подмножество позиций для раздельного счёта (один чек);
+          - `bills`: список вида [{item_ids:[...], payment_method:'cash'}, ...]
+            для разбивки счёта на несколько чеков сразу.
+        Если ничего не передано — чек на все неоплаченные позиции.
+        """
+        order = self.get_object()
+        if order.status != 'open':
+            return Response({'detail': 'Заказ уже закрыт или отменён.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        unpaid = {it.pk: it for it in order.items.filter(receipt__isnull=True)}
+        if not unpaid:
+            return Response({'detail': 'Все позиции уже оплачены.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        bills = request.data.get('bills')
+        if not bills:
+            item_ids = request.data.get('item_ids')
+            bills = [{
+                'item_ids': item_ids if item_ids else list(unpaid.keys()),
+                'payment_method': request.data.get('payment_method', 'cash'),
+            }]
+
+        # Валидация: позиции существуют, не оплачены и не пересекаются между чеками.
+        seen = set()
+        for bill in bills:
+            ids = bill.get('item_ids') or []
+            if not ids:
+                return Response({'detail': 'Пустой чек недопустим.'}, status=status.HTTP_400_BAD_REQUEST)
+            for i in ids:
+                if i not in unpaid:
+                    return Response({'detail': f'Позиция {i} недоступна для оплаты.'}, status=status.HTTP_400_BAD_REQUEST)
+                if i in seen:
+                    return Response({'detail': f'Позиция {i} указана в нескольких чеках.'}, status=status.HTTP_400_BAD_REQUEST)
+                seen.add(i)
+
+        with transaction.atomic():
+            receipts = [
+                _issue_receipt(
+                    order,
+                    [unpaid[i] for i in bill['item_ids']],
+                    bill.get('payment_method', 'cash'),
+                    request.user,
+                )
+                for bill in bills
+            ]
+        return Response({
+            'order': OrderSerializer(order).data,
+            'receipts': ReceiptSerializer(receipts, many=True).data,
+        })
+
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Открытые посадки текущей смены — занятые столы."""
+        shift = Shift.objects.filter(is_open=True).order_by('-opened_at').first()
+        if not shift:
+            return Response([])
+        qs = Order.objects.filter(shift=shift, status='open').select_related(
+            'waiter', 'waiter__profile'
+        ).prefetch_related('items__menu_item__category', 'receipts__items').order_by('created_at')
+        return Response(OrderSerializer(qs, many=True).data)
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
@@ -152,6 +253,15 @@ class OrderViewSet(viewsets.ModelViewSet):
         if shift:
             qs = qs.filter(shift=shift)
         return Response(OrderSerializer(qs, many=True).data)
+
+
+class ReceiptViewSet(viewsets.ReadOnlyModelViewSet):
+    """Просмотр и повторная печать чеков."""
+    queryset = Receipt.objects.select_related('waiter', 'waiter__profile', 'shift').prefetch_related(
+        'items__menu_item__category'
+    )
+    serializer_class = ReceiptSerializer
+    filterset_fields = ['shift', 'order', 'payment_method']
 
 
 class EntryTicketViewSet(viewsets.ModelViewSet):

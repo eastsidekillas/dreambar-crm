@@ -10,7 +10,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from apps.orders.models import Shift, Order, OrderItem, EntryTicket, UserProfile
+from apps.orders.models import Shift, Order, OrderItem, EntryTicket, UserProfile, Receipt
 
 # ── Style helpers ────────────────────────────────────────────────────────────
 
@@ -229,6 +229,52 @@ def build_tickets_sheet(wb, shifts):
     return ws
 
 
+PAYMENT_LABELS = {'cash': 'Наличные', 'card': 'Карта', 'transfer': 'Перевод', 'mixed': 'Смешанная'}
+
+
+def build_receipts_sheet(wb, shifts):
+    ws = wb.create_sheet(title='Чеки')
+    ws.sheet_properties.tabColor = "B8922A"
+
+    ws.merge_cells('A1:G1')
+    c = ws['A1']
+    c.value = 'BAR DREAM — Чеки'
+    c.font = Font(name='Calibri', bold=True, size=13, color='FFFFFF')
+    c.fill = ACC_FILL
+    c.alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[1].height = 28
+
+    headers = ['Смена', '№ чека', 'Стол/зона', 'Официант', 'Оплата', 'Сумма', 'Дата/время']
+    widths   = [13,       12,       12,           20,          14,        14,      18]
+    for i, (h, w) in enumerate(zip(headers, widths), 1):
+        hc(ws.cell(2, i), h, fill=ACC_FILL)
+        col_width(ws, i, w)
+
+    receipts = Receipt.objects.filter(shift__in=shifts).select_related(
+        'shift', 'waiter', 'waiter__profile'
+    ).order_by('shift__date', 'number')
+
+    for r, rec in enumerate(receipts, 3):
+        fill = ALT_F if r % 2 == 0 else None
+        sc(ws.cell(r,1), rec.shift.date, fmt=DATE_FMT, fill=fill)
+        sc(ws.cell(r,2), rec.code, align='center', fill=fill)
+        sc(ws.cell(r,3), rec.table_number or '—', fill=fill)
+        sc(ws.cell(r,4), emp_name(rec.waiter), fill=fill)
+        sc(ws.cell(r,5), PAYMENT_LABELS.get(rec.payment_method, rec.payment_method), fill=fill)
+        sc(ws.cell(r,6), float(rec.total), bold=True, fmt=RUB_FMT, align='right', fill=fill)
+        sc(ws.cell(r,7), rec.issued_at.replace(tzinfo=None), fmt=TIME_FMT, fill=fill)
+
+    tr = 3 + receipts.count() + 1
+    ws.cell(tr, 1).value = 'Итого чеков:'
+    ws.cell(tr, 1).font = B_FONT
+    sc(ws.cell(tr, 2), receipts.count(), bold=True, align='center')
+    total_rev = receipts.aggregate(t=Sum('total'))['t'] or 0
+    sc(ws.cell(tr, 6), float(total_rev), bold=True, fmt=RUB_FMT, align='right')
+
+    ws.freeze_panes = 'A3'
+    return ws
+
+
 def build_orders_sheet(wb, shifts):
     ws = wb.create_sheet(title='Все заказы')
     ws.sheet_properties.tabColor = "7C3AED"
@@ -403,6 +449,7 @@ class ExportReportView(APIView):
         build_summary_sheet(wb, shifts)
         build_employees_sheet(wb, shifts)
         build_tickets_sheet(wb, shifts)
+        build_receipts_sheet(wb, shifts)
         build_orders_sheet(wb, shifts)
         for shift in shifts.order_by('-date'):
             build_shift_detail_sheet(wb, shift)

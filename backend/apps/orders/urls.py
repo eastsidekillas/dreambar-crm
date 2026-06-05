@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     ShiftViewSet, MenuCategoryViewSet, MenuItemViewSet, OrderViewSet, EntryTicketViewSet,
-    EmployeeActivityView, EmployeeOrdersView, UserProfileListView,
+    ReceiptViewSet, EmployeeActivityView, EmployeeOrdersView, UserProfileListView,
     KitchenOrdersView, KitchenItemStatusView, KitchenOrderReadyView,
 )
 
@@ -11,6 +11,7 @@ router.register('shifts', ShiftViewSet)
 router.register('menu/categories', MenuCategoryViewSet)
 router.register('menu/items', MenuItemViewSet)
 router.register('orders', OrderViewSet)
+router.register('receipts', ReceiptViewSet)
 router.register('tickets', EntryTicketViewSet)
 
 urlpatterns = [

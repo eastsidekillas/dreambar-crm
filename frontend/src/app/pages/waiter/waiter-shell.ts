@@ -1,10 +1,13 @@
 import { Component, OnInit, signal, computed, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, RouterOutlet } from '@angular/router';
+import { RouterModule, RouterOutlet, Router } from '@angular/router';
+import { forkJoin, of } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { ApiService } from '../../core/services/api.service';
 import { CartService } from '../../features/cart/cart.service';
-import { CartDrawerComponent } from '../../widgets/cart-drawer/cart-drawer.component';
+import { CartDrawerComponent, CartSubmit } from '../../widgets/cart-drawer/cart-drawer.component';
+import { ToastService } from '../../shared/ui/toast/toast.service';
+import { BdToastComponent } from '../../shared/ui/toast/toast.component';
 import { Shift } from '../../core/models';
 
 interface Tab { path: string; label: string; icon: string; }
@@ -12,7 +15,7 @@ interface Tab { path: string; label: string; icon: string; }
 @Component({
   selector: 'app-waiter-shell',
   standalone: true,
-  imports: [CommonModule, RouterModule, RouterOutlet, CartDrawerComponent],
+  imports: [CommonModule, RouterModule, RouterOutlet, CartDrawerComponent, BdToastComponent],
   template: `
     <div class="flex flex-col min-h-screen" style="background:var(--color-bg)">
 
@@ -74,7 +77,9 @@ interface Tab { path: string; label: string; icon: string; }
                   style="background:var(--color-gold);box-shadow:0 4px 16px rgba(184,146,42,0.4);color:white">
             <div class="flex items-center gap-2">
               <span class="text-lg">🛒</span>
-              <span class="font-semibold text-sm">Корзина</span>
+              <span class="font-semibold text-sm">
+                {{ cart.target() ? 'Дозаказ · ' + (cart.target()!.table_number || 'Стол') : 'Корзина' }}
+              </span>
               <span class="text-xs px-2 py-0.5 rounded-full font-bold" style="background:rgba(255,255,255,0.25)">
                 {{ cart.count() }} поз.
               </span>
@@ -106,6 +111,8 @@ interface Tab { path: string; label: string; icon: string; }
       <cart-drawer #drawer [open]="cartOpen()"
         (close)="cartOpen.set(false)"
         (submit)="onSubmitOrder($event)" />
+
+      <bd-toast />
     </div>
   `
 })
@@ -133,19 +140,20 @@ export class WaiterShell implements OnInit {
 
   /** Tabs depend on role. */
   tabs = computed<Tab[]>(() => {
-    const order   = { path: '/waiter/order',   label: 'Заказ',   icon: '📋' };
+    const order   = { path: '/waiter/order',   label: 'Меню',    icon: '📋' };
+    const tables  = { path: '/waiter/tables',  label: 'Столы',   icon: '🍽' };
     const tickets = { path: '/waiter/tickets', label: 'Билеты',  icon: '🎟' };
-    const history = { path: '/waiter/history', label: 'История', icon: '📊' };
+    const history = { path: '/waiter/history', label: 'Чеки',    icon: '🧾' };
     const admin   = { path: '/admin',          label: 'Управление', icon: '⚙️' };
 
     switch (this.auth.role()) {
       case 'wardrobe':  return [tickets, history];
-      case 'admin':     return [order, tickets, history, admin];
-      default:          return [order, tickets, history]; // waiter, bartender
+      case 'admin':     return [order, tables, tickets, history, admin];
+      default:          return [order, tables, tickets, history]; // waiter, bartender
     }
   });
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private router: Router, private toast: ToastService) {}
 
   ngOnInit() {
     this.loadShift();
@@ -163,21 +171,44 @@ export class WaiterShell implements OnInit {
     this.api.createShift({}).subscribe({ next: s => this.shift.set(s) });
   }
 
-  onSubmitOrder(tableNumber: string) {
+  onSubmitOrder(payload: CartSubmit) {
+    const target = this.cart.target();
+    if (target) { this.appendToSession(target.id); return; }
+
     const s = this.shift();
-    if (!s) { alert('Нет открытой смены'); this.drawerRef?.resetSubmitting(); return; }
+    if (!s) { this.toast.error('Нет открытой смены'); this.drawerRef?.resetSubmitting(); return; }
+    // Новая посадка: заказ остаётся ОТКРЫТЫМ, пока компания сидит за столом.
     this.api.createOrder({
-      shift: s.id, table_number: tableNumber, notes: '',
+      shift: s.id, table_number: payload.table, guests: payload.guests, notes: '',
       items: this.cart.items().map(c => ({ menu_item: c.item.id, quantity: c.qty }))
     }).subscribe({
-      next: order => {
-        this.api.closeOrder(order.id).subscribe(() => this.loadShift());
-        this.cart.clear();
-        this.cartOpen.set(false);
-        this.drawerRef?.resetSubmitting();
+      next: () => {
+        this.afterSubmit();
+        this.toast.success('Стол открыт');
+        this.router.navigate(['/waiter/tables']);
       },
-      error: () => { this.drawerRef?.resetSubmitting(); alert('Ошибка при отправке заказа'); }
+      error: () => { this.drawerRef?.resetSubmitting(); this.toast.error('Ошибка при открытии стола'); }
     });
+  }
+
+  /** Дозаказ: добавляем позиции корзины в уже открытую посадку. */
+  private appendToSession(orderId: number) {
+    const calls = this.cart.items().map(c => this.api.addItemToOrder(orderId, c.item.id, c.qty));
+    forkJoin(calls.length ? calls : [of(null)]).subscribe({
+      next: () => {
+        this.afterSubmit();
+        this.toast.success('Добавлено к столу');
+        this.router.navigate(['/waiter/tables']);
+      },
+      error: () => { this.drawerRef?.resetSubmitting(); this.toast.error('Ошибка при добавлении'); }
+    });
+  }
+
+  private afterSubmit() {
+    this.loadShift();
+    this.cart.clear();
+    this.cartOpen.set(false);
+    this.drawerRef?.resetSubmitting();
   }
 
   formatDate(d: string): string {

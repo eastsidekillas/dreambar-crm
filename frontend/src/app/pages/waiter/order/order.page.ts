@@ -16,6 +16,16 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
   imports: [CommonModule],
   template: `
     <div>
+      @if (cart.target(); as t) {
+        <div class="flex items-center justify-between px-3 py-2 mb-3 rounded-xl"
+             style="background:var(--color-gold-light);border:1px solid var(--color-gold-mid)">
+          <span class="text-xs font-medium" style="color:var(--color-gold-hover)">
+            ➕ Дозаказ к столу «{{ t.table_number || 'Стол' }}»
+          </span>
+          <button (click)="cart.setTarget(null)" class="text-xs font-semibold" style="color:var(--color-gold-hover)">Отменить</button>
+        </div>
+      }
+
       <!-- ── Category tabs ───────────────────────────── -->
       <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-4" style="scrollbar-width:none">
         @for (cat of categories(); track cat.id) {

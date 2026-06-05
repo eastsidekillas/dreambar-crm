@@ -108,6 +108,8 @@ export interface MenuByCategory {
   items: MenuItem[];
 }
 
+export type PaymentMethod = 'cash' | 'card' | 'transfer' | 'mixed';
+
 export interface OrderItem {
   id: number;
   menu_item: number;
@@ -116,6 +118,32 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  receipt: number | null;
+}
+
+export interface ReceiptItem {
+  id: number;
+  menu_item_name: string;
+  menu_item_type: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+}
+
+export interface Receipt {
+  id: number;
+  order: number;
+  shift: number;
+  number: number;
+  code: string;
+  table_number: string;
+  waiter: number;
+  waiter_name: string;
+  payment_method: PaymentMethod;
+  payment_label: string;
+  total: number;
+  issued_at: string;
+  items: ReceiptItem[];
 }
 
 export interface Order {
@@ -124,13 +152,16 @@ export interface Order {
   waiter: number;
   waiter_name: string;
   table_number: string;
+  guests: number;
   status: 'open' | 'closed' | 'cancelled';
   created_at: string;
   updated_at: string;
   closed_at: string | null;
   notes: string;
   items: OrderItem[];
+  receipts: Receipt[];
   total: number;
+  is_paid: boolean;
 }
 
 export interface EntryTicket {

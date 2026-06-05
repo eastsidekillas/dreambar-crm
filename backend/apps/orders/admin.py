@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Shift, MenuCategory, MenuItem, Order, OrderItem, EntryTicket
+from .models import Shift, MenuCategory, MenuItem, Order, OrderItem, EntryTicket, Receipt
 
 
 class OrderItemInline(admin.TabularInline):
@@ -31,6 +31,13 @@ class OrderAdmin(admin.ModelAdmin):
     list_display = ['id', 'shift', 'waiter', 'table_number', 'status', 'created_at']
     list_filter = ['status', 'shift']
     inlines = [OrderItemInline]
+
+
+@admin.register(Receipt)
+class ReceiptAdmin(admin.ModelAdmin):
+    list_display = ['code', 'shift', 'table_number', 'waiter', 'payment_method', 'total', 'issued_at']
+    list_filter = ['shift', 'payment_method']
+    search_fields = ['number', 'table_number']
 
 
 @admin.register(EntryTicket)
