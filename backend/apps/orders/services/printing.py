@@ -72,7 +72,7 @@ def render_receipt(receipt, width: int = 48) -> bytes:
     out += ALIGN_CENTER + DOUBLE_ON + BOLD_ON
     out += _enc("BAR DREAM") + FEED
     out += DOUBLE_OFF + BOLD_OFF
-    out += _enc("Предчек · не фискальный") + FEED
+    out += _enc("vk.com/mydreambar") + FEED
     out += _enc("-" * width) + FEED
 
     out += ALIGN_LEFT
@@ -87,8 +87,10 @@ def render_receipt(receipt, width: int = 48) -> bytes:
     out += _enc("-" * width) + FEED
 
     for it in receipt.items.all():
-        name = it.menu_item.name
-        out += _enc(name[:width]) + FEED
+        name   = it.menu_item.name
+        volume = it.menu_item.volume or ""
+        label  = f"{name} ({volume})" if volume else name
+        out += _enc(label[:width]) + FEED
         qty  = f"{it.quantity} x {_money(it.unit_price)}"
         out += _line("  " + qty, _money(it.subtotal), width)
     out += _enc("-" * width) + FEED

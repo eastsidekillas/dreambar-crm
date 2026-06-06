@@ -24,14 +24,15 @@ class MenuItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = MenuItem
         fields = ['id', 'name', 'volume', 'description', 'price', 'cost_price',
-                  'is_active', 'sort_order', 'category', 'category_name', 'category_type']
+                  'is_active', 'is_out_of_stock', 'sort_order', 'category',
+                  'category_name', 'category_type', 'print_station']
 
 
 class MenuItemWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = MenuItem
         fields = ['id', 'name', 'volume', 'description', 'price', 'cost_price',
-                  'is_active', 'sort_order', 'category']
+                  'is_active', 'is_out_of_stock', 'sort_order', 'category', 'print_station']
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -59,13 +60,15 @@ class OrderItemCreateSerializer(serializers.ModelSerializer):
 
 class ReceiptItemSerializer(serializers.ModelSerializer):
     """Позиция в составе чека (read-only снимок для печати)."""
-    menu_item_name = serializers.CharField(source='menu_item.name', read_only=True)
-    menu_item_type = serializers.CharField(source='menu_item.category.type', read_only=True)
+    menu_item_name   = serializers.CharField(source='menu_item.name',   read_only=True)
+    menu_item_volume = serializers.CharField(source='menu_item.volume', read_only=True)
+    menu_item_type   = serializers.CharField(source='menu_item.category.type', read_only=True)
     subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
     class Meta:
         model = OrderItem
-        fields = ['id', 'menu_item_name', 'menu_item_type', 'quantity', 'unit_price', 'subtotal']
+        fields = ['id', 'menu_item_name', 'menu_item_volume', 'menu_item_type',
+                  'quantity', 'unit_price', 'subtotal']
 
 
 class ReceiptSerializer(serializers.ModelSerializer):

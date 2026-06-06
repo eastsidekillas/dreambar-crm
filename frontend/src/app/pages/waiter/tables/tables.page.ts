@@ -48,6 +48,8 @@ const POLL_MS = 10_000;
                   ✓ {{ readyCount(o) }}
                 </span>
               }
+              <button (click)="openEdit(o)" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded"
+                      style="color:var(--color-muted)" title="Редактировать">✏️</button>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
               <span class="text-xs" style="color:var(--color-muted)">{{ elapsed(o) }}</span>
@@ -56,6 +58,15 @@ const POLL_MS = 10_000;
               </span>
             </div>
           </div>
+
+          <!-- ── Notes ──────────────────────────────── -->
+          @if (o.notes) {
+            <div class="px-3 py-2 text-xs flex items-start gap-1.5"
+                 style="background:#fffbeb;border-bottom:1px solid var(--color-gold-mid);color:#92400e">
+              <span class="flex-shrink-0">📝</span>
+              <span>{{ o.notes }}</span>
+            </div>
+          }
 
           <!-- ── Per-guest items ─────────────────────── -->
           @if (unpaidItems(o).length) {
@@ -79,6 +90,18 @@ const POLL_MS = 10_000;
                       <span class="text-xs font-bold" style="color:#16a34a">✓</span>
                     } @else if (item.kitchen_status === 'cooking') {
                       <span class="text-xs" style="color:var(--color-amber)">⏳</span>
+                    }
+                    @if (confirmDeleteItem() === item.id) {
+                      <button (click)="removeItem(o, item)"
+                              class="text-xs font-bold px-1.5 py-0.5 rounded"
+                              style="background:#ef4444;color:white">Да</button>
+                      <button (click)="confirmDeleteItem.set(null)"
+                              class="text-xs px-1.5 py-0.5 rounded"
+                              style="background:var(--color-bg);color:var(--color-muted);border:1px solid var(--color-border)">Нет</button>
+                    } @else {
+                      <button (click)="askDeleteItem(item)"
+                              class="w-5 h-5 flex items-center justify-center rounded text-xs flex-shrink-0"
+                              style="color:var(--color-muted)" title="Удалить">✕</button>
                     }
                   </div>
                 }
@@ -149,9 +172,48 @@ const POLL_MS = 10_000;
             <label class="section-title block mb-1.5">Гостей</label>
             <input [(ngModel)]="ntGuests" type="number" min="0" class="field" style="height:44px" />
           </div>
+          <div>
+            <label class="section-title block mb-1.5">Комментарий</label>
+            <textarea [(ngModel)]="ntNotes" placeholder="Аллергия, пожелания, особые условия…"
+                      class="field" rows="2" style="resize:none"></textarea>
+          </div>
           <button (click)="createTable()" [disabled]="creating() || !ntTable.trim()"
                   class="btn btn-primary btn-full" style="height:48px">
             {{ creating() ? '⏳ ...' : 'Открыть стол и перейти в меню →' }}
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ── Edit table modal ──────────────────────────────── -->
+    @if (editOrder()) {
+      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closeEdit()"></div>
+      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
+           style="background:white;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
+        <div class="flex justify-center pt-3 pb-1 cursor-pointer" (click)="closeEdit()">
+          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3" style="border-bottom:1px solid var(--color-border)">
+          <h2 class="font-bold text-base">✏️ Изменить стол</h2>
+          <button (click)="closeEdit()" class="btn btn-ghost btn-sm">✕</button>
+        </div>
+        <div class="px-4 py-4 space-y-3">
+          <div>
+            <label class="section-title block mb-1.5">Стол / зона</label>
+            <input [(ngModel)]="editTable" placeholder="Стол 5, VIP-1, Бар" class="field" style="height:44px" />
+          </div>
+          <div>
+            <label class="section-title block mb-1.5">Гостей</label>
+            <input [(ngModel)]="editGuests" type="number" min="0" class="field" style="height:44px" />
+          </div>
+          <div>
+            <label class="section-title block mb-1.5">Комментарий</label>
+            <textarea [(ngModel)]="editNotes" placeholder="Аллергия, пожелания, особые условия…"
+                      class="field" rows="2" style="resize:none"></textarea>
+          </div>
+          <button (click)="saveEdit()" [disabled]="saving() || !editTable.trim()"
+                  class="btn btn-primary btn-full" style="height:48px">
+            {{ saving() ? '⏳ ...' : 'Сохранить' }}
           </button>
         </div>
       </div>
@@ -353,10 +415,45 @@ export class TablesPage implements OnInit, OnDestroy {
   private shiftId: number | null = null;
   newTable = signal(false);
   creating = signal(false);
-  ntTable = '';
+  ntTable  = '';
   ntGuests: number | null = null;
+  ntNotes  = '';
 
   private pollTimer?: ReturnType<typeof setInterval>;
+
+  // edit table modal state
+  editOrder  = signal<Order | null>(null);
+  editTable  = '';
+  editGuests: number | null = null;
+  editNotes  = '';
+  saving     = signal(false);
+
+  openEdit(o: Order) {
+    this.editTable  = o.table_number || '';
+    this.editGuests = o.guests || null;
+    this.editNotes  = o.notes || '';
+    this.editOrder.set(o);
+  }
+
+  closeEdit() { this.editOrder.set(null); }
+
+  saveEdit() {
+    const o = this.editOrder();
+    if (!o || this.saving() || !this.editTable.trim()) return;
+    this.saving.set(true);
+    this.api.updateOrder(o.id, {
+      table_number: this.editTable.trim(),
+      guests: this.editGuests || 0,
+      notes: this.editNotes.trim(),
+    }).subscribe({
+      next: updated => {
+        this.replaceOrder(updated);
+        this.saving.set(false);
+        this.closeEdit();
+      },
+      error: () => { this.saving.set(false); this.toast.error('Не удалось сохранить'); },
+    });
+  }
 
   // checkout modal state
   checkout     = signal<Order | null>(null);
@@ -433,7 +530,7 @@ export class TablesPage implements OnInit, OnDestroy {
   }
 
   // ── new table ──────────────────────────────────────────────────
-  openNewTable() { this.ntTable = ''; this.ntGuests = null; this.creating.set(false); this.newTable.set(true); }
+  openNewTable() { this.ntTable = ''; this.ntGuests = null; this.ntNotes = ''; this.creating.set(false); this.newTable.set(true); }
   closeNewTable() { this.newTable.set(false); }
 
   createTable() {
@@ -441,7 +538,7 @@ export class TablesPage implements OnInit, OnDestroy {
     if (!this.shiftId) { this.toast.error('Нет открытой смены'); return; }
     this.creating.set(true);
     this.api.createOrder({
-      shift: this.shiftId, table_number: this.ntTable.trim(), guests: this.ntGuests || 0, notes: '', items: [],
+      shift: this.shiftId, table_number: this.ntTable.trim(), guests: this.ntGuests || 0, notes: this.ntNotes.trim(), items: [],
     }).subscribe({
       next: order => {
         this.cart.setTarget(order);
@@ -471,6 +568,20 @@ export class TablesPage implements OnInit, OnDestroy {
     return [...byGuest.keys()].sort((a, b) => a - b).map(guest => {
       const items = byGuest.get(guest)!;
       return { guest, items, total: items.reduce((s, i) => s + +i.subtotal, 0) };
+    });
+  }
+
+  confirmDeleteItem = signal<number | null>(null);
+
+  askDeleteItem(item: OrderItem) {
+    this.confirmDeleteItem.set(item.id);
+  }
+
+  removeItem(o: Order, item: OrderItem) {
+    this.confirmDeleteItem.set(null);
+    this.api.removeItemFromOrder(o.id, item.id).subscribe({
+      next: updated => this.replaceOrder(updated),
+      error: () => this.toast.error('Не удалось удалить позицию'),
     });
   }
 

@@ -24,8 +24,9 @@ class MenuCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(MenuItem)
 class MenuItemAdmin(admin.ModelAdmin):
-    list_display = ['name', 'category', 'price', 'cost_price', 'is_active']
-    list_filter = ['category__type', 'is_active']
+    list_display = ['name', 'category', 'price', 'cost_price', 'is_active', 'print_station']
+    list_filter = ['category__type', 'print_station', 'is_active']
+    list_editable = ['print_station']
     search_fields = ['name']
 
 

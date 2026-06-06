@@ -26,7 +26,7 @@ def me(request):
 
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('admin-as/', admin.site.urls),
     path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/me/', me, name='me'),

@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -20,8 +21,19 @@ class KitchenOrdersView(APIView):
         kitchen_items = OrderItem.objects.filter(
             order__shift=shift,
             order__status__in=['open', 'closed'],
-            menu_item__category__type=category_type,
-        ).select_related('order', 'order__waiter', 'order__waiter__profile', 'menu_item')
+        ).filter(
+            Q(menu_item__print_station=category_type) |
+            Q(menu_item__print_station='', menu_item__category__type=category_type)
+        )
+
+        user_profile = getattr(request.user, 'profile', None)
+        user_role = user_profile.role if user_profile else None
+
+        # Bartenders see only their own kitchen orders in the kitchen tab
+        if category_type == 'kitchen' and user_role == 'bartender':
+            kitchen_items = kitchen_items.filter(order__waiter=request.user)
+
+        kitchen_items = kitchen_items.select_related('order', 'order__waiter', 'order__waiter__profile', 'menu_item')
 
         ready_today = kitchen_items.filter(kitchen_status='ready').count()
 
@@ -32,11 +44,14 @@ class KitchenOrdersView(APIView):
                 waiter  = o.waiter
                 profile = getattr(waiter, 'profile', None) if waiter else None
                 elapsed = int((timezone.now() - o.created_at).total_seconds() // 60)
+                waiter_role = profile.role if profile else None
+                source = 'bar' if waiter_role == 'bartender' else 'table'
                 tickets[o.id] = {
                     'order_id': o.id,
                     'table_number': o.table_number or '',
                     'waiter_name': (profile.get_display() if profile else
                                     (waiter.get_full_name() or waiter.username) if waiter else '—'),
+                    'source': source,
                     'created_at': o.created_at,
                     'elapsed_min': elapsed,
                     'items': [],

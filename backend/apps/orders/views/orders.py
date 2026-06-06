@@ -107,7 +107,9 @@ class OrderViewSet(viewsets.ModelViewSet):
         shift = Shift.objects.filter(is_open=True).order_by('-opened_at').first()
         if not shift:
             return Response([])
-        qs = Order.objects.filter(shift=shift, status='open').select_related(
+        qs = Order.objects.filter(
+            shift=shift, status='open', waiter=request.user,
+        ).select_related(
             'waiter', 'waiter__profile'
         ).prefetch_related('items__menu_item__category', 'receipts__items').order_by('created_at')
         return Response(OrderSerializer(qs, many=True).data)

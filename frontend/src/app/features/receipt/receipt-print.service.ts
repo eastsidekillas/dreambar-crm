@@ -81,13 +81,15 @@ export class ReceiptPrintService {
     const rows = r.items.map(it => `
       <div class="row">
         <span class="name">${this.esc(it.menu_item_name)}
-          <span class="qty">×${it.quantity}</span></span>
+          <span class="qty">×${it.quantity}</span>
+          ${it.menu_item_volume ? `<br><span class="muted" style="font-size:10px">${this.esc(it.menu_item_volume)}</span>` : ''}
+        </span>
         <span class="num">${this.money(it.subtotal)}</span>
       </div>`).join('');
 
     return `<div class="receipt">
       <div class="center brand">BAR DREAM</div>
-      <div class="center muted">Предчек · не фискальный</div>
+      <div class="center muted">vk.com/mydreambar</div>
       <div class="hr"></div>
       <div class="row"><span>Чек №</span><span>${r.code}</span></div>
       <div class="row"><span>Стол</span><span>${this.esc(r.table_number) || '—'}</span></div>

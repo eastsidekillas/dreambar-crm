@@ -76,8 +76,12 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
               <div class="grid grid-cols-2 gap-2.5">
                 @for (item of group.items; track item.id) {
                   <div class="menu-card" [class.in-cart]="cart.qty(item.id, activeGuest()) > 0"
-                       (click)="add(item)">
-                    @if (cart.qty(item.id, activeGuest()) > 0) {
+                       [class.out-of-stock]="item.is_out_of_stock"
+                       (click)="!item.is_out_of_stock && add(item)">
+                    @if (item.is_out_of_stock) {
+                      <span class="absolute top-2 right-2 text-xs font-bold px-1.5 py-0.5 rounded"
+                            style="background:#fee2e2;color:#dc2626">Нет</span>
+                    } @else if (cart.qty(item.id, activeGuest()) > 0) {
                       <span class="absolute top-2 right-2 flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white"
                             style="background:var(--color-gold)">
                         {{ cart.qty(item.id, activeGuest()) }}
@@ -131,9 +135,13 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
           <div class="grid grid-cols-2 gap-2.5">
             @for (item of current()!.items; track item.id) {
               <div class="menu-card" [class.in-cart]="cart.qty(item.id, activeGuest()) > 0"
-                   (click)="add(item)">
+                   [class.out-of-stock]="item.is_out_of_stock"
+                   (click)="!item.is_out_of_stock && add(item)">
 
-                @if (cart.qty(item.id, activeGuest()) > 0) {
+                @if (item.is_out_of_stock) {
+                  <span class="absolute top-2 right-2 text-xs font-bold px-1.5 py-0.5 rounded"
+                        style="background:#fee2e2;color:#dc2626">Нет</span>
+                } @else if (cart.qty(item.id, activeGuest()) > 0) {
                   <span class="absolute top-2 right-2 flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white"
                         style="background:var(--color-gold)">
                     {{ cart.qty(item.id, activeGuest()) }}

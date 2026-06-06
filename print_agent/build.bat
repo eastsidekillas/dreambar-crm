@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 > nul
 REM Сборка агента и конфигуратора DreamBar (Windows).
 REM Запускать на Windows-машине:
 REM   py -m pip install -r requirements.txt

@@ -7,6 +7,13 @@ from ..models import MenuCategory, MenuItem
 from ..serializers import MenuCategorySerializer, MenuItemSerializer, MenuItemWriteSerializer
 
 
+def _is_staff_or_bartender(user):
+    if user.is_staff:
+        return True
+    profile = getattr(user, 'profile', None)
+    return profile and profile.role in ('bartender', 'admin')
+
+
 class MenuCategoryViewSet(viewsets.ModelViewSet):
     queryset = MenuCategory.objects.all()
     serializer_class = MenuCategorySerializer
@@ -37,6 +44,15 @@ class MenuItemViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAdminUser()]
         return [IsAuthenticated()]
+
+    @action(detail=True, methods=['post'])
+    def toggle_stock(self, request, pk=None):
+        if not _is_staff_or_bartender(request.user):
+            return Response({'detail': 'Недостаточно прав.'}, status=403)
+        item = self.get_object()
+        item.is_out_of_stock = not item.is_out_of_stock
+        item.save(update_fields=['is_out_of_stock'])
+        return Response({'id': item.id, 'is_out_of_stock': item.is_out_of_stock})
 
     @action(detail=False, methods=['get'])
     def by_category(self, request):

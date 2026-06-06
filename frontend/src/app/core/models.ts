@@ -14,6 +14,7 @@ export interface KitchenTicket {
   order_id: number;
   table_number: string;
   waiter_name: string;
+  source: 'bar' | 'table';
   created_at: string;
   elapsed_min: number;
   items: KitchenItem[];
@@ -97,10 +98,12 @@ export interface MenuItem {
   price: number;
   cost_price: number;
   is_active: boolean;
+  is_out_of_stock: boolean;
   sort_order: number;
   category: number;
   category_name: string;
   category_type: 'bar' | 'kitchen' | 'hookah';
+  print_station: string;
 }
 
 export interface MenuByCategory {
@@ -128,6 +131,7 @@ export interface OrderItem {
 export interface ReceiptItem {
   id: number;
   menu_item_name: string;
+  menu_item_volume: string;
   menu_item_type: string;
   quantity: number;
   unit_price: number;

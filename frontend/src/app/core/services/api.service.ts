@@ -88,12 +88,18 @@ export class ApiService {
   removeItemFromOrder(orderId: number, itemId: number): Observable<Order> {
     return this.http.delete<Order>(`${BASE}/orders/${orderId}/remove_item/${itemId}/`);
   }
+  toggleOutOfStock(itemId: number): Observable<{ id: number; is_out_of_stock: boolean }> {
+    return this.http.post<{ id: number; is_out_of_stock: boolean }>(`${BASE}/menu/items/${itemId}/toggle_stock/`, {});
+  }
   closeOrder(orderId: number, paymentMethod: PaymentMethod = 'cash'): Observable<{ order: Order; receipt: Receipt }> {
     return this.http.post<{ order: Order; receipt: Receipt }>(`${BASE}/orders/${orderId}/close/`, { payment_method: paymentMethod });
   }
   /** Закрыть счёт: один чек или раздельный счёт (несколько чеков). */
   checkoutOrder(orderId: number, bills: BillSpec[]): Observable<{ order: Order; receipts: Receipt[] }> {
     return this.http.post<{ order: Order; receipts: Receipt[] }>(`${BASE}/orders/${orderId}/checkout/`, { bills });
+  }
+  updateOrder(orderId: number, data: { table_number?: string; guests?: number; notes?: string }): Observable<Order> {
+    return this.http.patch<Order>(`${BASE}/orders/${orderId}/`, data);
   }
   cancelOrder(orderId: number): Observable<Order> {
     return this.http.post<Order>(`${BASE}/orders/${orderId}/cancel/`, {});

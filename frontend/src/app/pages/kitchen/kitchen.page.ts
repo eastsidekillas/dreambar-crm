@@ -78,9 +78,16 @@ const REFRESH_MS = 8000;
                      [style.background]="urgencyColor(t.elapsed_min)">
                   <div class="flex items-center gap-2">
                     <span class="font-bold text-lg" style="color:#1C1917">#{{ t.order_id }}</span>
+                    <!-- Источник: бар или стол -->
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-full"
+                          [style]="t.source === 'bar'
+                            ? 'background:#7C3AED;color:white'
+                            : 'background:rgba(0,0,0,0.2);color:#1C1917'">
+                      {{ t.source === 'bar' ? '🍸 Бар' : '🪑 Стол' }}
+                    </span>
                     @if (t.table_number) {
                       <span class="text-sm font-semibold px-2 py-0.5 rounded"
-                            style="background:rgba(0,0,0,0.2);color:#1C1917">{{ t.table_number }}</span>
+                            style="background:rgba(0,0,0,0.15);color:#1C1917">{{ t.table_number }}</span>
                     }
                   </div>
                   <span class="font-bold text-sm" style="color:#1C1917">⏱ {{ t.elapsed_min }} мин</span>
@@ -145,6 +152,12 @@ const REFRESH_MS = 8000;
                     <div class="flex items-center justify-between mb-2">
                       <div class="flex items-center gap-2">
                         <span class="font-bold" style="color:#4ADE80">#{{ t.order_id }}</span>
+                        <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full"
+                              [style]="t.source === 'bar'
+                                ? 'background:#7C3AED;color:white'
+                                : 'background:#334155;color:#CBD5E1'">
+                          {{ t.source === 'bar' ? '🍸 Бар' : '🪑 Стол' }}
+                        </span>
                         @if (t.table_number) {
                           <span class="text-xs" style="color:#A8A29E">{{ t.table_number }}</span>
                         }

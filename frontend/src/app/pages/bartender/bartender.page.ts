@@ -5,9 +5,16 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { CartService } from '../../features/cart/cart.service';
 import { ToastService } from '../../shared/ui/toast/toast.service';
-import { KitchenTicket, KitchenItem, KitchenStatus, MenuByCategory, MenuItem } from '../../core/models';
+import { ReceiptPrintService } from '../../features/receipt/receipt-print.service';
+import { KitchenTicket, KitchenItem, KitchenStatus, MenuByCategory, MenuItem, PaymentMethod } from '../../core/models';
 
 const REFRESH_MS = 6000;
+
+const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
+  { value: 'cash',     label: 'Наличные', icon: '💵' },
+  { value: 'card',     label: 'Карта',    icon: '💳' },
+  { value: 'transfer', label: 'Перевод',  icon: '📲' },
+];
 
 @Component({
   selector: 'app-bartender',
@@ -37,6 +44,15 @@ const REFRESH_MS = 6000;
               @if (active().length) {
                 <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full text-xs flex items-center justify-center font-bold"
                       style="background:#ef4444;color:white">{{ active().length }}</span>
+              }
+            </button>
+            <button (click)="openKitchenTab()"
+              class="px-4 py-1.5 text-sm font-semibold transition-colors relative"
+              [style]="tab() === 'kitchen' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
+              🍽 Кухня
+              @if (kitchenUnseenCount()) {
+                <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full text-xs flex items-center justify-center font-bold"
+                      style="background:#22c55e;color:white">{{ kitchenUnseenCount() }}</span>
               }
             </button>
             <button (click)="tab.set('new')"
@@ -113,7 +129,7 @@ const REFRESH_MS = 6000;
                           <p class="text-xs mt-0.5" style="color:#94a3b8">{{ it.volume }}</p>
                         }
                       </div>
-                      <div class="flex-shrink-0">
+                      <div class="flex-shrink-0 flex items-center gap-2">
                         @if (it.kitchen_status === 'new') {
                           <button (click)="setStatus(it, 'cooking')"
                                   class="px-4 py-2 rounded-lg font-bold text-sm"
@@ -125,6 +141,18 @@ const REFRESH_MS = 6000;
                         } @else {
                           <span class="px-3 py-1.5 rounded-lg text-sm font-bold"
                                 style="background:#15803d;color:white">✓ Готов</span>
+                        }
+                        @if (barConfirmDelete() === it.id) {
+                          <button (click)="barRemoveItem(t.order_id, it)"
+                                  class="px-2 py-1.5 rounded-lg text-xs font-bold"
+                                  style="background:#ef4444;color:white">Да</button>
+                          <button (click)="barConfirmDelete.set(null)"
+                                  class="px-2 py-1.5 rounded-lg text-xs"
+                                  style="background:#334155;color:#94a3b8">Нет</button>
+                        } @else {
+                          <button (click)="barConfirmDelete.set(it.id)"
+                                  class="w-7 h-7 rounded-lg text-sm flex items-center justify-center"
+                                  style="background:#334155;color:#94a3b8" title="Удалить">✕</button>
                         }
                       </div>
                     </div>
@@ -170,35 +198,192 @@ const REFRESH_MS = 6000;
         }
       }
 
+      <!-- ── КУХНЯ (read-only) ─────────────────────────────────────── -->
+      @if (tab() === 'kitchen') {
+        @if (noShift()) {
+          <div class="flex-1 flex flex-col items-center justify-center text-center px-4">
+            <span class="text-6xl mb-4">😴</span>
+            <p class="text-xl font-bold mb-1">Смена не открыта</p>
+          </div>
+        } @else if (!kitchenActive().length && !kitchenReady().length) {
+          <div class="flex-1 flex flex-col items-center justify-center text-center px-4">
+            <span class="text-5xl mb-3">✅</span>
+            <p class="text-lg font-bold mb-1">Кухня свободна</p>
+            <p style="color:#64748b">Активных заказов нет</p>
+          </div>
+        } @else {
+
+          <!-- Готовые блюда — наверху, выделено зелёным -->
+          @if (kitchenReady().length) {
+            <section class="px-3 pt-3">
+              <p class="text-xs font-bold mb-2 uppercase tracking-wider" style="color:#22c55e">
+                ✅ Готово к выдаче ({{ kitchenReady().length }})
+              </p>
+              <div class="grid gap-2 mb-3"
+                   style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+                @for (t of kitchenReady(); track t.order_id) {
+                  <div class="rounded-xl p-3" style="background:#14532d;border:1px solid #166534">
+                    <div class="flex items-center gap-2 mb-2">
+                      <span class="font-bold" style="color:#4ade80">#{{ t.order_id }}</span>
+                      @if (t.table_number) {
+                        <span class="text-sm font-semibold px-2 py-0.5 rounded"
+                              style="background:rgba(0,0,0,0.3);color:#bbf7d0">{{ t.table_number }}</span>
+                      }
+                      <span class="text-xs ml-auto" style="color:#86efac">{{ t.waiter_name }}</span>
+                    </div>
+                    @for (it of t.items; track it.id) {
+                      <p class="text-sm" style="color:#bbf7d0">{{ it.quantity }}× {{ it.name }}</p>
+                    }
+                  </div>
+                }
+              </div>
+            </section>
+          }
+
+          <!-- В работе -->
+          @if (kitchenActive().length) {
+            <section class="px-3 pt-1 pb-4">
+              <p class="text-xs font-bold mb-2 uppercase tracking-wider" style="color:#f59e0b">
+                ⏳ Готовится ({{ kitchenActive().length }})
+              </p>
+              <div class="grid gap-2"
+                   style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+                @for (t of kitchenActive(); track t.order_id) {
+                  <div class="rounded-xl p-3"
+                       style="background:#1e293b;border:2px solid"
+                       [style.border-color]="kitchenUrgency(t.elapsed_min)">
+                    <div class="flex items-center gap-2 mb-2">
+                      <span class="font-bold" style="color:#f59e0b">#{{ t.order_id }}</span>
+                      @if (t.table_number) {
+                        <span class="text-sm font-semibold px-2 py-0.5 rounded"
+                              style="background:#334155;color:#f1f5f9">{{ t.table_number }}</span>
+                      }
+                      <span class="text-xs font-bold ml-auto" [style.color]="kitchenUrgency(t.elapsed_min)">
+                        ⏱ {{ t.elapsed_min }} мин
+                      </span>
+                    </div>
+                    @for (it of t.items; track it.id) {
+                      <div class="flex items-center justify-between text-sm py-0.5">
+                        <span>{{ it.quantity }}× {{ it.name }}</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full"
+                              [style]="it.kitchen_status === 'cooking'
+                                ? 'background:#f59e0b22;color:#f59e0b'
+                                : 'background:#1e293b;color:#64748b'">
+                          {{ it.kitchen_status === 'cooking' ? 'готовится' : 'ожидает' }}
+                        </span>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </section>
+          }
+        }
+      }
+
       <!-- ── СВОЙ ЗАКАЗ ───────────────────────────────────────────── -->
       @if (tab() === 'new') {
         <div class="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
 
           <!-- Menu panel -->
-          <div class="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
-            <div class="flex items-center gap-3 mb-2">
+          <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
+
+            <!-- Label / guests row -->
+            <div class="flex items-center gap-3 p-3 pb-2">
               <input [(ngModel)]="barLabel" class="field flex-1" placeholder="Стол / зона / стойка"
                      style="background:#1e293b;border-color:#334155;color:#f1f5f9"/>
               <input [(ngModel)]="barGuests" type="number" min="1" class="field w-20"
                      placeholder="Гостей" style="background:#1e293b;border-color:#334155;color:#f1f5f9"/>
             </div>
 
-            @for (cat of barMenu(); track cat.id) {
-              <div>
-                <p class="text-xs font-bold mb-2 uppercase tracking-wider" style="color:#64748b">
-                  {{ cat.name }}
-                </p>
-                <div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
-                  @for (item of cat.items; track item.id) {
-                    <button (click)="addToCart(item)"
-                            class="rounded-xl p-3 text-left transition-all active:scale-95"
-                            style="background:#1e293b;border:1px solid #334155">
-                      <p class="font-semibold text-sm leading-tight">{{ item.name }}</p>
-                      @if (item.volume) {
-                        <p class="text-xs mt-0.5" style="color:#64748b">{{ item.volume }}</p>
-                      }
-                      <p class="text-sm font-bold mt-1" style="color:#f59e0b">{{ item.price }} ₽</p>
+            <!-- Breadcrumb -->
+            @if (activeCat() !== 0) {
+              <div class="flex-shrink-0 flex items-center gap-1 px-3 pb-2 text-sm"
+                   style="color:#64748b">
+                <button (click)="goRoot()"
+                        class="font-semibold hover:underline" style="color:#f59e0b">Меню</button>
+                @if (activeDrink()) {
+                  <span>›</span>
+                  <button (click)="goCat()" class="font-semibold hover:underline"
+                          style="color:#f59e0b">{{ activeCatName() }}</button>
+                  <span>›</span>
+                  <span style="color:#f1f5f9">{{ activeDrink() }}</span>
+                } @else {
+                  <span>›</span>
+                  <span style="color:#f1f5f9">{{ activeCatName() }}</span>
+                }
+              </div>
+            }
+
+            <!-- ── Уровень 1: Сетка категорий ── -->
+            @if (activeCat() === 0) {
+              <div class="flex-1 min-h-0 overflow-y-auto p-3">
+                <div class="grid gap-3"
+                     style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))">
+                  @for (cat of barMenu(); track cat.id) {
+                    <button (click)="activeCat.set(cat.id)"
+                            class="flex flex-col items-center justify-center gap-2 rounded-2xl p-4 transition-all active:scale-95"
+                            style="background:#1e293b;border:1px solid #334155;min-height:110px">
+                      <span style="font-size:2.5rem;line-height:1">{{ cat.type === 'kitchen' ? '🍽' : '🍸' }}</span>
+                      <span class="font-bold text-sm text-center leading-tight uppercase tracking-wide"
+                            style="color:#f1f5f9">{{ cat.name }}</span>
+                      <span class="text-xs" style="color:#64748b">{{ cat.items.length }} поз.</span>
                     </button>
+                  }
+                </div>
+              </div>
+            }
+
+            <!-- ── Уровень 2: Папки по виду напитка/блюда ── -->
+            @if (activeCat() !== 0 && !activeDrink()) {
+              <div class="flex-1 min-h-0 overflow-y-auto p-3">
+                <div class="grid gap-3"
+                     style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))">
+                  @for (group of drinkGroups(); track group.name) {
+                    <button (click)="selectDrinkGroup(group)"
+                            class="flex flex-col items-center justify-center gap-2 rounded-2xl p-4 transition-all active:scale-95"
+                            style="background:#1e293b;border:1px solid #334155;min-height:110px">
+                      <span style="font-size:2.5rem;line-height:1">{{ group.items.length > 1 ? '📁' : '✚' }}</span>
+                      <span class="font-bold text-sm text-center leading-tight uppercase tracking-wide"
+                            style="color:#f1f5f9">{{ group.name }}</span>
+                      @if (group.items.length > 1) {
+                        <span class="text-xs" style="color:#64748b">{{ group.items.length }} вар.</span>
+                      } @else {
+                        <span class="text-xs font-bold" style="color:#f59e0b">{{ group.items[0].price }} ₽</span>
+                      }
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+
+            <!-- ── Уровень 3: Варианты по объёму ── -->
+            @if (activeCat() !== 0 && activeDrink()) {
+              <div class="flex-1 min-h-0 overflow-y-auto p-3">
+                <div class="grid gap-3"
+                     style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
+                  @for (item of drinkVariants(); track item.id) {
+                    <div class="flex flex-col rounded-2xl overflow-hidden relative"
+                         style="background:#1e293b;border:1px solid;min-height:120px"
+                         [style.border-color]="item.is_out_of_stock ? '#ef4444' : '#334155'">
+                      <button (click)="!item.is_out_of_stock && addToCart(item)"
+                              class="flex flex-col items-center justify-center gap-2 p-5 flex-1 transition-all active:scale-95"
+                              [style.opacity]="item.is_out_of_stock ? '0.4' : '1'"
+                              [style.cursor]="item.is_out_of_stock ? 'not-allowed' : 'pointer'">
+                        <span style="font-size:2rem;line-height:1">🥃</span>
+                        <span class="font-bold text-base" style="color:#f1f5f9">
+                          {{ item.volume || 'Порция' }}
+                        </span>
+                        <span class="font-bold text-lg" style="color:#f59e0b">{{ item.price }} ₽</span>
+                      </button>
+                      <button (click)="toggleStock(item)"
+                              class="py-1.5 text-xs font-bold text-center"
+                              [style]="item.is_out_of_stock
+                                ? 'background:#ef444422;color:#ef4444'
+                                : 'background:#1e293b;color:#475569;border-top:1px solid #334155'">
+                        {{ item.is_out_of_stock ? '🔴 Закончилось' : 'Отметить «нет»' }}
+                      </button>
+                    </div>
                   }
                 </div>
               </div>
@@ -232,7 +417,7 @@ const REFRESH_MS = 6000;
                 </div>
               }
               @if (!cartLines().length) {
-                <p class="text-sm py-4 text-center" style="color:#475569">Добавьте напитки</p>
+                <p class="text-sm py-4 text-center" style="color:#475569">Добавьте позиции</p>
               }
             </div>
 
@@ -241,10 +426,51 @@ const REFRESH_MS = 6000;
                 <span style="color:#94a3b8">Итого</span>
                 <span class="font-bold text-lg" style="color:#f59e0b">{{ cartTotal() | number:'1.0-0' }} ₽</span>
               </div>
-              <button (click)="submitOrder()" [disabled]="!cartLines().length || submitting()"
+              <button (click)="openPayModal()" [disabled]="!cartLines().length || submitting()"
                       class="w-full py-3 rounded-xl font-bold text-sm"
                       style="background:#f59e0b;color:#0f172a">
                 {{ submitting() ? 'Отправка...' : 'Принять заказ' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- ── Модальное окно оплаты ──────────────────────────────── -->
+      @if (payModal()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4"
+             style="background:rgba(0,0,0,0.7)" (click)="payModal.set(false)">
+          <div class="rounded-2xl p-6 w-full max-w-sm"
+               style="background:#1e293b;border:1px solid #334155"
+               (click)="$event.stopPropagation()">
+            <p class="font-bold text-lg mb-1">Способ оплаты</p>
+            <p class="text-sm mb-4" style="color:#64748b">
+              Итого: <span class="font-bold" style="color:#f59e0b">{{ cartTotal() | number:'1.0-0' }} ₽</span>
+            </p>
+
+            <div class="grid grid-cols-3 gap-2 mb-5">
+              @for (p of payOptions; track p.value) {
+                <button (click)="selectedPay = p.value"
+                        class="py-3 rounded-xl font-bold text-sm flex flex-col items-center gap-1 transition-all"
+                        [style]="selectedPay === p.value
+                          ? 'background:#f59e0b;color:#0f172a'
+                          : 'background:#0f172a;color:#94a3b8;border:1px solid #334155'">
+                  <span class="text-xl">{{ p.icon }}</span>
+                  {{ p.label }}
+                </button>
+              }
+            </div>
+
+            <div class="flex gap-2">
+              <button (click)="payModal.set(false)"
+                      class="flex-1 py-2.5 rounded-xl font-semibold text-sm"
+                      style="background:#0f172a;color:#94a3b8;border:1px solid #334155">
+                Отмена
+              </button>
+              <button (click)="submitOrder()"
+                      class="flex-1 py-2.5 rounded-xl font-bold text-sm"
+                      style="background:#f59e0b;color:#0f172a">
+                Принять и чек
               </button>
             </div>
           </div>
@@ -257,8 +483,27 @@ export class BartenderPage implements OnInit, OnDestroy {
   readonly auth  = inject(AuthService);
   private api    = inject(ApiService);
   private toast  = inject(ToastService);
+  private printer = inject(ReceiptPrintService);
 
-  tab        = signal<'orders' | 'new'>('orders');
+  barConfirmDelete = signal<number | null>(null);
+
+  barRemoveItem(orderId: number, it: KitchenItem) {
+    this.barConfirmDelete.set(null);
+    this.api.removeItemFromOrder(orderId, it.id).subscribe({
+      next: () => this.load(),
+      error: () => this.toast.error('Не удалось удалить позицию'),
+    });
+  }
+
+  toggleStock(item: MenuItem) {
+    const prev = item.is_out_of_stock;
+    item.is_out_of_stock = !prev;
+    this.api.toggleOutOfStock(item.id).subscribe({
+      error: () => { item.is_out_of_stock = prev; this.toast.error('Ошибка'); },
+    });
+  }
+
+  tab        = signal<'orders' | 'new' | 'kitchen'>('orders');
   active     = signal<KitchenTicket[]>([]);
   ready      = signal<KitchenTicket[]>([]);
   noShift    = signal(false);
@@ -267,12 +512,55 @@ export class BartenderPage implements OnInit, OnDestroy {
   showReady  = signal(false);
   soundOn    = signal(true);
 
+  // kitchen readiness (read-only view for bartender)
+  kitchenActive    = signal<KitchenTicket[]>([]);
+  kitchenReady     = signal<KitchenTicket[]>([]);
+  showKitchenReady = signal(false);
+  kitchenUnseenCount = signal(0);
+  private kitchenReadySeenIds = new Set<number>();
+
   // own order
-  barMenu    = signal<{ id: number; name: string; items: MenuItem[] }[]>([]);
-  barLabel   = '';
-  barGuests  = 1;
+  barMenu      = signal<{ id: number; name: string; type: string; items: MenuItem[] }[]>([]);
+  barLabel     = '';
+  barGuests    = 1;
   private cart = signal<Map<number, { item: MenuItem; qty: number }>>(new Map());
-  submitting = signal(false);
+  submitting   = signal(false);
+
+  // navigation: 0 = root, >0 = inside category
+  activeCat     = signal<number>(0);
+  // navigation: '' = drink-type grid, else = drink name selected
+  activeDrink   = signal<string>('');
+
+  activeCatName = computed(() =>
+    this.barMenu().find(c => c.id === this.activeCat())?.name ?? ''
+  );
+  activeCatItems = computed(() =>
+    this.barMenu().find(c => c.id === this.activeCat())?.items ?? []
+  );
+
+  // Group items inside a category by drink name (level 2 folders)
+  drinkGroups = computed(() => {
+    const map = new Map<string, MenuItem[]>();
+    for (const item of this.activeCatItems()) {
+      const key = item.name;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
+    }
+    return [...map.entries()].map(([name, items]) => ({ name, items }));
+  });
+
+  // Items for the selected drink name (level 3 — by volume)
+  drinkVariants = computed(() =>
+    this.activeCatItems().filter(i => i.name === this.activeDrink())
+  );
+
+  goRoot() { this.activeCat.set(0); this.activeDrink.set(''); }
+  goCat()  { this.activeDrink.set(''); }
+
+  // payment modal
+  payModal    = signal(false);
+  selectedPay: PaymentMethod = 'cash';
+  payOptions  = PAY_OPTIONS;
 
   cartLines = computed(() => [...this.cart().values()]);
   cartTotal = computed(() => this.cartLines().reduce((s, l) => s + l.item.price * l.qty, 0));
@@ -311,12 +599,32 @@ export class BartenderPage implements OnInit, OnDestroy {
       },
       error: () => this.loading.set(false),
     });
+    this.api.getKitchenOrders('kitchen').subscribe({
+      next: d => {
+        this.kitchenActive.set(d.active);
+        this.kitchenReady.set(d.ready);
+        const unseen = d.ready.filter(t => !this.kitchenReadySeenIds.has(t.order_id)).length;
+        this.kitchenUnseenCount.set(unseen);
+      },
+    });
   }
 
   loadMenu() {
     this.api.getMenuByCategory().subscribe(cats => {
-      this.barMenu.set(cats.filter(c => c.type === 'bar'));
+      this.barMenu.set(
+        cats.filter(c => c.type === 'bar' || c.type === 'kitchen')
+            .map(c => ({ id: c.id, name: c.name, type: c.type, items: c.items }))
+      );
+      this.goRoot();
     });
+  }
+
+  selectDrinkGroup(group: { name: string; items: MenuItem[] }) {
+    if (group.items.length === 1) {
+      this.addToCart(group.items[0]);
+    } else {
+      this.activeDrink.set(group.name);
+    }
   }
 
   private detectNew(active: KitchenTicket[]) {
@@ -362,8 +670,15 @@ export class BartenderPage implements OnInit, OnDestroy {
     });
   }
 
+  openPayModal() {
+    if (!this.cartLines().length) return;
+    this.selectedPay = 'cash';
+    this.payModal.set(true);
+  }
+
   submitOrder() {
     if (!this.cartLines().length || this.submitting()) return;
+    this.payModal.set(false);
     this.submitting.set(true);
     this.api.getCurrentShift().subscribe({
       next: shift => {
@@ -375,20 +690,41 @@ export class BartenderPage implements OnInit, OnDestroy {
           notes: '',
           items: this.cartLines().map(l => ({ menu_item: l.item.id, quantity: l.qty })),
         }).subscribe({
-          next: () => {
-            this.submitting.set(false);
-            this.cart.set(new Map());
-            this.barLabel = '';
-            this.barGuests = 1;
-            this.tab.set('orders');
-            this.toast.success('Заказ принят');
-            this.load();
+          next: order => {
+            this.api.closeOrder(order.id, this.selectedPay).subscribe({
+              next: res => {
+                this.submitting.set(false);
+                this.cart.set(new Map());
+                this.barLabel = '';
+                this.barGuests = 1;
+                this.tab.set('orders');
+                this.toast.success('Заказ принят');
+                this.load();
+                this.printer.printHardware(res.receipt);
+              },
+              error: () => {
+                this.submitting.set(false);
+                this.toast.error('Ошибка при закрытии заказа');
+              },
+            });
           },
           error: () => { this.submitting.set(false); this.toast.error('Ошибка при создании заказа'); },
         });
       },
       error: () => { this.submitting.set(false); this.toast.error('Нет открытой смены'); },
     });
+  }
+
+  openKitchenTab() {
+    this.tab.set('kitchen');
+    this.kitchenReady().forEach(t => this.kitchenReadySeenIds.add(t.order_id));
+    this.kitchenUnseenCount.set(0);
+  }
+
+  kitchenUrgency(min: number): string {
+    if (min >= 15) return '#ef4444';
+    if (min >= 8)  return '#f59e0b';
+    return '#22c55e';
   }
 
   itemBg(status: string): string {

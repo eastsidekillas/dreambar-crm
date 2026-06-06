@@ -21,14 +21,26 @@ class MenuCategory(models.Model):
 
 
 class MenuItem(models.Model):
-    category    = models.ForeignKey(MenuCategory, on_delete=models.CASCADE, related_name='items')
-    name        = models.CharField(max_length=200)
-    volume      = models.CharField(max_length=50, blank=True, verbose_name='Объём/вес')
-    description = models.CharField(max_length=300, blank=True, verbose_name='Состав')
-    price       = models.DecimalField(max_digits=10, decimal_places=2)
-    cost_price  = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Себестоимость')
-    is_active   = models.BooleanField(default=True)
-    sort_order  = models.PositiveIntegerField(default=0)
+    STATION_CHOICES = [
+        ('bar',     'Бар'),
+        ('kitchen', 'Кухня'),
+        ('hookah',  'Кальян'),
+    ]
+
+    category      = models.ForeignKey(MenuCategory, on_delete=models.CASCADE, related_name='items')
+    name          = models.CharField(max_length=200)
+    volume        = models.CharField(max_length=50, blank=True, verbose_name='Объём/вес')
+    description   = models.CharField(max_length=300, blank=True, verbose_name='Состав')
+    price         = models.DecimalField(max_digits=10, decimal_places=2)
+    cost_price    = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Себестоимость')
+    is_active       = models.BooleanField(default=True)
+    is_out_of_stock = models.BooleanField(default=False, verbose_name='Закончилось')
+    sort_order      = models.PositiveIntegerField(default=0)
+    print_station   = models.CharField(
+        max_length=20, choices=STATION_CHOICES, blank=True, default='',
+        verbose_name='Станция приготовления',
+        help_text='Переопределяет категорию. Оставьте пустым — будет использоваться тип категории.',
+    )
 
     class Meta:
         ordering = ['sort_order', 'name']

@@ -185,6 +185,11 @@ input, button, select, textarea { font-family: inherit; }
     border-color: var(--color-gold);
     background: var(--color-gold-light);
   }
+  .menu-card.out-of-stock {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .menu-card.out-of-stock:active { transform: none; }
 
   /* ── Section heading ──────────────────────────────── */
   .section-title {
