@@ -48,6 +48,13 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
 
+  // ── Bartender ────────────────────────────────────────────────────
+  {
+    path: 'bartender',
+    loadComponent: () => import('./pages/bartender/bartender.page').then(m => m.BartenderPage),
+    canActivate: [authGuard],
+  },
+
   // ── Admin ────────────────────────────────────────────────────────
   {
     path: 'admin',
@@ -74,6 +81,10 @@ export const routes: Routes = [
       {
         path: 'export',
         loadComponent: () => import('./pages/admin/export/export.page').then(m => m.ExportComponent)
+      },
+      {
+        path: 'printers',
+        loadComponent: () => import('./pages/admin/printers/printers.page').then(m => m.PrintersPage)
       },
     ]
   },

@@ -134,6 +134,35 @@ def dispatch(job) -> None:
     job.save(update_fields=['status', 'sent_at', 'error'])
 
 
+def build_test_page(printer) -> bytes:
+    from django.utils import timezone
+    w = printer.width
+    out = bytearray()
+    out += INIT + _codepage_select()
+    out += ALIGN_CENTER + BOLD_ON + DOUBLE_ON
+    out += _enc("ТЕСТ ПРИНТЕРА") + FEED
+    out += DOUBLE_OFF + BOLD_OFF
+    out += _enc("-" * w) + FEED
+    out += ALIGN_LEFT
+    out += _line("Принтер", printer.name, w)
+    out += _line("Подключение", printer.get_connection_display(), w)
+    if printer.connection == 'network':
+        out += _line("Адрес", f"{printer.host}:{printer.port}", w)
+    out += _line("Ширина", f"{w} симв.", w)
+    out += _line("Время", timezone.localtime().strftime("%d.%m.%Y %H:%M:%S"), w)
+    out += _enc("-" * w) + FEED
+    out += ALIGN_CENTER + _enc("Принтер работает!") + FEED
+    out += FEED * 3 + CUT
+    return bytes(out)
+
+
+def send_to_printer(printer, payload: bytes) -> None:
+    if printer.connection == 'network':
+        send_network(printer.host, printer.port, payload)
+    else:
+        raise RuntimeError('Тестовая печать через агент не поддерживается — агент сам заберёт задание из очереди.')
+
+
 def print_receipt(receipt, printer=None):
     from apps.orders.models import PrintJob
 

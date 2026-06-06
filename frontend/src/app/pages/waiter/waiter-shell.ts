@@ -17,55 +17,42 @@ interface Tab { path: string; label: string; icon: string; }
   standalone: true,
   imports: [CommonModule, RouterModule, RouterOutlet, CartDrawerComponent, BdToastComponent],
   template: `
-    <div class="flex flex-col min-h-screen" style="background:var(--color-bg)">
+    <div class="flex flex-col" style="height:100dvh;background:var(--color-bg)">
 
       <!-- ── Header ───────────────────────────────────── -->
-      <header class="sticky top-0 z-40 px-4 py-3 flex items-center justify-between"
-              style="background:white;border-bottom:1px solid var(--color-border);box-shadow:0 1px 4px rgba(0,0,0,0.06)">
-        <div class="flex items-center gap-2">
-          <span class="text-xl">🍸</span>
-          <div class="leading-tight">
-            <p class="font-bold text-sm">BAR DREAM</p>
-            <p class="text-xs" style="color:var(--color-muted)">{{ auth.user()?.display_name }} · {{ roleLabel() }}</p>
-          </div>
-        </div>
+      <header class="flex-shrink-0 z-40 px-4 flex items-center justify-between"
+              style="height:52px;background:white;border-bottom:1px solid var(--color-border)">
 
+        <!-- Left: shift status -->
         <div class="flex items-center gap-2">
           @if (shift()) {
-            <span class="badge badge-green">
-              <span class="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse"></span>
-              Смена
+            <span class="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
+                  style="background:var(--color-green-bg);color:var(--color-green)">
+              <span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background:var(--color-green)"></span>
+              {{ formatDate(shift()!.date) }}
+            </span>
+            <span class="text-xs font-bold" style="color:var(--color-gold-hover)">
+              {{ shift()!.total_revenue | number:'1.0-0' }} ₽
             </span>
           } @else {
-            <span class="badge badge-gray">Нет смены</span>
+            <button (click)="openShift()" class="btn btn-primary btn-sm">Открыть смену</button>
           }
-          <button (click)="logout()" class="text-sm" style="color:var(--color-muted)">Выйти</button>
+        </div>
+
+        <!-- Right: name + logout -->
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-medium truncate max-w-32" style="color:var(--color-text)">
+            {{ auth.user()?.display_name }}
+          </span>
+          <button (click)="logout()" class="text-xs px-2.5 py-1.5 rounded-lg"
+                  style="background:var(--color-bg);color:var(--color-muted);border:1px solid var(--color-border)">
+            Выйти
+          </button>
         </div>
       </header>
 
-      <!-- ── Shift info bar ──────────────────────────── -->
-      @if (shift()) {
-        <div class="px-4 py-2 flex items-center justify-between text-xs"
-             style="background:var(--color-gold-light);border-bottom:1px solid var(--color-gold-mid)">
-          <span style="color:var(--color-gold-hover)">
-            📅 {{ formatDate(shift()!.date) }} &nbsp;·&nbsp;
-            {{ shift()!.orders_count }} зак. &nbsp;·&nbsp;
-            {{ shift()!.tickets_count }} бил.
-          </span>
-          <span class="font-bold" style="color:var(--color-gold-hover)">
-            {{ shift()!.total_revenue | number:'1.0-0' }} ₽
-          </span>
-        </div>
-      } @else {
-        <div class="px-4 py-2 flex items-center justify-between"
-             style="background:#FEF3C7;border-bottom:1px solid #FDE68A">
-          <span class="text-xs" style="color:var(--color-amber)">Смена не открыта.</span>
-          <button (click)="openShift()" class="btn btn-primary btn-sm">Открыть смену</button>
-        </div>
-      }
-
       <!-- ── Content ─────────────────────────────────── -->
-      <main class="flex-1 overflow-y-auto p-4" style="padding-bottom:80px">
+      <main class="flex-1 min-h-0 overflow-y-auto p-3" style="padding-bottom:80px">
         <router-outlet />
       </main>
 
@@ -149,7 +136,7 @@ export class WaiterShell implements OnInit {
     switch (this.auth.role()) {
       case 'wardrobe':  return [tickets, history];
       case 'admin':     return [tables, order, tickets, history, admin];
-      default:          return [tables, order, tickets, history]; // waiter, bartender
+      default:          return [tables, order, history]; // waiter, bartender
     }
   });
 

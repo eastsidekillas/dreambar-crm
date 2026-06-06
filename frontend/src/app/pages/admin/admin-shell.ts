@@ -101,6 +101,7 @@ export class AdminShell {
     { path: '/admin/employees', label: 'Сотрудники', icon: '👥' },
     { path: '/admin/shifts',    label: 'Смены',      icon: '📅' },
     { path: '/admin/menu',      label: 'Меню',       icon: '🍽' },
+    { path: '/admin/printers',  label: 'Принтеры',   icon: '🖨' },
     { path: '/admin/export',    label: 'Экспорт',    icon: '📥' },
   ];
   constructor(private auth: AuthService) {}

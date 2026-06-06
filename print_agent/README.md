@@ -4,59 +4,93 @@
 крутится на сервере. Для **Ethernet-принтера агент не нужен** — backend печатает
 сам по сети.
 
-Распространяется как **один .exe + config.ini** — Python на кассовом ПК не нужен.
+Распространяется как **два .exe + config.ini** — Python на кассовом ПК не нужен.
+
+## Файлы
+
+| Файл | Назначение |
+|------|-----------|
+| `dreambar-print-agent.exe` | Агент (фоновый процесс / служба) |
+| `dreambar-setup.exe` | Конфигуратор с GUI — настройка и тестовый запуск |
+| `config.ini` | Настройки (создаётся из `config.ini.example`) |
 
 ## Как это работает
 
 ```
 Angular → POST /api/receipts/{id}/print/ → backend кладёт задание в очередь
-                                            (принтер с connection=agent)
+                                           (принтер с connection=agent)
 agent.exe на кассовом ПК → опрашивает /api/print/agent/jobs/ → печатает → ack
 ```
+
+## Быстрый старт (Windows)
+
+1. Установить драйвер принтера АТОЛ — принтер появится в «Устройства и принтеры».
+2. Положить в одну папку `dreambar-print-agent.exe`, `dreambar-setup.exe`, `config.ini`.
+3. Открыть `dreambar-setup.exe` → заполнить поля → **Сохранить config.ini**.
+4. Нажать **▶ Запустить агента** — агент запустится и выведет лог в окне конфигуратора.
+
+Для **постоянной работы в фоне** (без открытого окна) → настроить службу (см. ниже).
 
 ## Настройка backend (один раз)
 
 В админке Django (`/admin/`) → **Принтеры** → добавить:
 - **Способ подключения:** `USB через локальный агент`
-- **Ключ агента:** длинный секрет (его впишем в config.ini)
+- **Ключ агента:** длинный секрет (его вписать в config.ini → agent_key)
 - **По умолчанию:** включить, если это основной принтер
 
-Запомните `id` принтера (виден в URL записи).
+Запомните `id` принтера (виден в URL записи) — это `printer_id` в config.ini.
 
-## Запуск на кассовом ПК (готовый .exe)
+## Режимы печати (config.ini → `mode`)
 
-1. Установить драйвер принтера АТОЛ — принтер появится в «Устройства и принтеры».
-2. Положить в одну папку `dreambar-print-agent.exe` и `config.ini`.
-3. В `config.ini` (см. `config.ini.example`) указать `backend_url`, `printer_id`,
-   `agent_key`, `windows_printer` (имя принтера как в системе).
-4. Запустить `dreambar-print-agent.exe`.
-
-Это всё. Печать идёт через установленный драйвер — libusb/Zadig не нужны.
-
-### Режимы печати (config.ini → `mode`)
-
-| mode      | когда                                  | что указать                  |
-|-----------|----------------------------------------|------------------------------|
+| mode | когда | что указать |
+|------|-------|-------------|
 | `windows` | обычный случай на Windows (рекомендуется) | `windows_printer` = имя принтера |
-| `serial`  | принтер как COM-порт (USE = RS-232)    | `serial_port`, `serial_baud` |
-| `usb`     | прямой USB через libusb (нужен Zadig)  | `usb_vendor`, `usb_product`  |
-| `raw`     | Linux, символьное устройство           | `raw_path` = /dev/usb/lp0    |
+| `serial` | принтер как COM-порт (USE = RS-232) | `serial_port`, `serial_baud` |
+| `usb` | прямой USB через libusb (нужен Zadig) | `usb_vendor`, `usb_product` |
+| `raw` | Linux, символьное устройство | `raw_path` = /dev/usb/lp0 |
 
-## Сборка .exe (один раз, на Windows-машине)
+## Автозапуск при включении ПК
+
+### Windows — служба через NSSM (рекомендуется)
+
+1. Скачать [NSSM](https://nssm.cc/download), положить `nssm.exe` в папку `install/`.
+2. Запустить `install\install-windows.bat` от имени Администратора.
+
+Управление службой: `services.msc` (искать «DreamBarPrintAgent»).
+
+Для удаления: `nssm remove DreamBarPrintAgent confirm`
+
+### Windows — автозагрузка (без прав администратора)
+
+`Win+R` → `shell:startup` → положить ярлык на `dreambar-print-agent.exe`.
+
+### Linux — systemd
+
+```bash
+sudo bash install/install-linux.sh
+# Логи: journalctl -u dreambar-print-agent -f
+```
+
+### macOS — launchd
+
+```bash
+bash install/install-macos.sh
+# Логи: tail -f ~/Library/DreamBarPrintAgent/agent.log
+```
+
+## Сборка .exe (Windows, один раз)
 
 ```bat
 py -m pip install -r requirements.txt
 build.bat
 ```
-Результат: `dist\dreambar-print-agent.exe`. Раздавайте его вместе с `config.ini`.
 
-## Автозапуск при включении ПК
-
-Поместите ярлык на `dreambar-print-agent.exe` в папку автозагрузки:
-`Win+R` → `shell:startup` → положить ярлык. Либо оформите как службу через NSSM.
+Результат в `dist/`: `dreambar-print-agent.exe` + `dreambar-setup.exe`.
 
 ## Диагностика
 
-- Статусы заданий и тексты ошибок видны в админке → **Задания печати**.
-- Агент устойчив к обрыву сети (повторяет опрос) и к ошибкам печати (помечает
-  задание `error`). Окно агента показывает лог `[ok]/[print-fail]/[net]`.
+- Статусы заданий и тексты ошибок видны в **Принтеры** → **Задания печати** (Django admin).
+- Агент устойчив к обрыву сети (повторяет опрос каждые N секунд).
+- После перезапуска агента задания, которые не были подтверждены, автоматически
+  возвращаются в очередь и печатаются снова.
+- Лог агента: окно конфигуратора, или `agent.log` рядом с exe (при работе как служба).

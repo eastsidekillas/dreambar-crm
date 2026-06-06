@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, computed, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -6,7 +6,7 @@ import { ApiService } from '../../../core/services/api.service';
 import { CartService } from '../../../features/cart/cart.service';
 import { ReceiptPrintService } from '../../../features/receipt/receipt-print.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
-import { Order, OrderItem, PaymentMethod } from '../../../core/models';
+import { Order, OrderItem, PaymentMethod, Receipt } from '../../../core/models';
 
 const PAYMENTS: { value: PaymentMethod; label: string; icon: string }[] = [
   { value: 'cash',     label: 'Наличные', icon: '💵' },
@@ -14,123 +14,116 @@ const PAYMENTS: { value: PaymentMethod; label: string; icon: string }[] = [
   { value: 'transfer', label: 'Перевод',  icon: '📲' },
 ];
 
+const POLL_MS = 10_000;
+
 @Component({
   selector: 'app-tables-page',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
     <div class="space-y-3 pb-4">
-      <div class="flex items-center justify-between">
-        <h2 class="font-bold text-base">Открытые столы</h2>
-        <span class="badge badge-gray">{{ orders().length }} занято</span>
-      </div>
 
-      <button (click)="openNewTable()" class="btn btn-primary btn-full" style="height:48px">
+      <button (click)="openNewTable()" class="btn btn-primary btn-full" style="height:48px;font-size:0.95rem">
         ＋ Новый стол
+        @if (orders().length) {
+          <span class="text-xs font-normal opacity-70">· {{ orders().length }} занято</span>
+        }
       </button>
 
       @for (o of orders(); track o.id) {
-        <div class="card">
-          <!-- Header -->
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center gap-2">
-              <span class="text-lg">🍽</span>
-              <div class="leading-tight">
-                <p class="font-bold text-sm">{{ o.table_number || 'Без стола' }}</p>
-                <p class="text-xs" style="color:var(--color-muted)">
-                  @if (o.guests) { 👥 {{ o.guests }} · }
-                  {{ o.waiter_name }} · 🕐 {{ elapsed(o) }}
-                </p>
-              </div>
+        <div class="overflow-hidden"
+             style="background:white;border:1px solid var(--color-border);border-radius:12px">
+
+          <!-- ── Table header ───────────────────────── -->
+          <div class="flex items-center justify-between px-3 py-2.5"
+               style="background:var(--color-gold-light);border-bottom:1px solid var(--color-gold-mid)">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="font-bold text-base truncate">{{ o.table_number || 'Стол' }}</span>
+              @if (o.guests) {
+                <span class="text-xs flex-shrink-0" style="color:var(--color-muted)">· 👥 {{ o.guests }}</span>
+              }
+              @if (readyCount(o) > 0) {
+                <span class="flex-shrink-0 px-1.5 py-0.5 rounded-full text-xs font-bold animate-pulse"
+                      style="background:#16a34a;color:white">
+                  ✓ {{ readyCount(o) }}
+                </span>
+              }
             </div>
-            <span class="font-bold" style="color:var(--color-gold-hover)">
-              {{ unpaidTotal(o) | number:'1.0-0' }} ₽
-            </span>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="text-xs" style="color:var(--color-muted)">{{ elapsed(o) }}</span>
+              <span class="font-bold text-sm" style="color:var(--color-gold-hover)">
+                {{ unpaidTotal(o) | number:'1.0-0' }} ₽
+              </span>
+            </div>
           </div>
 
-          <!-- View toggle -->
+          <!-- ── Per-guest items ─────────────────────── -->
           @if (unpaidItems(o).length) {
-            <div class="flex gap-2 mb-2">
-              <button (click)="setSplitView(o.id, false)" class="btn btn-sm" style="flex:1"
-                      [class]="!splitView(o.id) ? 'btn-primary' : 'btn-outline'">Общий счёт</button>
-              <button (click)="setSplitView(o.id, true)" class="btn btn-sm" style="flex:1"
-                      [class]="splitView(o.id) ? 'btn-primary' : 'btn-outline'">Раздельно</button>
-            </div>
-          }
+            @for (grp of guestGroups(o); track grp.guest) {
+              <div class="px-3 py-2" style="border-bottom:1px solid var(--color-border)">
 
-          <!-- Items: flat (общий) -->
-          @if (!splitView(o.id)) {
-            <div class="space-y-1 mb-3">
-              @for (item of unpaidItems(o); track item.id) {
-                <div class="flex items-center gap-2 text-sm">
-                  <span class="flex-1" style="color:var(--color-text)">{{ item.menu_item_name }}</span>
-                  <span style="color:var(--color-muted)">× {{ item.quantity }}</span>
-                  <span class="font-medium" style="color:var(--color-gold-hover); min-width:56px; text-align:right">
-                    {{ item.subtotal | number:'1.0-0' }} ₽
+                <div class="flex items-center justify-between mb-1">
+                  <span class="section-title">{{ guestLabel(grp.guest) }}</span>
+                  <span class="text-xs font-bold" style="color:var(--color-gold-hover)">
+                    {{ grp.total | number:'1.0-0' }} ₽
                   </span>
                 </div>
-              }
-              @if (!unpaidItems(o).length) {
-                <p class="text-xs" style="color:var(--color-muted)">Все позиции оплачены, ожидается закрытие.</p>
-              }
-            </div>
-          }
 
-          <!-- Items: grouped by guest (раздельно) -->
-          @if (splitView(o.id)) {
-            <div class="space-y-2 mb-3">
-              @for (grp of guestGroups(o); track grp.guest) {
-                <div class="rounded-lg p-2" style="background:var(--color-bg)">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-bold" style="color:var(--color-text)">{{ guestLabel(grp.guest) }}</span>
-                    <span class="text-xs font-bold" style="color:var(--color-gold-hover)">{{ grp.total | number:'1.0-0' }} ₽</span>
+                @for (item of grp.items; track item.id) {
+                  <div class="flex items-center gap-2 py-0.5">
+                    <span class="flex-1 text-sm truncate" style="color:var(--color-text)">
+                      {{ item.menu_item_name }}
+                    </span>
+                    <span class="text-xs" style="color:var(--color-muted)">× {{ item.quantity }}</span>
+                    @if (item.kitchen_status === 'ready') {
+                      <span class="text-xs font-bold" style="color:#16a34a">✓</span>
+                    } @else if (item.kitchen_status === 'cooking') {
+                      <span class="text-xs" style="color:var(--color-amber)">⏳</span>
+                    }
                   </div>
-                  @for (item of grp.items; track item.id) {
-                    <div class="flex items-center gap-2 text-sm py-0.5">
-                      <span class="flex-1 truncate" style="color:var(--color-text)">{{ item.menu_item_name }}</span>
-                      <span style="color:var(--color-muted)">× {{ item.quantity }}</span>
-                    </div>
-                    <!-- move between guests -->
-                    <div class="flex gap-1 flex-wrap pb-1.5">
-                      @for (g of guestOptions(o); track g) {
-                        <button (click)="moveItem(o, item, g)"
-                                class="px-2 h-6 rounded-full text-xs font-semibold"
-                                [style.background]="item.guest_no === g ? 'var(--color-gold)' : 'transparent'"
-                                [style.color]="item.guest_no === g ? 'white' : 'var(--color-muted)'"
-                                [style.border]="'1px solid var(--color-border)'">{{ g === 0 ? 'Общий' : g }}</button>
-                      }
-                    </div>
-                  }
-                </div>
-              }
+                }
+              </div>
+            }
+          } @else {
+            <div class="px-3 py-3 text-xs text-center"
+                 style="color:var(--color-muted);border-bottom:1px solid var(--color-border)">
+              Все позиции оплачены
             </div>
           }
 
-          <!-- Already issued receipts (partial split) -->
+          <!-- ── Issued receipts ────────────────────── -->
           @if (o.receipts.length) {
-            <div class="flex flex-wrap gap-1 mb-3">
+            <div class="flex flex-wrap gap-1 px-3 py-2" style="border-bottom:1px solid var(--color-border)">
               @for (r of o.receipts; track r.id) {
-                <button (click)="reprint(r.id)" class="badge badge-green" style="cursor:pointer">
+                <button (click)="reprint(r)" class="badge badge-green" style="cursor:pointer">
                   🧾 {{ r.code }} · {{ r.total | number:'1.0-0' }} ₽
                 </button>
               }
             </div>
           }
 
-          <!-- Actions -->
-          <div class="flex gap-2">
-            <button (click)="addMore(o)" class="btn btn-outline" style="flex:1">➕ Дозаказ</button>
+          <!-- ── Actions ───────────────────────────── -->
+          <div style="display:grid;grid-template-columns:1fr 1fr">
+            <button (click)="addMore(o)"
+                    class="flex items-center justify-center gap-1 py-3 font-semibold text-sm"
+                    style="border-right:1px solid var(--color-border);color:var(--color-text)">
+              ➕ Дозаказ
+            </button>
             <button (click)="openCheckout(o)" [disabled]="!unpaidItems(o).length"
-                    class="btn btn-primary" style="flex:1">💳 Счёт</button>
+                    class="flex items-center justify-center gap-1 py-3 font-bold text-sm"
+                    [style]="unpaidItems(o).length
+                      ? 'background:var(--color-gold);color:white'
+                      : 'color:var(--color-muted)'">
+              💳 Счёт
+            </button>
           </div>
         </div>
       }
 
       @if (!orders().length) {
-        <div class="card text-center py-12">
+        <div class="text-center py-16">
           <span class="text-4xl block mb-3">🍽</span>
           <p style="color:var(--color-muted)">Нет открытых столов</p>
-          <button (click)="openNewTable()" class="btn btn-primary btn-sm mt-3">Открыть стол</button>
         </div>
       }
     </div>
@@ -167,95 +160,186 @@ const PAYMENTS: { value: PaymentMethod; label: string; icon: string }[] = [
     <!-- ── Checkout modal ─────────────────────────────── -->
     @if (checkout(); as co) {
       <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closeCheckout()"></div>
-      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
-           style="background:white;max-height:92vh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
+      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl overflow-hidden"
+           style="background:white;max-height:92dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
 
-        <div class="flex justify-center pt-3 pb-1 cursor-pointer" (click)="closeCheckout()">
+        <!-- Handle -->
+        <div class="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer" (click)="closeCheckout()">
           <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
         </div>
 
-        <div class="flex items-center justify-between px-4 py-3" style="border-bottom:1px solid var(--color-border)">
-          <h2 class="font-bold text-base">💳 Счёт · {{ co.table_number || 'Стол' }}</h2>
+        <!-- Title row -->
+        <div class="flex-shrink-0 flex items-center justify-between px-4 py-3"
+             style="border-bottom:1px solid var(--color-border)">
+          <div class="flex items-center gap-2">
+            @if (checkoutStep() === 'pay') {
+              <button (click)="checkoutStep.set('mode')"
+                      class="text-sm font-semibold" style="color:var(--color-muted)">← Назад</button>
+            }
+            <h2 class="font-bold text-base">💳 {{ co.table_number || 'Стол' }}</h2>
+          </div>
           <button (click)="closeCheckout()" class="btn btn-ghost btn-sm">✕</button>
         </div>
 
-        <!-- mode toggle -->
-        <div class="px-4 pt-3">
-          <div class="flex gap-2">
-            <button (click)="setSplit(false)" class="btn btn-sm" style="flex:1"
-                    [class]="!split() ? 'btn-primary' : 'btn-outline'">Один чек</button>
-            <button (click)="setSplit(true)" class="btn btn-sm" style="flex:1"
-                    [class]="split() ? 'btn-primary' : 'btn-outline'">
-              Раздельно@if (checkout()?.guests) { · {{ checkout()!.guests }} гост. }
+        <!-- ── STEP 1: mode choice ──────────────────────── -->
+        @if (checkoutStep() === 'mode') {
+          <div class="px-4 py-5 space-y-3 flex-shrink-0">
+            <p class="text-sm text-center mb-4" style="color:var(--color-muted)">Как будете платить?</p>
+
+            <!-- Single bill -->
+            <button (click)="chooseSingle()"
+                    class="w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left"
+                    style="border:2px solid var(--color-border);background:white">
+              <span class="text-3xl">🧾</span>
+              <div>
+                <p class="font-bold text-base">Один счёт</p>
+                <p class="text-sm" style="color:var(--color-muted)">
+                  {{ coItems().length }} поз. · {{ totalAll() | number:'1.0-0' }} ₽
+                </p>
+              </div>
+            </button>
+
+            <!-- Split -->
+            <button (click)="chooseSplit()"
+                    class="w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left"
+                    style="border:2px solid var(--color-gold);background:var(--color-gold-light)">
+              <span class="text-3xl">👥</span>
+              <div>
+                <p class="font-bold text-base">Раздельно</p>
+                <p class="text-sm" style="color:var(--color-gold-hover)">
+                  Каждый платит за себя
+                  @if (checkoutGuestGroups().length > 1) {
+                    · {{ checkoutGuestGroups().length }} счёт(а)
+                  }
+                </p>
+              </div>
             </button>
           </div>
-        </div>
+        }
 
-        <div class="overflow-y-auto flex-1 px-4 py-3 space-y-2">
-          @for (item of coItems(); track item.id) {
-            <div class="flex items-center gap-2 py-1.5" style="border-bottom:1px solid var(--color-border)">
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate">{{ item.menu_item_name }}</p>
-                <p class="text-xs" style="color:var(--color-muted)">× {{ item.quantity }} · {{ item.subtotal | number:'1.0-0' }} ₽</p>
+        <!-- ── STEP 2a: single bill ─────────────────────── -->
+        @if (checkoutStep() === 'pay' && !split()) {
+          <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3">
+            @for (item of coItems(); track item.id) {
+              <div class="flex items-center gap-2 py-2" style="border-bottom:1px solid var(--color-border)">
+                <span class="flex-1 text-sm">{{ item.menu_item_name }}</span>
+                <span class="text-xs" style="color:var(--color-muted)">× {{ item.quantity }}</span>
+                <span class="text-sm font-semibold" style="color:var(--color-gold-hover);min-width:56px;text-align:right">
+                  {{ item.subtotal | number:'1.0-0' }} ₽
+                </span>
               </div>
-              @if (split()) {
-                <div class="flex gap-1">
-                  @for (b of billIndexes(); track b) {
-                    <button (click)="assign(item.id, b)"
-                            class="w-8 h-8 rounded-full text-xs font-bold"
-                            [style.background]="billOf(item.id) === b ? 'var(--color-gold)' : 'var(--color-bg)'"
-                            [style.color]="billOf(item.id) === b ? 'white' : 'var(--color-muted)'"
-                            [style.border]="'1.5px solid var(--color-border)'">{{ b + 1 }}</button>
+            }
+          </div>
+          <div class="flex-shrink-0 px-4 pt-3 pb-5" style="border-top:1px solid var(--color-border)">
+            <div class="flex items-center justify-between mb-3">
+              <span class="font-medium" style="color:var(--color-muted)">Итого</span>
+              <span class="text-2xl font-bold">{{ totalAll() | number:'1.0-0' }} ₽</span>
+            </div>
+            <div class="flex gap-2 mb-4">
+              @for (p of payments; track p.value) {
+                <button (click)="singlePay.set(p.value)" class="btn btn-sm" style="flex:1"
+                        [class]="singlePay() === p.value ? 'btn-primary' : 'btn-outline'">
+                  {{ p.icon }} {{ p.label }}
+                </button>
+              }
+            </div>
+            <button (click)="confirm()" [disabled]="submitting()"
+                    class="btn btn-primary btn-full" style="height:48px">
+              {{ submitting() ? '⏳ ...' : '🧾 Закрыть счёт и печать' }}
+            </button>
+          </div>
+        }
+
+        <!-- ── STEP 2b: split per guest ─────────────────── -->
+        @if (checkoutStep() === 'pay' && split()) {
+          <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-2">
+
+            <!-- Guest list: assign to bill -->
+            @for (grp of checkoutGuestGroups(); track grp.guest) {
+              <div class="rounded-xl overflow-hidden" style="border:1.5px solid var(--color-border)">
+
+                <!-- Guest header: name | bill buttons | total -->
+                <div class="flex items-center gap-2 px-3 py-2.5"
+                     style="background:var(--color-gold-light);border-bottom:1px solid var(--color-gold-mid)">
+                  <span class="font-semibold text-sm flex-1">{{ guestLabel(grp.guest) }}</span>
+
+                  <!-- Bill number selector -->
+                  <div class="flex items-center gap-1">
+                    @for (bn of billChoices(); track bn) {
+                      <button (click)="setGuestBill(grp.guest, bn)"
+                              class="w-7 h-7 rounded-full text-xs font-bold"
+                              [style]="guestBillOf(grp.guest) === bn
+                                ? 'background:var(--color-gold);color:white'
+                                : 'background:white;color:var(--color-muted);border:1.5px solid var(--color-border-mid)'">
+                        {{ bn }}
+                      </button>
+                    }
+                  </div>
+
+                  <span class="font-bold text-sm flex-shrink-0" style="color:var(--color-gold-hover)">
+                    {{ grp.total | number:'1.0-0' }} ₽
+                  </span>
+                </div>
+
+                <!-- Items -->
+                <div class="px-3 py-2">
+                  @for (item of grp.items; track item.id) {
+                    <div class="flex items-center gap-2 py-0.5 text-sm">
+                      <span class="flex-1 truncate">{{ item.menu_item_name }}</span>
+                      <span style="color:var(--color-muted)">× {{ item.quantity }}</span>
+                      <span style="color:var(--color-gold-hover);min-width:52px;text-align:right">
+                        {{ item.subtotal | number:'1.0-0' }} ₽
+                      </span>
+                    </div>
                   }
                 </div>
-              }
-            </div>
-          }
-
-          @if (split()) {
-            <button (click)="addBill()" [disabled]="bills() >= maxBills()"
-                    class="btn btn-ghost btn-sm btn-full mt-2">
-              {{ bills() >= maxBills() ? 'Максимум ' + maxBills() + ' чек(ов) — по числу гостей' : '+ Ещё чек (' + bills() + '/' + maxBills() + ')' }}
-            </button>
-          }
-        </div>
-
-        <!-- payment per bill -->
-        <div class="px-4 pt-2 pb-4" style="border-top:1px solid var(--color-border);background:var(--color-surface2)">
-          @for (b of activeBills(); track b) {
-            <div class="mb-3">
-              @if (split()) {
-                <div class="flex items-center justify-between mb-1">
-                  <span class="section-title">{{ billLabel(b) }}</span>
-                  <span class="font-bold text-sm" style="color:var(--color-gold-hover)">{{ billTotal(b) | number:'1.0-0' }} ₽</span>
-                </div>
-              } @else {
-                <div class="flex items-center justify-between mb-1">
-                  <span class="text-sm font-medium" style="color:var(--color-muted)">Итого к оплате</span>
-                  <span class="text-xl font-bold">{{ billTotal(b) | number:'1.0-0' }} ₽</span>
-                </div>
-              }
-              <div class="flex gap-2">
-                @for (p of payments; track p.value) {
-                  <button (click)="setPay(b, p.value)" class="btn btn-sm" style="flex:1"
-                          [class]="payOf(b) === p.value ? 'btn-primary' : 'btn-outline'">
-                    {{ p.icon }} {{ p.label }}
-                  </button>
-                }
               </div>
-            </div>
-          }
+            }
 
-          <button (click)="confirm()" [disabled]="submitting() || !valid()"
-                  class="btn btn-primary btn-full" style="height:48px">
-            {{ submitting() ? '⏳ ...' : (split() ? '🧾 Закрыть и печать чеков' : '🧾 Закрыть счёт и печать') }}
-          </button>
-        </div>
+            <!-- Bill summary: payment per merged bill -->
+            <div class="pt-2" style="border-top:2px solid var(--color-border)">
+              <p class="section-title mb-2">Итого по чекам</p>
+
+              @for (bill of splitBills(); track bill.billNo) {
+                <div class="mb-3 rounded-xl overflow-hidden" style="border:1.5px solid var(--color-gold)">
+                  <div class="flex items-center justify-between px-3 py-2"
+                       style="background:var(--color-gold-light)">
+                    <div class="leading-tight">
+                      <p class="font-bold text-sm">Чек {{ bill.billNo }}</p>
+                      <p class="text-xs" style="color:var(--color-gold-hover)">
+                        {{ billGuestNames(bill.guests) }}
+                      </p>
+                    </div>
+                    <span class="font-bold" style="color:var(--color-gold-hover)">
+                      {{ bill.total | number:'1.0-0' }} ₽
+                    </span>
+                  </div>
+                  <div class="flex gap-2 px-3 py-2.5">
+                    @for (p of payments; track p.value) {
+                      <button (click)="setBillPay(bill.billNo, p.value)" class="btn btn-sm" style="flex:1"
+                              [class]="billPayOf(bill.billNo) === p.value ? 'btn-primary' : 'btn-outline'">
+                        {{ p.icon }} {{ p.label }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+
+          <div class="flex-shrink-0 px-4 py-3" style="border-top:1px solid var(--color-border)">
+            <button (click)="confirm()" [disabled]="submitting()"
+                    class="btn btn-primary btn-full" style="height:48px">
+              {{ submitting() ? '⏳ ...'
+                : '🧾 Закрыть и печать (' + splitBills().length + ' чека)' }}
+            </button>
+          </div>
+        }
       </div>
     }
   `
 })
-export class TablesPage implements OnInit {
+export class TablesPage implements OnInit, OnDestroy {
   private api = inject(ApiService);
   private cart = inject(CartService);
   private printer = inject(ReceiptPrintService);
@@ -272,33 +356,76 @@ export class TablesPage implements OnInit {
   ntTable = '';
   ntGuests: number | null = null;
 
-  // per-card «Общий/Раздельно» view
-  private splitViewMap = signal<Record<number, boolean>>({});
+  private pollTimer?: ReturnType<typeof setInterval>;
 
   // checkout modal state
-  checkout = signal<Order | null>(null);
-  split = signal(false);
-  bills = signal(1);                              // количество чеков
-  submitting = signal(false);
-  private assignMap = signal<Record<number, number>>({});  // item_id -> bill index
-  private payMap = signal<Record<number, PaymentMethod>>({}); // bill index -> method
-  private billGuests = signal<number[]>([]);     // bill index -> guest_no (для подписи чека)
+  checkout     = signal<Order | null>(null);
+  checkoutStep = signal<'mode' | 'pay'>('mode');
+  split        = signal(false);
+  submitting   = signal(false);
+  singlePay    = signal<PaymentMethod>('cash');
+  // guest_no → bill number (1-based)
+  private guestBillMap = signal<Record<number, number>>({});
+  // bill number → payment method
+  private billPayMap   = signal<Record<number, PaymentMethod>>({});
 
   coItems = computed(() => {
     const o = this.checkout();
     return o ? this.unpaidItems(o) : [];
   });
-  billIndexes = computed(() => Array.from({ length: this.bills() }, (_, i) => i));
 
-  /** Максимум чеков = число гостей за столом (но не меньше уже открытых чеков). */
-  maxBills = computed(() => {
-    const g = this.checkout()?.guests ?? 0;
-    return Math.max(g > 0 ? g + 1 : 12, this.bills());
+  totalAll = computed(() =>
+    this.coItems().reduce((s, i) => s + +i.subtotal, 0)
+  );
+
+  // Groups by guest_no (for display in split mode)
+  checkoutGuestGroups = computed(() => {
+    const byGuest = new Map<number, OrderItem[]>();
+    for (const it of this.coItems()) {
+      const grp = byGuest.get(it.guest_no) ?? [];
+      grp.push(it);
+      byGuest.set(it.guest_no, grp);
+    }
+    return [...byGuest.keys()].sort((a, b) => a - b).map(guest => {
+      const items = byGuest.get(guest)!;
+      return { guest, items, total: items.reduce((s, i) => s + +i.subtotal, 0) };
+    });
+  });
+
+  // Merged bills: bill number → { guests, items, total }
+  splitBills = computed(() => {
+    const gbm = this.guestBillMap();
+    const bills = new Map<number, { guests: number[]; items: OrderItem[]; total: number }>();
+    for (const grp of this.checkoutGuestGroups()) {
+      const bn = gbm[grp.guest] ?? 1;
+      if (!bills.has(bn)) bills.set(bn, { guests: [], items: [], total: 0 });
+      const b = bills.get(bn)!;
+      b.guests.push(grp.guest);
+      b.items.push(...grp.items);
+      b.total += grp.total;
+    }
+    return [...bills.entries()].sort(([a], [b]) => a - b)
+      .map(([billNo, data]) => ({ billNo, ...data }));
+  });
+
+  // Which bill numbers can be chosen (all in use + one new)
+  billChoices = computed(() => {
+    const gbm = this.guestBillMap();
+    const used = new Set(Object.values(gbm));
+    const max  = used.size ? Math.max(...used) : 0;
+    const nums = [...used].sort((a, b) => a - b);
+    if (max < this.checkoutGuestGroups().length) nums.push(max + 1);
+    return nums;
   });
 
   ngOnInit() {
     this.load();
     this.api.getCurrentShift().subscribe({ next: s => this.shiftId = s?.id ?? null, error: () => {} });
+    this.pollTimer = setInterval(() => this.load(), POLL_MS);
+  }
+
+  ngOnDestroy() {
+    if (this.pollTimer) clearInterval(this.pollTimer);
   }
 
   load() {
@@ -326,11 +453,6 @@ export class TablesPage implements OnInit {
   }
 
   // ── per-guest grouping (раздельный вид карточки) ────────────────
-  splitView(orderId: number): boolean { return !!this.splitViewMap()[orderId]; }
-  setSplitView(orderId: number, on: boolean) {
-    this.splitViewMap.update(m => ({ ...m, [orderId]: on }));
-  }
-
   guestLabel(guest: number): string { return guest === 0 ? '👥 Общий' : 'Гость ' + guest; }
 
   /** Доступные номера гостей для переноса: [0 (общий), 1..N]. */
@@ -367,6 +489,9 @@ export class TablesPage implements OnInit {
   // ── helpers per order ──────────────────────────────────────────
   unpaidItems(o: Order): OrderItem[] { return o.items.filter(i => i.receipt == null); }
   unpaidTotal(o: Order): number { return this.unpaidItems(o).reduce((s, i) => s + +i.subtotal, 0); }
+  readyCount(o: Order): number {
+    return o.items.filter(i => i.receipt == null && i.kitchen_status === 'ready').length;
+  }
   elapsed(o: Order): string {
     const min = Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60000);
     return min < 60 ? `${min} мин` : `${Math.floor(min / 60)} ч ${min % 60} мин`;
@@ -378,117 +503,75 @@ export class TablesPage implements OnInit {
     this.router.navigate(['/waiter/order']);
   }
 
-  reprint(receiptId: number) {
-    this.api.getReceipts().subscribe(list => {
-      const r = list.find(x => x.id === receiptId);
-      if (r) this.printer.printHardware(r);
-    });
+  reprint(r: Receipt) {
+    this.printer.printHardware(r);
   }
 
   // ── checkout modal ─────────────────────────────────────────────
   openCheckout(o: Order) {
     this.checkout.set(o);
+    this.checkoutStep.set('mode');
+    this.split.set(false);
+    this.singlePay.set('cash');
+    this.guestBillMap.set({});
+    this.billPayMap.set({});
     this.submitting.set(false);
-    // Предзаполняем чеки по гостям: если за столом >1 гостя с позициями —
-    // сразу раздельный счёт, по чеку на гостя (редактируется вручную).
-    const distinct = [...new Set(this.unpaidItems(o).map(i => i.guest_no))].sort((a, b) => a - b);
-    if (distinct.length > 1) {
-      this.applyGuestGrouping(o, distinct);
-    } else {
-      this.split.set(false);
-      this.bills.set(1);
-      const am: Record<number, number> = {};
-      this.unpaidItems(o).forEach(i => am[i.id] = 0);
-      this.assignMap.set(am);
-      this.payMap.set({ 0: 'cash' });
-      this.billGuests.set(distinct.length ? distinct : [0]);
-    }
   }
-  closeCheckout() { this.checkout.set(null); }
 
-  /** Разложить позиции по чекам соответственно гостю. */
-  private applyGuestGrouping(o: Order, distinct: number[]) {
+  closeCheckout() {
+    this.checkout.set(null);
+    this.checkoutStep.set('mode');
+  }
+
+  chooseSingle() {
+    this.split.set(false);
+    this.checkoutStep.set('pay');
+  }
+
+  chooseSplit() {
     this.split.set(true);
-    this.bills.set(distinct.length);
-    const am: Record<number, number> = {};
-    this.unpaidItems(o).forEach(i => am[i.id] = distinct.indexOf(i.guest_no));
-    this.assignMap.set(am);
-    const pm: Record<number, PaymentMethod> = {};
-    distinct.forEach((_, idx) => pm[idx] = 'cash');
-    this.payMap.set(pm);
-    this.billGuests.set(distinct);
+    // Each guest starts on their own bill: guest index → bill number 1,2,3...
+    const gbm: Record<number, number> = {};
+    const bpm: Record<number, PaymentMethod> = {};
+    this.checkoutGuestGroups().forEach((grp, idx) => {
+      gbm[grp.guest] = idx + 1;
+      bpm[idx + 1]   = 'cash';
+    });
+    this.guestBillMap.set(gbm);
+    this.billPayMap.set(bpm);
+    this.checkoutStep.set('pay');
   }
 
-  /** Переключение режима. При включении «Раздельно» группируем по гостям. */
-  setSplit(on: boolean) {
-    const o = this.checkout();
-    if (!o) return;
-    if (on) {
-      const distinct = [...new Set(this.unpaidItems(o).map(i => i.guest_no))].sort((a, b) => a - b);
-      // если все позиции на одном «госте» — делаем хотя бы 2 пустых чека
-      this.applyGuestGrouping(o, distinct.length > 1 ? distinct : [0, 1]);
-    } else {
-      this.split.set(false);
-      this.bills.set(1);
-      const am: Record<number, number> = {};
-      this.unpaidItems(o).forEach(i => am[i.id] = 0);
-      this.assignMap.set(am);
-      this.payMap.set({ 0: 'cash' });
+  guestBillOf(guest: number): number { return this.guestBillMap()[guest] ?? 1; }
+
+  setGuestBill(guest: number, billNo: number) {
+    this.guestBillMap.update(m => ({ ...m, [guest]: billNo }));
+    if (!this.billPayMap()[billNo]) {
+      this.billPayMap.update(m => ({ ...m, [billNo]: 'cash' }));
     }
   }
 
-  /** Подпись чека: имя гостя, если чек соответствует гостю; иначе «Чек N». */
-  billLabel(bill: number): string {
-    const g = this.billGuests()[bill];
-    if (g === undefined) return 'Чек ' + (bill + 1);
-    return g === 0 ? 'Общий счёт' : 'Гость ' + g;
+  billPayOf(billNo: number): PaymentMethod { return this.billPayMap()[billNo] ?? 'cash'; }
+
+  setBillPay(billNo: number, method: PaymentMethod) {
+    this.billPayMap.update(m => ({ ...m, [billNo]: method }));
   }
 
-  assign(itemId: number, bill: number) {
-    this.assignMap.update(m => ({ ...m, [itemId]: bill }));
-  }
-  billOf(itemId: number): number { return this.assignMap()[itemId] ?? 0; }
-
-  addBill() {
-    if (this.bills() >= this.maxBills()) return;
-    const idx = this.bills();
-    this.bills.update(n => n + 1);
-    this.payMap.update(m => ({ ...m, [idx]: 'cash' }));
-  }
-
-  /** Только те чеки (по индексу), в которые попала хотя бы одна позиция. */
-  activeBills = computed<number[]>(() => {
-    if (!this.split()) return [0];
-    const used = new Set(Object.values(this.assignMap()));
-    return this.billIndexes().filter(b => used.has(b));
-  });
-
-  billTotal(bill: number): number {
-    const am = this.assignMap();
-    return this.coItems()
-      .filter(i => (this.split() ? am[i.id] === bill : true))
-      .reduce((s, i) => s + +i.subtotal, 0);
-  }
-
-  setPay(bill: number, method: PaymentMethod) {
-    this.payMap.update(m => ({ ...m, [bill]: method }));
-  }
-  payOf(bill: number): PaymentMethod { return this.payMap()[bill] ?? 'cash'; }
-
-  valid(): boolean {
-    return this.coItems().length > 0 && this.activeBills().every(b => this.billTotal(b) > 0);
+  billGuestNames(guests: number[]): string {
+    return guests.map(g => this.guestLabel(g)).join(' + ');
   }
 
   confirm() {
     const o = this.checkout();
-    if (!o || this.submitting() || !this.valid()) return;
+    if (!o || this.submitting() || !this.coItems().length) return;
     this.submitting.set(true);
 
-    const am = this.assignMap();
-    const billsPayload = this.activeBills().map(b => ({
-      item_ids: this.coItems().filter(i => (this.split() ? am[i.id] === b : true)).map(i => i.id),
-      payment_method: this.payOf(b),
-    }));
+    const billsPayload = this.split()
+      ? this.splitBills().map(b => ({
+          item_ids: b.items.map(i => i.id),
+          payment_method: this.billPayOf(b.billNo),
+        }))
+      : [{ item_ids: this.coItems().map(i => i.id), payment_method: this.singlePay() }];
 
     this.api.checkoutOrder(o.id, billsPayload).subscribe({
       next: res => {

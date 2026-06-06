@@ -64,10 +64,11 @@ export class AuthService {
 
   landingRoute(role?: Role | null): string {
     switch (role ?? this.role()) {
-      case 'admin':    return '/admin';
-      case 'kitchen':  return '/kitchen';
-      case 'wardrobe': return '/waiter/tickets';
-      default:         return '/waiter/order';
+      case 'admin':     return '/admin';
+      case 'kitchen':   return '/kitchen';
+      case 'bartender': return '/bartender';
+      case 'wardrobe':  return '/waiter/tickets';
+      default:          return '/waiter/order';
     }
   }
 

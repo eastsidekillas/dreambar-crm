@@ -1,0 +1,16 @@
+[Unit]
+Description=DreamBar Print Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/dreambar-print-agent
+ExecStart=/opt/dreambar-print-agent/venv/bin/python /opt/dreambar-print-agent/agent.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

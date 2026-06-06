@@ -276,7 +276,7 @@ export class KitchenScreen implements OnInit, OnDestroy {
 
   markAllReady(t: KitchenTicket) {
     this.active.update(list => list.filter(x => x.order_id !== t.order_id)); // optimistic
-    this.api.markKitchenOrderReady(t.order_id).subscribe({
+    this.api.markKitchenOrderReady(t.order_id, 'kitchen').subscribe({
       next: () => this.load(),
       error: () => this.load()
     });

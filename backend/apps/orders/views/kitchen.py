@@ -16,10 +16,11 @@ class KitchenOrdersView(APIView):
         if not shift:
             return Response({'shift': None, 'active': [], 'ready': [], 'ready_today': 0})
 
+        category_type = request.query_params.get('type', 'kitchen')
         kitchen_items = OrderItem.objects.filter(
             order__shift=shift,
             order__status__in=['open', 'closed'],
-            menu_item__category__type='kitchen',
+            menu_item__category__type=category_type,
         ).select_related('order', 'order__waiter', 'order__waiter__profile', 'menu_item')
 
         ready_today = kitchen_items.filter(kitchen_status='ready').count()
@@ -90,8 +91,9 @@ class KitchenOrderReadyView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, order_id):
-        items = OrderItem.objects.filter(order_id=order_id, menu_item__category__type='kitchen')
-        if not items.exists():
-            return Response({'detail': 'Нет блюд кухни в заказе.'}, status=404)
-        items.update(kitchen_status='ready')
-        return Response({'order_id': int(order_id), 'updated': items.count()})
+        category_type = request.query_params.get('type')
+        qs = OrderItem.objects.filter(order_id=order_id)
+        if category_type:
+            qs = qs.filter(menu_item__category__type=category_type)
+        updated = qs.update(kitchen_status='ready')
+        return Response({'order_id': int(order_id), 'updated': updated})

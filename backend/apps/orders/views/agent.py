@@ -25,6 +25,9 @@ class AgentJobsView(APIView):
         printer = _agent_printer(request)
         if printer is None:
             return Response({'detail': 'Неверный ключ или принтер.'}, status=403)
+        # Stuck-job recovery: if agent restarted mid-batch, 'printing' jobs were never acked.
+        # Reset them so the new agent instance picks them up.
+        PrintJob.objects.filter(printer=printer, status='printing').update(status='pending')
         jobs = list(PrintJob.objects.filter(printer=printer, status='pending')[:20])
         data = PrintJobAgentSerializer(jobs, many=True).data
         PrintJob.objects.filter(pk__in=[j.id for j in jobs]).update(status='printing')

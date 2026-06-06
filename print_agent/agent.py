@@ -25,10 +25,14 @@
 import base64
 import configparser
 import os
+import signal
 import sys
 import time
+from datetime import datetime
 
 import requests
+
+_running = True
 
 
 def _base_dir():
@@ -48,18 +52,22 @@ def load_config():
         return os.environ.get(key.upper(), section.get(key, default))
 
     return {
-        'backend_url':    get('backend_url', 'http://localhost:8000/api').rstrip('/'),
-        'printer_id':     get('printer_id'),
-        'agent_key':      get('agent_key'),
-        'poll_seconds':   float(get('poll_seconds', '2') or '2'),
-        'mode':           get('mode', 'windows').lower(),
+        'backend_url':     get('backend_url', 'http://localhost:8000/api').rstrip('/'),
+        'printer_id':      get('printer_id'),
+        'agent_key':       get('agent_key'),
+        'poll_seconds':    float(get('poll_seconds', '2') or '2'),
+        'mode':            get('mode', 'windows').lower(),
         'windows_printer': get('windows_printer'),
-        'serial_port':    get('serial_port'),
-        'serial_baud':    int(get('serial_baud', '115200') or '115200'),
-        'usb_vendor':     get('usb_vendor'),
-        'usb_product':    get('usb_product'),
-        'raw_path':       get('raw_path'),
+        'serial_port':     get('serial_port'),
+        'serial_baud':     int(get('serial_baud', '115200') or '115200'),
+        'usb_vendor':      get('usb_vendor'),
+        'usb_product':     get('usb_product'),
+        'raw_path':        get('raw_path'),
     }
+
+
+def _log(msg):
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
 def make_writer(c):
@@ -92,8 +100,12 @@ def make_writer(c):
 
     if mode == 'usb':
         from escpos.printer import Usb
-        vid = int(c['usb_vendor'], 16)
-        pid = int(c['usb_product'], 16)
+        vendor = c['usb_vendor']
+        product = c['usb_product']
+        if not vendor or not product:
+            sys.exit('Для mode=usb нужны usb_vendor и usb_product в config.ini.')
+        vid = int(vendor, 16)
+        pid = int(product, 16)
 
         def write_usb(data):
             p = Usb(vid, pid)
@@ -102,6 +114,9 @@ def make_writer(c):
         return write_usb
 
     if mode == 'raw':
+        if not c['raw_path']:
+            sys.exit('Для mode=raw нужен raw_path в config.ini.')
+
         def write_raw(data):
             with open(c['raw_path'], 'wb') as f:
                 f.write(data)
@@ -117,7 +132,7 @@ def ack(c, job_id, ok, error=''):
                       json={'printer': c['printer_id'], 'ok': ok, 'error': error},
                       timeout=10)
     except requests.RequestException as exc:
-        print(f'[ack-fail] job {job_id}: {exc}', flush=True)
+        _log(f'[ack-fail] job {job_id}: {exc}')
 
 
 def poll_once(c, write):
@@ -132,25 +147,39 @@ def poll_once(c, write):
         try:
             write(data)
             ack(c, job['id'], True)
-            print(f"[ok] job {job['id']} ({len(data)} bytes)", flush=True)
-        except Exception as exc:  # ошибка печати — сообщаем backend
+            _log(f"[ok] job {job['id']} ({len(data)} bytes)")
+        except Exception as exc:
             ack(c, job['id'], False, f'{type(exc).__name__}: {exc}')
-            print(f"[print-fail] job {job['id']}: {exc}", flush=True)
+            _log(f"[print-fail] job {job['id']}: {exc}")
+
+
+def _handle_signal(sig, frame):
+    global _running
+    _log('Получен сигнал остановки...')
+    _running = False
 
 
 def main():
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+
     c = load_config()
     if not c['printer_id'] or not c['agent_key']:
         sys.exit('В config.ini нужны printer_id и agent_key.')
     write = make_writer(c)
-    print(f"Агент печати запущен. backend={c['backend_url']} printer={c['printer_id']} "
-          f"mode={c['mode']} poll={c['poll_seconds']}s", flush=True)
-    while True:
+    _log(f"Агент запущен. backend={c['backend_url']} printer={c['printer_id']} "
+         f"mode={c['mode']} poll={c['poll_seconds']}s")
+    while _running:
         try:
             poll_once(c, write)
         except requests.RequestException as exc:
-            print(f'[net] {exc}', flush=True)
-        time.sleep(c['poll_seconds'])
+            _log(f'[net] {exc}')
+        # Interruptible sleep: wake up every second to check _running flag
+        for _ in range(max(1, int(c['poll_seconds']))):
+            if not _running:
+                break
+            time.sleep(1)
+    _log('Агент остановлен.')
 
 
 if __name__ == '__main__':

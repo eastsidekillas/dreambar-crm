@@ -5,7 +5,7 @@ import { map } from 'rxjs/operators';
 import {
   Shift, MenuByCategory, MenuItem, Order, EntryTicket, Receipt, PaymentMethod,
   DashboardData, ShiftAnalytics, TopItem, MonthlyData, MenuCategory,
-  Employee, EmployeeActivity, KitchenData, KitchenStatus
+  Employee, EmployeeActivity, KitchenData, KitchenStatus, Printer
 } from '../models';
 
 export interface BillSpec { item_ids: number[]; payment_method: PaymentMethod; }
@@ -144,15 +144,33 @@ export class ApiService {
     return this.http.patch(`${BASE}/employees/${id}/`, data);
   }
 
+  // ── Printers ─────────────────────────────────────────────────────
+  getPrinters(): Observable<Printer[]> {
+    return this.http.get<Printer[]>(`${BASE}/printers/`);
+  }
+  createPrinter(data: Partial<Printer>): Observable<Printer> {
+    return this.http.post<Printer>(`${BASE}/printers/`, data);
+  }
+  updatePrinter(id: number, data: Partial<Printer>): Observable<Printer> {
+    return this.http.patch<Printer>(`${BASE}/printers/${id}/`, data);
+  }
+  deletePrinter(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/printers/${id}/`);
+  }
+  testPrinter(id: number): Observable<{ ok: boolean; error?: string }> {
+    return this.http.post<{ ok: boolean; error?: string }>(`${BASE}/printers/${id}/test/`, {});
+  }
+
   // ── Kitchen (KDS) ────────────────────────────────────────────────
-  getKitchenOrders(): Observable<KitchenData> {
-    return this.http.get<KitchenData>(`${BASE}/kitchen/orders/`);
+  getKitchenOrders(type: 'kitchen' | 'bar' = 'kitchen'): Observable<KitchenData> {
+    return this.http.get<KitchenData>(`${BASE}/kitchen/orders/?type=${type}`);
   }
   setKitchenItemStatus(itemId: number, status: KitchenStatus): Observable<any> {
     return this.http.post(`${BASE}/kitchen/item/${itemId}/status/`, { status });
   }
-  markKitchenOrderReady(orderId: number): Observable<any> {
-    return this.http.post(`${BASE}/kitchen/order/${orderId}/ready/`, {});
+  markKitchenOrderReady(orderId: number, type?: 'kitchen' | 'bar'): Observable<any> {
+    const params = type ? new HttpParams().set('type', type) : undefined;
+    return this.http.post(`${BASE}/kitchen/order/${orderId}/ready/`, {}, { params });
   }
 
   // ── Analytics ────────────────────────────────────────────────────

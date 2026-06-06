@@ -8,6 +8,7 @@ from .views.tickets import EntryTicketViewSet
 from .views.employees import UserProfileListView, EmployeeActivityView, EmployeeOrdersView, EmployeeDetailView
 from .views.kitchen import KitchenOrdersView, KitchenItemStatusView, KitchenOrderReadyView
 from .views.agent import AgentJobsView, AgentJobAckView
+from .views.printers import PrinterListView, PrinterDetailView, PrinterTestView
 
 router = DefaultRouter()
 router.register('shifts',           ShiftViewSet)
@@ -26,6 +27,9 @@ urlpatterns = [
     path('kitchen/orders/',                              KitchenOrdersView.as_view(),      name='kitchen-orders'),
     path('kitchen/item/<int:item_id>/status/',           KitchenItemStatusView.as_view(),  name='kitchen-item-status'),
     path('kitchen/order/<int:order_id>/ready/',          KitchenOrderReadyView.as_view(),  name='kitchen-order-ready'),
-    path('print/agent/jobs/',                            AgentJobsView.as_view(),          name='agent-jobs'),
-    path('print/agent/jobs/<int:job_id>/ack/',           AgentJobAckView.as_view(),        name='agent-job-ack'),
+    path('printers/',                     PrinterListView.as_view(),   name='printers'),
+    path('printers/<int:pk>/',            PrinterDetailView.as_view(), name='printer-detail'),
+    path('printers/<int:pk>/test/',       PrinterTestView.as_view(),   name='printer-test'),
+    path('print/agent/jobs/',             AgentJobsView.as_view(),     name='agent-jobs'),
+    path('print/agent/jobs/<int:job_id>/ack/', AgentJobAckView.as_view(), name='agent-job-ack'),
 ]

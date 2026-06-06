@@ -120,8 +120,9 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
-  guest_no: number;          // 0 = общая позиция, 1..N — гость
+  guest_no: number;
   receipt: number | null;
+  kitchen_status: 'new' | 'cooking' | 'ready';
 }
 
 export interface ReceiptItem {
@@ -231,4 +232,18 @@ export interface MonthlyData {
   hookah: number;
   tickets: number;
   total: number;
+}
+
+export type PrinterConnection = 'network' | 'agent';
+
+export interface Printer {
+  id: number;
+  name: string;
+  connection: PrinterConnection;
+  host: string;
+  port: number;
+  agent_key: string;
+  width: number;
+  is_default: boolean;
+  is_active: boolean;
 }
