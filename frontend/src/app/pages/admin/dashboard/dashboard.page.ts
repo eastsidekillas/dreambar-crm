@@ -202,7 +202,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return [
       { label: 'Выручка за 30 дней', value: money(d.total_revenue), sub: undefined },
       { label: 'Средняя за смену',   value: money(avg),             sub: undefined },
-      { label: 'Заказов принято',    value: d.total_orders,         sub: 'гостей: ' + d.total_tickets },
+      { label: 'Заказов принято',    value: d.total_orders,         sub: 'гостей: ' + d.total_guests },
       { label: 'Смен проведено',     value: d.shifts_count,         sub: undefined },
     ];
   }

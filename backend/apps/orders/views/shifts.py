@@ -4,6 +4,7 @@ from rest_framework.response import Response
 
 from ..models import Shift
 from ..serializers import ShiftSerializer
+from ..services import printing
 
 
 class ShiftViewSet(viewsets.ModelViewSet):
@@ -29,6 +30,10 @@ class ShiftViewSet(viewsets.ModelViewSet):
         shift.is_open = False
         shift.closed_at = timezone.now()
         shift.save()
+        try:
+            printing.print_shift_reports(shift)
+        except Exception:
+            pass  # ошибка печати не блокирует закрытие смены
         return Response(ShiftSerializer(shift).data)
 
     @action(detail=True, methods=['post'])

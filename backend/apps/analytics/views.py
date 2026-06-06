@@ -43,6 +43,10 @@ class DashboardView(APIView):
             shift__in=shifts, status='closed'
         ).count()
 
+        total_guests = Order.objects.filter(
+            shift__in=shifts, status='closed'
+        ).aggregate(total=Sum('guests'))['total'] or 0
+
         total_tickets = EntryTicket.objects.filter(shift__in=shifts).count()
 
         # Current open shift
@@ -80,6 +84,7 @@ class DashboardView(APIView):
                 'tickets': float(ticket_revenue),
             },
             'total_orders': total_orders,
+            'total_guests': total_guests,
             'total_tickets': total_tickets,
             'shifts_count': shifts.count(),
             'current_shift': open_shift_data,

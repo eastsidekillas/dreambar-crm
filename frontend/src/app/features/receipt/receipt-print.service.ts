@@ -60,7 +60,8 @@ export class ReceiptPrintService {
         .small { font-size:10px; }
         @media print { @page { margin:0; } body { width:auto; } }
       </style></head><body>
-      ${list.map(r => this.renderReceipt(r)).join('<div style="page-break-after:always"></div>')}
+      ${list.flatMap(r => [this.renderReceipt(r, ''), this.renderReceipt(r, 'ДЛЯ СВЕРКИ')])
+            .join('<div style="page-break-after:always"></div>')}
       <script>window.onload = function(){ window.print(); setTimeout(function(){ window.close(); }, 300); };<\/script>
     </body></html>`;
 
@@ -74,7 +75,7 @@ export class ReceiptPrintService {
     w.document.close();
   }
 
-  private renderReceipt(r: Receipt): string {
+  private renderReceipt(r: Receipt, copyLabel: string): string {
     const dt = new Date(r.issued_at).toLocaleString('ru-RU', {
       day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
@@ -86,6 +87,10 @@ export class ReceiptPrintService {
         </span>
         <span class="num">${this.money(it.subtotal)}</span>
       </div>`).join('');
+
+    const labelHtml = copyLabel
+      ? `<div class="hr"></div><div class="center small" style="font-weight:bold">${this.esc(copyLabel)}</div>`
+      : '';
 
     return `<div class="receipt">
       <div class="center brand">BAR DREAM</div>
@@ -102,6 +107,7 @@ export class ReceiptPrintService {
       <div class="row"><span>Оплата</span><span>${this.esc(r.payment_label)}</span></div>
       <div class="hr"></div>
       <div class="center small">Спасибо за визит!</div>
+      ${labelHtml}
     </div>`;
   }
 

@@ -26,6 +26,7 @@ class Printer(models.Model):
 class PrintJob(models.Model):
     KINDS = [
         ('receipt', 'Чек'),
+        ('report',  'Отчёт'),
     ]
     STATUSES = [
         ('pending',  'В очереди'),

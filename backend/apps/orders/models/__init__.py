@@ -5,6 +5,7 @@ from .orders import Order, OrderItem
 from .receipts import Receipt
 from .tickets import EntryTicket
 from .printers import Printer, PrintJob
+from .audit import DeletedOrderItem
 
 __all__ = [
     'UserProfile',
@@ -14,4 +15,5 @@ __all__ = [
     'Receipt',
     'EntryTicket',
     'Printer', 'PrintJob',
+    'DeletedOrderItem',
 ]

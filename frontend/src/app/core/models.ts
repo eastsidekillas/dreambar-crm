@@ -192,6 +192,7 @@ export interface DashboardData {
     tickets: number;
   };
   total_orders: number;
+  total_guests: number;
   total_tickets: number;
   shifts_count: number;
   current_shift: CurrentShiftData | null;

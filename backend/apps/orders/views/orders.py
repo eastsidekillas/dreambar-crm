@@ -4,7 +4,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from ..models import Order, OrderItem, Receipt, Shift, Printer
+from ..models import Order, OrderItem, Receipt, Shift, Printer, DeletedOrderItem
 from ..serializers import (
     OrderSerializer, OrderCreateSerializer, OrderItemCreateSerializer, ReceiptSerializer,
 )
@@ -138,9 +138,22 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Нельзя изменить закрытый заказ.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             item = order.items.get(pk=item_id)
-            item.delete()
         except OrderItem.DoesNotExist:
             return Response({'detail': 'Позиция не найдена.'}, status=status.HTTP_404_NOT_FOUND)
+        if item.receipt_id is not None:
+            return Response({'detail': 'Позиция уже оплачена — удаление невозможно.'}, status=status.HTTP_400_BAD_REQUEST)
+        DeletedOrderItem.objects.create(
+            order=order,
+            shift=order.shift,
+            deleted_by=request.user,
+            table_number=order.table_number,
+            menu_item_name=item.menu_item.name,
+            menu_item_volume=item.menu_item.volume,
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+            kitchen_status=item.kitchen_status,
+        )
+        item.delete()
         return Response(OrderSerializer(order).data)
 
     @action(detail=True, methods=['post'], url_path='item/(?P<item_id>[^/.]+)/guest')
