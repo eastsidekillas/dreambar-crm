@@ -1,0 +1,7 @@
+# Зависимости агента печати. Ставьте на машине, где собирается .exe (Windows).
+requests>=2.31
+pywin32>=306; sys_platform == "win32"   # режим windows (печать через драйвер)
+pyserial>=3.5                            # режим serial (COM-порт)
+python-escpos>=3.1                       # режим usb (libusb)
+pyusb>=1.2                               # режим usb
+pyinstaller>=6.0                         # только для сборки .exe

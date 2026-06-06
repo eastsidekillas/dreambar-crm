@@ -78,7 +78,14 @@ export class LoginPage {
     this.loading.set(true);
     this.error.set('');
     this.auth.login(this.username, this.password).subscribe({
-      next: user => { this.loading.set(false); this.router.navigateByUrl(this.auth.landingRoute(user.role)); },
+      next: user => {
+        this.loading.set(false);
+        if ((user.allowed_roles ?? []).length > 1) {
+          this.router.navigateByUrl('/role-select');
+        } else {
+          this.router.navigateByUrl(this.auth.landingRoute(user.role));
+        }
+      },
       error: () => { this.loading.set(false); this.error.set('Неверный логин или пароль'); }
     });
   }

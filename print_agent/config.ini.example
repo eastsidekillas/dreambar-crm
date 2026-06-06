@@ -1,0 +1,29 @@
+; Конфигурация агента печати DreamBar.
+; Скопируйте в config.ini и положите рядом с agent.exe. Поправьте значения.
+[agent]
+; Адрес backend (тот же, что у сайта, но с /api)
+backend_url = http://192.168.1.10:8000/api
+; id принтера из админки (раздел «Принтеры»)
+printer_id = 2
+; «Ключ агента», заданный у этого принтера в админке
+agent_key = ЗАМЕНИТЕ_секрет
+; Период опроса заданий, секунд
+poll_seconds = 2
+
+; Способ печати: windows | serial | usb | raw
+mode = windows
+
+; mode = windows: имя принтера как в «Устройства и принтеры».
+; Пусто — принтер по умолчанию в системе.
+windows_printer = ATOL RP-326
+
+; mode = serial (принтер как COM-порт):
+; serial_port = COM3
+; serial_baud = 115200
+
+; mode = usb (нужен WinUSB-драйвер через Zadig):
+; usb_vendor = 0x2912
+; usb_product = 0x0034
+
+; mode = raw (Linux): путь к устройству
+; raw_path = /dev/usb/lp0

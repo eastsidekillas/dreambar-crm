@@ -1,6 +1,8 @@
+import base64
+
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Shift, MenuCategory, MenuItem, Order, OrderItem, EntryTicket, Receipt
+from .models import Shift, MenuCategory, MenuItem, Order, OrderItem, EntryTicket, Receipt, PrintJob
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -152,3 +154,15 @@ class ShiftSerializer(serializers.ModelSerializer):
         if obj.opened_by:
             return obj.opened_by.get_full_name() or obj.opened_by.username
         return None
+
+
+class PrintJobAgentSerializer(serializers.ModelSerializer):
+    """Представление задания для локального агента: ESC/POS-пакет в base64."""
+    payload_b64 = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PrintJob
+        fields = ['id', 'kind', 'status', 'payload_b64', 'created_at']
+
+    def get_payload_b64(self, obj):
+        return base64.b64encode(bytes(obj.payload)).decode('ascii')

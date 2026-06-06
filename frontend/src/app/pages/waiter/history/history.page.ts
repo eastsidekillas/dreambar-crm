@@ -73,7 +73,7 @@ export class HistoryPage implements OnInit {
     });
   }
 
-  reprint(r: Receipt) { this.printer.print(r); }
+  reprint(r: Receipt) { this.printer.printHardware(r); }
 
   formatTime(dt: string) {
     return new Date(dt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });

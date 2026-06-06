@@ -381,7 +381,7 @@ export class TablesPage implements OnInit {
   reprint(receiptId: number) {
     this.api.getReceipts().subscribe(list => {
       const r = list.find(x => x.id === receiptId);
-      if (r) this.printer.print(r);
+      if (r) this.printer.printHardware(r);
     });
   }
 
@@ -492,7 +492,7 @@ export class TablesPage implements OnInit {
 
     this.api.checkoutOrder(o.id, billsPayload).subscribe({
       next: res => {
-        this.printer.print(res.receipts);
+        this.printer.printHardware(res.receipts);
         this.toast.success(res.receipts.length > 1 ? 'Чеки сформированы' : 'Чек сформирован');
         this.closeCheckout();
         this.load();

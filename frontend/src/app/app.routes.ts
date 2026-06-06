@@ -9,6 +9,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/login/login.page').then(m => m.LoginPage)
   },
 
+  {
+    path: 'role-select',
+    loadComponent: () => import('./pages/role-select/role-select.page').then(m => m.RoleSelectPage),
+    canActivate: [authGuard],
+  },
+
   // ── Waiter (mobile-first) ────────────────────────────────────────
   {
     path: 'waiter',

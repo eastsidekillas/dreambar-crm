@@ -155,3 +155,11 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=int(env('JWT_ACCESS_HOURS', '12'))),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=int(env('JWT_REFRESH_DAYS', '7'))),
 }
+
+
+# ── Печать чеков (термопринтер ESC/POS) ──────────────────────────────────────
+# Кодовая страница CP866 для кириллицы (ESC t n). Если печатаются «кракозябры» —
+# измените номер (частые значения: 17, 6, 7) или задайте CP866 в меню принтера.
+# Пустое значение (PRINTER_CODEPAGE_PAGE отсутствует) — не отправлять команду.
+_cp_page = env('PRINTER_CODEPAGE_PAGE', '17')
+PRINTER_CODEPAGE_PAGE = int(_cp_page) if _cp_page.strip() else None

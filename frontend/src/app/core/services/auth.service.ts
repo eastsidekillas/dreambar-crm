@@ -8,16 +8,18 @@ import { TokenResponse, User, Role } from '../models';
 import { environment } from '../../../environments/environment';
 
 const API = environment.apiBase;
+const ACTIVE_ROLE_KEY = 'active_role';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  readonly user = signal<User | null>(this.loadUser());
-  readonly role = computed<Role | null>(() => this.user()?.role ?? null);
-  readonly isAdmin = computed<boolean>(() => this.user()?.role === 'admin');
+  readonly user        = signal<User | null>(this.loadUser());
+  readonly activeRole  = signal<Role | null>(this.loadActiveRole());
+
+  readonly role     = computed<Role | null>(() => this.activeRole() ?? this.user()?.role ?? null);
+  readonly isAdmin  = computed<boolean>(() => this.role() === 'admin');
 
   constructor(private http: HttpClient, private router: Router) {}
 
-  /** Login then fetch profile — emits the full User once role is known. */
   login(username: string, password: string): Observable<User> {
     return this.http.post<TokenResponse>(`${API}/auth/token/`, { username, password }).pipe(
       tap(tokens => {
@@ -33,17 +35,39 @@ export class AuthService {
       tap(user => {
         localStorage.setItem('user', JSON.stringify(user));
         this.user.set(user);
+        // Сбрасываем active_role если она больше не входит в allowed_roles
+        const allowed = user.allowed_roles ?? [];
+        const stored  = this.loadActiveRole();
+        if (stored && allowed.length > 0 && !allowed.includes(stored)) {
+          this.clearActiveRole();
+        }
       })
     );
   }
 
-  /** Default landing route for a role. */
+  /** Нужно ли показывать экран выбора роли? */
+  needsRoleSelect(): boolean {
+    const user    = this.user();
+    const allowed = user?.allowed_roles ?? [];
+    return allowed.length > 1 && !this.activeRole();
+  }
+
+  setActiveRole(role: Role): void {
+    localStorage.setItem(ACTIVE_ROLE_KEY, role);
+    this.activeRole.set(role);
+  }
+
+  clearActiveRole(): void {
+    localStorage.removeItem(ACTIVE_ROLE_KEY);
+    this.activeRole.set(null);
+  }
+
   landingRoute(role?: Role | null): string {
     switch (role ?? this.role()) {
-      case 'admin':     return '/admin';
-      case 'kitchen':   return '/kitchen';
-      case 'wardrobe':  return '/waiter/tickets';
-      default:          return '/waiter/order';   // waiter, bartender
+      case 'admin':    return '/admin';
+      case 'kitchen':  return '/kitchen';
+      case 'wardrobe': return '/waiter/tickets';
+      default:         return '/waiter/order';
     }
   }
 
@@ -51,17 +75,22 @@ export class AuthService {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
+    this.clearActiveRole();
     this.user.set(null);
     this.router.navigate(['/login']);
   }
 
-  getToken(): string | null { return localStorage.getItem('access_token'); }
-  isLoggedIn(): boolean { return !!this.getToken(); }
+  getToken(): string | null  { return localStorage.getItem('access_token'); }
+  isLoggedIn(): boolean      { return !!this.getToken(); }
 
   private loadUser(): User | null {
     try {
       const s = localStorage.getItem('user');
       return s ? JSON.parse(s) : null;
     } catch { return null; }
+  }
+
+  private loadActiveRole(): Role | null {
+    return localStorage.getItem(ACTIVE_ROLE_KEY) as Role | null;
   }
 }

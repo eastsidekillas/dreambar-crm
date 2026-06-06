@@ -1,5 +1,7 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { Receipt } from '../../core/models';
+import { ApiService } from '../../core/services/api.service';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 
 /**
  * Печать чека. Открывает отдельное окно с версткой чека под узкую ленту (~58мм)
@@ -7,6 +9,33 @@ import { Receipt } from '../../core/models';
  */
 @Injectable({ providedIn: 'root' })
 export class ReceiptPrintService {
+  private api = inject(ApiService);
+  private toast = inject(ToastService);
+
+  /**
+   * Аппаратная печать на термопринтере (ATOL RP-326) через backend.
+   * При ошибке сети/сервера откатывается на браузерную печать `print()`.
+   */
+  printHardware(receipts: Receipt | Receipt[]): void {
+    const list = Array.isArray(receipts) ? receipts : [receipts];
+    for (const r of list) {
+      this.api.printReceipt(r.id).subscribe({
+        next: (res) => {
+          if (res.status === 'error') {
+            this.toast.error(`Принтер: ${res.error || 'ошибка печати'}`);
+          } else if (res.status === 'pending') {
+            this.toast.show(`Чек ${r.code} отправлен на печать`, 'info');
+          } else {
+            this.toast.success(`Чек ${r.code} напечатан`);
+          }
+        },
+        error: () => {
+          this.toast.error('Принтер недоступен — печать в браузере');
+          this.print(r);
+        },
+      });
+    }
+  }
 
   print(receipts: Receipt | Receipt[]): void {
     const list = Array.isArray(receipts) ? receipts : [receipts];

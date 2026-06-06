@@ -35,6 +35,7 @@ export interface User {
   display_name?: string;
   is_staff?: boolean;
   role?: Role;
+  allowed_roles?: Role[];
 }
 
 export interface Employee {
@@ -43,6 +44,7 @@ export interface Employee {
   display_name: string;
   role: Role;
   role_label: string;
+  allowed_roles: Role[];
   is_active: boolean;
 }
 

@@ -11,6 +11,8 @@ from rest_framework.response import Response
 def me(request):
     u = request.user
     profile = getattr(u, 'profile', None)
+    role = profile.role if profile else ('admin' if u.is_staff else 'waiter')
+    allowed = profile.allowed_roles if profile and profile.allowed_roles else []
     return Response({
         'id': u.id,
         'username': u.username,
@@ -18,7 +20,8 @@ def me(request):
         'last_name': u.last_name,
         'display_name': profile.get_display() if profile else (u.get_full_name() or u.username),
         'is_staff': u.is_staff,
-        'role': profile.role if profile else ('admin' if u.is_staff else 'waiter'),
+        'role': role,
+        'allowed_roles': allowed if len(allowed) > 1 else [],
     })
 
 

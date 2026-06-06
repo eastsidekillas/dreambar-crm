@@ -103,6 +103,12 @@ export class ApiService {
     if (shiftId) params = params.set('shift', shiftId);
     return unpage(this.http.get<Receipt[] | Paginated<Receipt>>(`${BASE}/receipts/`, { params }));
   }
+  /** Аппаратная печать чека на термопринтере (ATOL RP-326). printerId — необязательно. */
+  printReceipt(receiptId: number, printerId?: number): Observable<{ job_id: number; status: string; error: string }> {
+    const body = printerId ? { printer: printerId } : {};
+    return this.http.post<{ job_id: number; status: string; error: string }>(
+      `${BASE}/receipts/${receiptId}/print/`, body);
+  }
 
   // ── Tickets ──────────────────────────────────────────────────────
   getTickets(shiftId?: number): Observable<EntryTicket[]> {
@@ -133,6 +139,9 @@ export class ApiService {
   }
   createEmployee(data: { username: string; password?: string; display_name?: string; role: string; first_name?: string }): Observable<any> {
     return this.http.post(`${BASE}/employees/`, data);
+  }
+  updateEmployee(id: number, data: { display_name?: string; role?: string; password?: string; is_active?: boolean }): Observable<any> {
+    return this.http.patch(`${BASE}/employees/${id}/`, data);
   }
 
   // ── Kitchen (KDS) ────────────────────────────────────────────────

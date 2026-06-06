@@ -1,5 +1,8 @@
 from django.contrib import admin
-from .models import Shift, MenuCategory, MenuItem, Order, OrderItem, EntryTicket, Receipt
+from .models import (
+    Shift, MenuCategory, MenuItem, Order, OrderItem, EntryTicket, Receipt,
+    Printer, PrintJob,
+)
 
 
 class OrderItemInline(admin.TabularInline):
@@ -45,3 +48,16 @@ class EntryTicketAdmin(admin.ModelAdmin):
     list_display = ['bracelet_number', 'shift', 'price', 'sold_at', 'created_by']
     list_filter = ['shift']
     search_fields = ['bracelet_number']
+
+
+@admin.register(Printer)
+class PrinterAdmin(admin.ModelAdmin):
+    list_display = ['name', 'connection', 'host', 'port', 'is_default', 'is_active']
+    list_filter = ['connection', 'is_active']
+
+
+@admin.register(PrintJob)
+class PrintJobAdmin(admin.ModelAdmin):
+    list_display = ['id', 'printer', 'kind', 'receipt', 'status', 'created_at', 'sent_at']
+    list_filter = ['status', 'printer', 'kind']
+    readonly_fields = ['payload', 'created_at', 'sent_at']
