@@ -10,6 +10,11 @@ export const routes: Routes = [
   },
 
   {
+    path: 'pin',
+    loadComponent: () => import('./pages/pin/pin-login.page').then(m => m.PinLoginPage)
+  },
+
+  {
     path: 'role-select',
     loadComponent: () => import('./pages/role-select/role-select.page').then(m => m.RoleSelectPage),
     canActivate: [authGuard],
@@ -85,6 +90,18 @@ export const routes: Routes = [
       {
         path: 'printers',
         loadComponent: () => import('./pages/admin/printers/printers.page').then(m => m.PrintersPage)
+      },
+      {
+        path: 'reports',
+        loadComponent: () => import('./pages/admin/reports/reports.page').then(m => m.ReportsComponent)
+      },
+      {
+        path: 'forecast',
+        loadComponent: () => import('./pages/admin/forecast/forecast.page').then(m => m.ForecastPage)
+      },
+      {
+        path: 'inventory',
+        loadComponent: () => import('./pages/admin/inventory/inventory.page').then(m => m.InventoryPage)
       },
     ]
   },

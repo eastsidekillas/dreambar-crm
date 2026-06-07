@@ -612,8 +612,8 @@ export class BartenderPage implements OnInit, OnDestroy {
   loadMenu() {
     this.api.getMenuByCategory().subscribe(cats => {
       this.barMenu.set(
-        cats.filter(c => c.type === 'bar' || c.type === 'kitchen')
-            .map(c => ({ id: c.id, name: c.name, type: c.type, items: c.items }))
+        cats.filter(c => c.station_type === 'bar' || c.station_type === 'kitchen')
+            .map(c => ({ id: c.id, name: c.name, type: c.station_type, items: c.items }))
       );
       this.goRoot();
     });

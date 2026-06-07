@@ -156,10 +156,36 @@ interface EditState {
                         Выберите 2+ ролей — сотрудник будет выбирать при входе
                       </p>
                     </div>
-                  <div class="col-span-full">
+                  <div class="col-span-full flex items-center gap-3 flex-wrap">
                       <button (click)="saveEdit(emp)" class="btn btn-primary btn-sm" [disabled]="saving()">
                         {{ saving() ? 'Сохранение...' : 'Сохранить' }}
                       </button>
+                      <button (click)="deleteEmployee(emp)"
+                              class="btn btn-sm ml-auto"
+                              style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5"
+                              [disabled]="saving()">
+                        🗑 Удалить сотрудника
+                      </button>
+                      <!-- PIN management -->
+                      @if (pinEditId() === emp.id) {
+                        <div class="flex items-center gap-2">
+                          <input [(ngModel)]="pinInput" class="field" type="tel" inputmode="numeric"
+                                 maxlength="4" pattern="[0-9]*" placeholder="4 цифры"
+                                 style="width:100px;height:32px"/>
+                          <button (click)="savePin(emp)" class="btn btn-sm"
+                                  style="background:#1d4ed8;color:#fff"
+                                  [disabled]="pinInput.length < 4">
+                            Сохранить PIN
+                          </button>
+                          <button (click)="pinEditId.set(null)" class="btn btn-ghost btn-sm">✕</button>
+                        </div>
+                      } @else {
+                        <button (click)="pinEditId.set(emp.id); pinInput=''"
+                                class="btn btn-sm"
+                                style="background:#172554;color:#93c5fd;border:1px solid #1e3a8a">
+                          🔐 {{ emp.has_pin ? 'Изменить PIN' : 'Установить PIN' }}
+                        </button>
+                      }
                     </div>
                   </div>
                 }
@@ -193,11 +219,14 @@ interface EditState {
                   <th class="text-left py-2 section-title">Сотрудник</th>
                   <th class="text-left py-2 section-title">Должность</th>
                   <th class="text-right py-2 section-title">Заказов</th>
+                  <th class="text-right py-2 section-title">Гостей</th>
+                  <th class="text-right py-2 section-title">Ср. чек</th>
                   <th class="text-right py-2 section-title">Бар</th>
                   <th class="text-right py-2 section-title">Кухня</th>
                   <th class="text-right py-2 section-title">Кальян</th>
                   <th class="text-right py-2 section-title">Билеты</th>
                   <th class="text-right py-2 section-title">Итого</th>
+                  <th class="text-right py-2 section-title" title="Удалённые позиции">🗑</th>
                   <th></th>
                 </tr>
               </thead>
@@ -207,11 +236,23 @@ interface EditState {
                     <td class="py-2.5 font-medium">{{ e.display_name }}</td>
                     <td class="py-2.5"><span class="badge" [class]="roleCls(e.role)">{{ roleIcon(e.role) }} {{ e.role_label }}</span></td>
                     <td class="py-2.5 text-right">{{ e.orders_count }}</td>
+                    <td class="py-2.5 text-right" style="color:var(--color-muted)">{{ e.total_guests }}</td>
+                    <td class="py-2.5 text-right">{{ e.avg_check | number:'1.0-0' }} ₽</td>
                     <td class="py-2.5 text-right">{{ e.bar_revenue | number:'1.0-0' }} ₽</td>
                     <td class="py-2.5 text-right">{{ e.kitchen_revenue | number:'1.0-0' }} ₽</td>
                     <td class="py-2.5 text-right">{{ e.hookah_revenue | number:'1.0-0' }} ₽</td>
                     <td class="py-2.5 text-right">{{ e.ticket_revenue | number:'1.0-0' }} ₽ <span style="color:var(--color-muted)">({{ e.tickets_count }})</span></td>
                     <td class="py-2.5 text-right font-bold" style="color:var(--color-gold-hover)">{{ e.total_revenue | number:'1.0-0' }} ₽</td>
+                    <td class="py-2.5 text-right">
+                      @if (e.deleted_count) {
+                        <span class="text-xs font-semibold" style="color:#dc2626"
+                              title="{{ e.deleted_count }} поз. на {{ e.deleted_amount | number:'1.0-0' }} ₽">
+                          {{ e.deleted_count }} / {{ e.deleted_amount | number:'1.0-0' }} ₽
+                        </span>
+                      } @else {
+                        <span style="color:var(--color-muted)">—</span>
+                      }
+                    </td>
                     <td class="py-2.5 text-right">
                       <button (click)="toggleOrders(e)" class="btn btn-ghost btn-sm">
                         {{ openedUser() === e.user_id ? 'Скрыть' : 'Заказы' }}
@@ -220,7 +261,7 @@ interface EditState {
                   </tr>
                   @if (openedUser() === e.user_id) {
                     <tr>
-                      <td colspan="9" class="py-2" style="background:var(--color-surface2)">
+                      <td colspan="12" class="py-2" style="background:var(--color-surface2)">
                         <div class="px-3 py-2">
                           @if (empOrders().length) {
                             @for (o of empOrders(); track o.id) {
@@ -255,11 +296,21 @@ interface EditState {
                   <span class="badge" [class]="roleCls(e.role)">{{ roleIcon(e.role) }} {{ e.role_label }}</span>
                 </div>
                 <div class="grid grid-cols-3 gap-2 text-xs mb-2">
+                  <div><span style="color:var(--color-muted)">Заказов:</span> {{ e.orders_count }}</div>
+                  <div><span style="color:var(--color-muted)">Гостей:</span> {{ e.total_guests }}</div>
+                  <div><span style="color:var(--color-muted)">Ср. чек:</span> {{ e.avg_check | number:'1.0-0' }} ₽</div>
                   <div><span style="color:var(--color-muted)">Бар:</span> {{ e.bar_revenue | number:'1.0-0' }} ₽</div>
                   <div><span style="color:var(--color-muted)">Кухня:</span> {{ e.kitchen_revenue | number:'1.0-0' }} ₽</div>
                   <div><span style="color:var(--color-muted)">Кальян:</span> {{ e.hookah_revenue | number:'1.0-0' }} ₽</div>
                   <div><span style="color:var(--color-muted)">Билеты:</span> {{ e.ticket_revenue | number:'1.0-0' }} ₽</div>
-                  <div><span style="color:var(--color-muted)">Заказов:</span> {{ e.orders_count }}</div>
+                  @if (e.deleted_count) {
+                    <div class="col-span-2">
+                      <span style="color:var(--color-muted)">Удалено:</span>
+                      <span style="color:#dc2626;font-weight:600">
+                        {{ e.deleted_count }} поз. / {{ e.deleted_amount | number:'1.0-0' }} ₽
+                      </span>
+                    </div>
+                  }
                 </div>
                 <div class="flex items-center justify-between pt-2" style="border-top:1px solid var(--color-border)">
                   <span class="text-sm font-medium" style="color:var(--color-muted)">Итого</span>
@@ -293,6 +344,9 @@ export class EmployeesComponent implements OnInit {
   editingId  = signal<number | null>(null);
   editState: EditState = { display_name: '', role: 'waiter', password: '', allowed_roles: [] };
   editError  = signal('');
+
+  pinEditId  = signal<number | null>(null);
+  pinInput   = '';
 
   roles = ROLES;
 
@@ -385,6 +439,32 @@ export class EmployeesComponent implements OnInit {
         this.saving.set(false);
         this.editError.set('Ошибка при сохранении');
       }
+    });
+  }
+
+  savePin(emp: Employee) {
+    if (this.pinInput.length < 4) return;
+    this.api.setEmployeePin(emp.id, this.pinInput).subscribe({
+      next: () => {
+        this.pinEditId.set(null);
+        this.pinInput = '';
+        // Помечаем has_pin локально
+        this.employees.update(list => list.map(e =>
+          e.id === emp.id ? { ...e, has_pin: true } : e
+        ));
+      },
+      error: () => alert('Ошибка при установке PIN'),
+    });
+  }
+
+  deleteEmployee(emp: Employee) {
+    if (!confirm(`Удалить сотрудника «${emp.display_name}»?\n\nЗаказы и история сохранятся, но сотрудник больше не сможет войти.`)) return;
+    this.api.deleteEmployee(emp.id).subscribe({
+      next: () => {
+        this.editingId.set(null);
+        this.employees.update(list => list.filter(e => e.id !== emp.id));
+      },
+      error: err => alert(err.error?.detail ?? 'Ошибка при удалении'),
     });
   }
 

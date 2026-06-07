@@ -9,7 +9,7 @@ class Order(models.Model):
         ('closed',    'Закрыт'),
         ('cancelled', 'Отменён'),
     ]
-    shift        = models.ForeignKey('Shift', on_delete=models.CASCADE, related_name='orders')
+    shift        = models.ForeignKey('shifts.Shift', on_delete=models.CASCADE, related_name='orders')
     waiter       = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='orders')
     table_number = models.CharField(max_length=10, blank=True, verbose_name='Стол/зона')
     guests       = models.PositiveSmallIntegerField(default=0, verbose_name='Гостей')
@@ -43,13 +43,13 @@ class OrderItem(models.Model):
         ('ready',   'Готов'),
     ]
     order          = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
-    menu_item      = models.ForeignKey('MenuItem', on_delete=models.PROTECT)
+    menu_item      = models.ForeignKey('menu.MenuItem', on_delete=models.PROTECT)
     quantity       = models.PositiveIntegerField(default=1)
     unit_price     = models.DecimalField(max_digits=10, decimal_places=2)
     kitchen_status = models.CharField(max_length=10, choices=KITCHEN_STATUS, default='new')
     guest_no       = models.PositiveSmallIntegerField(default=0, verbose_name='Гость')
     receipt        = models.ForeignKey(
-        'Receipt', on_delete=models.SET_NULL, null=True, blank=True, related_name='items',
+        'receipts.Receipt', on_delete=models.SET_NULL, null=True, blank=True, related_name='items',
     )
 
     class Meta:

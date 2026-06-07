@@ -1,16 +1,16 @@
-from .users import UserProfile
-from .shifts import Shift
-from .menu import MenuCategory, MenuItem
+from apps.users.models import UserProfile
+from apps.menu.models import MenuSection, MenuCategory, MenuItem
+from apps.shifts.models import Shift
+from apps.receipts.models import Receipt
+from apps.tickets.models import EntryTicket
+from apps.printers.models import Printer, PrintJob
+from apps.audit.models import DeletedOrderItem
 from .orders import Order, OrderItem
-from .receipts import Receipt
-from .tickets import EntryTicket
-from .printers import Printer, PrintJob
-from .audit import DeletedOrderItem
 
 __all__ = [
     'UserProfile',
+    'MenuSection', 'MenuCategory', 'MenuItem',
     'Shift',
-    'MenuCategory', 'MenuItem',
     'Order', 'OrderItem',
     'Receipt',
     'EntryTicket',

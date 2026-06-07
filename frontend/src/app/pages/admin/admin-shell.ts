@@ -1,7 +1,12 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, RouterOutlet } from '@angular/router';
+import { RouterModule, RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { filter } from 'rxjs/operators';
+
+interface NavItem  { type: 'link';  path: string; label: string; icon: string; }
+interface NavGroup { type: 'group'; label: string; icon: string; badge?: string; children: { path: string; label: string }[]; }
+type NavEntry = NavItem | NavGroup;
 
 @Component({
   selector: 'app-admin-shell',
@@ -11,12 +16,14 @@ import { AuthService } from '../../core/services/auth.service';
     <div class="min-h-screen" style="background:var(--color-bg)">
       <div class="flex">
 
-        <!-- Sidebar — desktop -->
-        <aside class="hidden md:flex flex-col w-56 min-h-screen sticky top-0 h-screen"
+        <!-- ── Desktop sidebar ──────────────────────────────────── -->
+        <aside class="hidden md:flex flex-col w-56 min-h-screen sticky top-0 h-screen overflow-y-auto"
                style="background:white;border-right:1px solid var(--color-border)">
-          <!-- Logo -->
-          <div class="px-5 py-5 flex items-center gap-2" style="border-bottom:1px solid var(--color-border)">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:var(--color-gold)">
+
+          <div class="px-5 py-5 flex items-center gap-2 flex-shrink-0"
+               style="border-bottom:1px solid var(--color-border)">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                 style="background:var(--color-gold)">
               <span class="text-sm">🍸</span>
             </div>
             <div>
@@ -25,32 +32,72 @@ import { AuthService } from '../../core/services/auth.service';
             </div>
           </div>
 
-          <!-- Nav -->
-          <nav class="flex-1 px-3 py-4 space-y-1">
-            @for (item of navItems; track item.path) {
-              <a [routerLink]="item.path" routerLinkActive #rla="routerLinkActive"
-                 class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
-                 [style.background]="rla.isActive ? 'var(--color-gold-light)' : 'transparent'"
-                 [style.color]="rla.isActive ? 'var(--color-gold-hover)' : 'var(--color-muted)'"
-                 style="text-decoration:none">
-                <span class="text-base">{{ item.icon }}</span>
-                {{ item.label }}
-              </a>
+          <nav class="flex-1 px-3 py-4 space-y-0.5">
+            @for (entry of nav; track entry.label) {
+
+              <!-- Simple link -->
+              @if (entry.type === 'link') {
+                <a [routerLink]="entry.path" routerLinkActive #rla="routerLinkActive"
+                   class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
+                   [style.background]="rla.isActive ? 'var(--color-gold-light)' : 'transparent'"
+                   [style.color]="rla.isActive ? 'var(--color-gold-hover)' : 'var(--color-muted)'"
+                   style="text-decoration:none">
+                  <span class="text-base flex-shrink-0">{{ entry.icon }}</span>
+                  {{ entry.label }}
+                </a>
+              }
+
+              <!-- Expandable group -->
+              @if (entry.type === 'group') {
+                <div>
+                  <!-- Group header -->
+                  <button (click)="toggle(entry.label)"
+                    class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
+                    [style.background]="isGroupActive(entry) ? 'var(--color-gold-light)' : 'transparent'"
+                    [style.color]="isGroupActive(entry) ? 'var(--color-gold-hover)' : 'var(--color-muted)'"
+                    style="border:none;cursor:pointer;text-align:left">
+                    <span class="text-base flex-shrink-0">{{ entry.icon }}</span>
+                    <span class="flex-1">{{ entry.label }}</span>
+                    @if (entry.badge) {
+                      <span class="text-xs font-semibold px-1.5 py-0.5 rounded"
+                            style="background:var(--color-gold);color:#000;font-size:9px">
+                        {{ entry.badge }}
+                      </span>
+                    }
+                    <span class="text-xs ml-1 transition-transform"
+                          [style.transform]="expanded().has(entry.label) ? 'rotate(90deg)' : 'rotate(0deg)'">
+                      ›
+                    </span>
+                  </button>
+
+                  <!-- Children -->
+                  @if (expanded().has(entry.label)) {
+                    <div class="ml-6 mt-0.5 space-y-0.5">
+                      @for (child of entry.children; track child.path) {
+                        <a [routerLink]="child.path" routerLinkActive #crla="routerLinkActive"
+                           class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all"
+                           [style.background]="crla.isActive ? 'var(--color-gold-light)' : 'transparent'"
+                           [style.color]="crla.isActive ? 'var(--color-gold-hover)' : 'var(--color-muted)'"
+                           style="text-decoration:none">
+                          <span style="width:4px;height:4px;border-radius:50%;background:currentColor;flex-shrink:0"></span>
+                          {{ child.label }}
+                        </a>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+
             }
           </nav>
 
-          <!-- Footer -->
-          <div class="px-3 py-4" style="border-top:1px solid var(--color-border)">
+          <div class="px-3 py-4 flex-shrink-0" style="border-top:1px solid var(--color-border)">
             <a routerLink="/kitchen"
                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full mb-1"
-               style="color:var(--color-muted);text-decoration:none">
-              🍳 Экран кухни
-            </a>
+               style="color:var(--color-muted);text-decoration:none">🍳 Экран кухни</a>
             <a routerLink="/waiter"
                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full mb-1"
-               style="color:var(--color-muted);text-decoration:none">
-              📱 Режим официанта
-            </a>
+               style="color:var(--color-muted);text-decoration:none">📱 Режим официанта</a>
             <button (click)="logout()"
                     class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full"
                     style="color:var(--color-red);background:none;border:none;cursor:pointer">
@@ -59,7 +106,7 @@ import { AuthService } from '../../core/services/auth.service';
           </div>
         </aside>
 
-        <!-- Main -->
+        <!-- ── Main content ─────────────────────────────────────── -->
         <div class="flex-1 min-h-screen flex flex-col">
 
           <!-- Mobile header -->
@@ -72,10 +119,10 @@ import { AuthService } from '../../core/services/auth.service';
             <button (click)="logout()" class="text-sm" style="color:var(--color-muted)">Выйти</button>
           </header>
 
-          <!-- Mobile bottom nav -->
+          <!-- Mobile bottom nav (flat: groups → first child) -->
           <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 flex safe-bottom"
                style="background:white;border-top:1px solid var(--color-border);box-shadow:0 -2px 8px rgba(0,0,0,0.06)">
-            @for (item of navItems; track item.path) {
+            @for (item of mobileNav; track item.path) {
               <a [routerLink]="item.path" routerLinkActive #rla="routerLinkActive"
                  class="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 min-h-[56px]"
                  [style.color]="rla.isActive ? 'var(--color-gold)' : 'var(--color-muted)'"
@@ -93,17 +140,69 @@ import { AuthService } from '../../core/services/auth.service';
         </div>
       </div>
     </div>
-  `
+  `,
 })
 export class AdminShell {
-  navItems = [
-    { path: '/admin/dashboard', label: 'Дашборд',    icon: '📊' },
-    { path: '/admin/employees', label: 'Сотрудники', icon: '👥' },
-    { path: '/admin/shifts',    label: 'Смены',      icon: '📅' },
-    { path: '/admin/menu',      label: 'Меню',       icon: '🍽' },
-    { path: '/admin/printers',  label: 'Принтеры',   icon: '🖨' },
-    { path: '/admin/export',    label: 'Экспорт',    icon: '📥' },
+  expanded = signal<Set<string>>(new Set(['Аналитика']));
+
+  nav: NavEntry[] = [
+    { type: 'link', path: '/admin/dashboard', label: 'Дашборд',    icon: '📊' },
+    { type: 'link', path: '/admin/shifts',    label: 'Смены',      icon: '📅' },
+    {
+      type: 'group',
+      label: 'Аналитика',
+      icon: '📈',
+      children: [
+        { path: '/admin/reports',  label: 'Отчёты' },
+        { path: '/admin/forecast', label: 'Прогноз' },
+      ],
+    },
+    { type: 'link', path: '/admin/inventory', label: 'Склад',      icon: '📦' },
+    { type: 'link', path: '/admin/menu',      label: 'Меню',       icon: '🍽' },
+    { type: 'link', path: '/admin/employees', label: 'Сотрудники', icon: '👥' },
+    {
+      type: 'group',
+      label: 'Настройки',
+      icon: '⚙️',
+      children: [
+        { path: '/admin/printers', label: 'Принтеры' },
+      ],
+    },
   ];
-  constructor(private auth: AuthService) {}
+
+  mobileNav = [
+    { path: '/admin/dashboard', label: 'Дашборд', icon: '📊' },
+    { path: '/admin/shifts',    label: 'Смены',   icon: '📅' },
+    { path: '/admin/inventory', label: 'Склад',   icon: '📦' },
+    { path: '/admin/reports',   label: 'Отчёты',  icon: '📈' },
+    { path: '/admin/menu',      label: 'Меню',    icon: '🍽' },
+  ];
+
+  constructor(private auth: AuthService, private router: Router) {
+    this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe((e: any) => {
+      const url: string = e.urlAfterRedirects ?? e.url ?? '';
+      if (url.includes('/admin/reports') || url.includes('/admin/forecast')) {
+        const s = new Set(this.expanded());
+        s.add('Аналитика');
+        this.expanded.set(s);
+      }
+      if (url.includes('/admin/printers')) {
+        const s = new Set(this.expanded());
+        s.add('Настройки');
+        this.expanded.set(s);
+      }
+    });
+  }
+
+  toggle(label: string) {
+    const s = new Set(this.expanded());
+    s.has(label) ? s.delete(label) : s.add(label);
+    this.expanded.set(s);
+  }
+
+  isGroupActive(entry: NavGroup): boolean {
+    return entry.children.some(c => this.router.isActive(c.path, { paths: 'subset', queryParams: 'ignored', fragment: 'ignored', matrixParams: 'ignored' }));
+  }
+
   logout() { this.auth.logout(); }
 }

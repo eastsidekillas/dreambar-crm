@@ -23,7 +23,11 @@ class KitchenOrdersView(APIView):
             order__status__in=['open', 'closed'],
         ).filter(
             Q(menu_item__print_station=category_type) |
-            Q(menu_item__print_station='', menu_item__category__type=category_type)
+            Q(menu_item__print_station='',
+              menu_item__category__print_station=category_type) |
+            Q(menu_item__print_station='',
+              menu_item__category__print_station='',
+              menu_item__category__section__station_type=category_type)
         )
 
         user_profile = getattr(request.user, 'profile', None)
@@ -109,6 +113,13 @@ class KitchenOrderReadyView(APIView):
         category_type = request.query_params.get('type')
         qs = OrderItem.objects.filter(order_id=order_id)
         if category_type:
-            qs = qs.filter(menu_item__category__type=category_type)
+            qs = qs.filter(
+                Q(menu_item__print_station=category_type) |
+                Q(menu_item__print_station='',
+                  menu_item__category__print_station=category_type) |
+                Q(menu_item__print_station='',
+                  menu_item__category__print_station='',
+                  menu_item__category__section__station_type=category_type)
+            )
         updated = qs.update(kitchen_status='ready')
         return Response({'order_id': int(order_id), 'updated': updated})

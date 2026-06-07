@@ -47,6 +47,15 @@ export interface Employee {
   role_label: string;
   allowed_roles: Role[];
   is_active: boolean;
+  has_pin?: boolean;
+}
+
+export interface StaffMember {
+  id: number;
+  display_name: string;
+  role: Role;
+  role_label: string;
+  has_pin: boolean;
 }
 
 export interface EmployeeActivity {
@@ -62,6 +71,10 @@ export interface EmployeeActivity {
   hookah_revenue: number;
   ticket_revenue: number;
   total_revenue: number;
+  avg_check: number;
+  total_guests: number;
+  deleted_count: number;
+  deleted_amount: number;
 }
 
 export interface TokenResponse {
@@ -83,10 +96,23 @@ export interface Shift {
   tickets_count: number;
 }
 
+export interface MenuSection {
+  id: number;
+  name: string;
+  station_type: 'bar' | 'kitchen' | 'hookah';
+  icon: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
 export interface MenuCategory {
   id: number;
   name: string;
-  type: 'bar' | 'kitchen' | 'hookah';
+  section: number;
+  section_name: string;
+  station_type: 'bar' | 'kitchen' | 'hookah';
+  print_station: string;
+  is_active: boolean;
   sort_order: number;
 }
 
@@ -109,7 +135,10 @@ export interface MenuItem {
 export interface MenuByCategory {
   id: number;
   name: string;
-  type: 'bar' | 'kitchen' | 'hookah';
+  section_id: number;
+  section_name: string;
+  station_type: 'bar' | 'kitchen' | 'hookah';
+  print_station: string;
   items: MenuItem[];
 }
 
@@ -225,7 +254,7 @@ export interface ShiftAnalytics {
 export interface TopItem {
   menu_item__id: number;
   menu_item__name: string;
-  menu_item__category__type: string;
+  menu_item__category__section__station_type: string;
   total_qty: number;
   total_revenue: number;
 }
@@ -237,6 +266,119 @@ export interface MonthlyData {
   hookah: number;
   tickets: number;
   total: number;
+}
+
+export interface ShiftDetail {
+  shift_id: number;
+  date: string;
+  is_open: boolean;
+  opened_by: string | null;
+  opened_at: string;
+  closed_at: string | null;
+  by_category: { bar: number; kitchen: number; hookah: number; tickets: number };
+  by_payment: { method: string; label: string; amount: number }[];
+  summary: {
+    total_revenue: number;
+    orders_count: number;
+    receipts_count: number;
+    guests_count: number;
+    avg_check: number;
+    deleted_count: number;
+    deleted_amount: number;
+  };
+  employees: { user_id: number; display_name: string; orders_count: number; revenue: number }[];
+  top_items: { name: string; volume: string; type: string; qty: number; revenue: number }[];
+}
+
+export interface SalesReport {
+  summary: {
+    total_revenue: number;
+    total_cogs: number;
+    gross_profit: number;
+    gross_margin: number;
+    orders_count: number;
+    receipts_count: number;
+    guests_count: number;
+    avg_check: number;
+    deleted_count: number;
+    deleted_amount: number;
+  };
+  by_category: { bar: number; kitchen: number; hookah: number; tickets: number };
+  by_payment: { method: string; label: string; amount: number }[];
+  top_items: { id: number; name: string; volume: string; type: string; qty: number; revenue: number; cost: number; profit: number }[];
+  by_shift: { shift_id: number; date: string; is_open: boolean; revenue: number; orders_count: number; receipts_count: number }[];
+}
+
+export const PRODUCT_UNITS = ['мл', 'л', 'г', 'кг', 'шт', 'уп'] as const;
+export type ProductUnit = typeof PRODUCT_UNITS[number];
+
+export interface Product {
+  id: number;
+  name: string;
+  unit: ProductUnit;
+  pack_size: number;
+  purchase_price: number;
+  stock_quantity: number;
+  min_stock: number | null;
+  is_low: boolean;
+  is_active: boolean;
+}
+
+export type MovementReason = 'sale' | 'manual_in' | 'manual_out' | 'adjustment';
+
+export interface InventoryMovement {
+  id: number;
+  product: number;
+  product_name: string;
+  product_unit: string;
+  quantity: number;
+  reason: MovementReason;
+  order_item: number | null;
+  shift: number | null;
+  created_by: number | null;
+  created_by_name: string | null;
+  created_at: string;
+  note: string;
+}
+
+export interface MenuItemComponent {
+  id: number;
+  menu_item: number;
+  product: number;
+  product_name: string;
+  product_unit: string;
+  quantity: number;
+}
+
+export interface ConsumptionRow {
+  product_id: number;
+  product_name: string;
+  unit: string;
+  pack_size: number;
+  purchase_price: number;
+  stock_quantity: number;
+  total_units: number;
+  total_packs: number;
+  packs_to_buy: number;
+  total_cost: number;
+}
+
+export interface ForecastHour {
+  hour: number;
+  revenue: number;
+  receipts: number;
+}
+
+export interface ForecastDay {
+  date: string;
+  weekday: number;
+  weekday_name: string;
+  samples: number;
+  revenue: number;
+  receipts_count: number;
+  avg_check: number;
+  by_category: { bar: number; kitchen: number; hookah: number; tickets: number };
+  by_hour: ForecastHour[];
 }
 
 export type PrinterConnection = 'network' | 'agent';

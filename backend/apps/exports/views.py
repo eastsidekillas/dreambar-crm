@@ -99,9 +99,9 @@ def build_summary_sheet(wb, shifts):
         items = OrderItem.objects.filter(order__shift=shift, order__status='closed')
         t_n = shift.entry_tickets.count()
         t   = float(shift.entry_tickets.aggregate(s=Sum('price'))['s'] or 0)
-        bar = float(items.filter(menu_item__category__type='bar').aggregate(s=Sum(F('unit_price')*F('quantity')))['s'] or 0)
-        kitch = float(items.filter(menu_item__category__type='kitchen').aggregate(s=Sum(F('unit_price')*F('quantity')))['s'] or 0)
-        hook = float(items.filter(menu_item__category__type='hookah').aggregate(s=Sum(F('unit_price')*F('quantity')))['s'] or 0)
+        bar = float(items.filter(menu_item__category__section__station_type='bar').aggregate(s=Sum(F('unit_price')*F('quantity')))['s'] or 0)
+        kitch = float(items.filter(menu_item__category__section__station_type='kitchen').aggregate(s=Sum(F('unit_price')*F('quantity')))['s'] or 0)
+        hook = float(items.filter(menu_item__category__section__station_type='hookah').aggregate(s=Sum(F('unit_price')*F('quantity')))['s'] or 0)
         total = t + bar + kitch + hook
         orders = shift.orders.filter(status='closed').count()
 
@@ -164,9 +164,9 @@ def build_employees_sheet(wb, shifts):
         emp_orders = Order.objects.filter(waiter=emp, shift__in=shifts, status='closed')
         emp_tickets = EntryTicket.objects.filter(created_by=emp, shift__in=shifts)
         items = OrderItem.objects.filter(order__in=emp_orders)
-        bar   = float(items.filter(menu_item__category__type='bar').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
-        kitch = float(items.filter(menu_item__category__type='kitchen').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
-        hook  = float(items.filter(menu_item__category__type='hookah').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
+        bar   = float(items.filter(menu_item__category__section__station_type='bar').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
+        kitch = float(items.filter(menu_item__category__section__station_type='kitchen').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
+        hook  = float(items.filter(menu_item__category__section__station_type='hookah').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
         t_n   = emp_tickets.count()
         t_rev = float(emp_tickets.aggregate(s=Sum('price'))['s'] or 0)
         total = bar + kitch + hook + t_rev
@@ -334,9 +334,9 @@ def build_shift_detail_sheet(wb, shift):
 
     # Summary box
     items = OrderItem.objects.filter(order__shift=shift, order__status='closed')
-    bar   = float(items.filter(menu_item__category__type='bar').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
-    kitch = float(items.filter(menu_item__category__type='kitchen').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
-    hook  = float(items.filter(menu_item__category__type='hookah').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
+    bar   = float(items.filter(menu_item__category__section__station_type='bar').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
+    kitch = float(items.filter(menu_item__category__section__station_type='kitchen').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
+    hook  = float(items.filter(menu_item__category__section__station_type='hookah').aggregate(t=Sum(F('unit_price')*F('quantity')))['t'] or 0)
     tick  = float(shift.entry_tickets.aggregate(t=Sum('price'))['t'] or 0)
 
     summary = [('Входные билеты', tick), ('Бар', bar), ('Кухня', kitch), ('Кальян', hook),

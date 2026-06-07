@@ -4,11 +4,14 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from ..models import Order, OrderItem, Receipt, Shift, Printer, DeletedOrderItem
-from ..serializers import (
-    OrderSerializer, OrderCreateSerializer, OrderItemCreateSerializer, ReceiptSerializer,
-)
-from ..services import printing
+from apps.shifts.models import Shift
+from apps.receipts.models import Receipt
+from apps.printers.models import Printer
+from apps.audit.models import DeletedOrderItem
+from ..models import Order, OrderItem
+from ..serializers import OrderSerializer, OrderCreateSerializer, OrderItemCreateSerializer, ReceiptSerializer
+from apps.printers.services import printing
+from apps.inventory.services import deduct_for_receipt
 
 
 def _issue_receipt(order, items, payment_method, user):
@@ -23,6 +26,7 @@ def _issue_receipt(order, items, payment_method, user):
         total=total,
     )
     OrderItem.objects.filter(pk__in=[it.pk for it in items]).update(receipt=receipt)
+    deduct_for_receipt(items, receipt, user=user)
 
     if not order.items.filter(receipt__isnull=True).exists():
         order.status = 'closed'
@@ -187,11 +191,17 @@ class OrderViewSet(viewsets.ModelViewSet):
 
 
 class ReceiptViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Receipt.objects.select_related('waiter', 'waiter__profile', 'shift').prefetch_related(
-        'items__menu_item__category'
-    )
     serializer_class = ReceiptSerializer
-    filterset_fields = ['shift', 'order', 'payment_method']
+    filterset_fields = ['shift', 'order', 'payment_method', 'waiter']
+    queryset = Receipt.objects.none()  # overridden in get_queryset; required by router for basename
+
+    def get_queryset(self):
+        qs = Receipt.objects.select_related('waiter', 'waiter__profile', 'shift').prefetch_related(
+            'items__menu_item__category'
+        )
+        if not self.request.user.is_staff:
+            qs = qs.filter(waiter=self.request.user)
+        return qs
 
     @action(detail=True, methods=['post'])
     def print(self, request, pk=None):

@@ -43,7 +43,7 @@ const donutCenter = {
   imports: [CommonModule],
   template: `
     <div class="space-y-5">
-      <h1 class="text-xl font-bold">📊 Аналитика</h1>
+      <h1 class="text-xl font-bold">Аналитика</h1>
 
       @if (data()) {
         <!-- KPI row -->

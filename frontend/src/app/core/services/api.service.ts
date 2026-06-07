@@ -4,8 +4,11 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import {
   Shift, MenuByCategory, MenuItem, Order, EntryTicket, Receipt, PaymentMethod,
-  DashboardData, ShiftAnalytics, TopItem, MonthlyData, MenuCategory,
-  Employee, EmployeeActivity, KitchenData, KitchenStatus, Printer
+  DashboardData, ShiftAnalytics, TopItem, MonthlyData, MenuCategory, MenuSection,
+  Employee, EmployeeActivity, KitchenData, KitchenStatus, Printer,
+  ShiftDetail, SalesReport, ForecastDay,
+  Product, MenuItemComponent, ConsumptionRow, InventoryMovement, MovementReason,
+  StaffMember, TokenResponse,
 } from '../models';
 
 export interface BillSpec { item_ids: number[]; payment_method: PaymentMethod; }
@@ -50,7 +53,10 @@ export class ApiService {
     return unpage(this.http.get<MenuItem[] | Paginated<MenuItem>>(`${BASE}/menu/items/?page_size=500`));
   }
   getMenuCategories(): Observable<MenuCategory[]> {
-    return unpage(this.http.get<MenuCategory[] | Paginated<MenuCategory>>(`${BASE}/menu/categories/?page_size=100`));
+    return unpage(this.http.get<MenuCategory[] | Paginated<MenuCategory>>(`${BASE}/menu/categories/?page_size=200`));
+  }
+  getMenuSections(): Observable<MenuSection[]> {
+    return unpage(this.http.get<MenuSection[] | Paginated<MenuSection>>(`${BASE}/menu/sections/?page_size=50`));
   }
   createMenuItem(data: Partial<MenuItem>): Observable<MenuItem> {
     return this.http.post<MenuItem>(`${BASE}/menu/items/`, data);
@@ -60,6 +66,24 @@ export class ApiService {
   }
   deleteMenuItem(id: number): Observable<void> {
     return this.http.delete<void>(`${BASE}/menu/items/${id}/`);
+  }
+  createMenuSection(data: Partial<MenuSection>): Observable<MenuSection> {
+    return this.http.post<MenuSection>(`${BASE}/menu/sections/`, data);
+  }
+  updateMenuSection(id: number, data: Partial<MenuSection>): Observable<MenuSection> {
+    return this.http.patch<MenuSection>(`${BASE}/menu/sections/${id}/`, data);
+  }
+  deleteMenuSection(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/menu/sections/${id}/`);
+  }
+  createMenuCategory(data: Partial<MenuCategory>): Observable<MenuCategory> {
+    return this.http.post<MenuCategory>(`${BASE}/menu/categories/`, data);
+  }
+  updateMenuCategory(id: number, data: Partial<MenuCategory>): Observable<MenuCategory> {
+    return this.http.patch<MenuCategory>(`${BASE}/menu/categories/${id}/`, data);
+  }
+  deleteMenuCategory(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/menu/categories/${id}/`);
   }
 
   // ── Orders ───────────────────────────────────────────────────────
@@ -129,6 +153,17 @@ export class ApiService {
     return this.http.post<{ created: number }>(`${BASE}/tickets/bulk_create/`, data);
   }
 
+  // ── PIN Auth ─────────────────────────────────────────────────────
+  getStaffList(): Observable<StaffMember[]> {
+    return this.http.get<StaffMember[]>(`${BASE}/auth/staff/`);
+  }
+  pinLogin(userId: number, pin: string): Observable<TokenResponse> {
+    return this.http.post<TokenResponse>(`${BASE}/auth/pin/`, { user_id: userId, pin });
+  }
+  setEmployeePin(userId: number, pin: string): Observable<any> {
+    return this.http.patch(`${BASE}/employees/${userId}/`, { pin });
+  }
+
   // ── Employees ────────────────────────────────────────────────────
   getEmployees(): Observable<Employee[]> {
     return this.http.get<Employee[]>(`${BASE}/employees/`);
@@ -148,6 +183,9 @@ export class ApiService {
   }
   updateEmployee(id: number, data: { display_name?: string; role?: string; password?: string; is_active?: boolean }): Observable<any> {
     return this.http.patch(`${BASE}/employees/${id}/`, data);
+  }
+  deleteEmployee(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/employees/${id}/`);
   }
 
   // ── Printers ─────────────────────────────────────────────────────
@@ -193,6 +231,67 @@ export class ApiService {
   }
   getMonthly(): Observable<MonthlyData[]> {
     return this.http.get<MonthlyData[]>(`${BASE}/analytics/monthly/`);
+  }
+  getShiftDetail(shiftId: number): Observable<ShiftDetail> {
+    return this.http.get<ShiftDetail>(`${BASE}/analytics/shift-detail/${shiftId}/`);
+  }
+  getForecast(): Observable<ForecastDay[]> {
+    return this.http.get<ForecastDay[]>(`${BASE}/analytics/forecast/`);
+  }
+
+  getSalesReport(dateFrom?: string, dateTo?: string): Observable<SalesReport> {
+    let params = new HttpParams();
+    if (dateFrom) params = params.set('date_from', dateFrom);
+    if (dateTo)   params = params.set('date_to', dateTo);
+    return this.http.get<SalesReport>(`${BASE}/analytics/sales-report/`, { params });
+  }
+
+  // ── Inventory ────────────────────────────────────────────────────
+  getProducts(): Observable<Product[]> {
+    return unpage(this.http.get<Product[] | Paginated<Product>>(`${BASE}/inventory/products/?page_size=500`));
+  }
+  createProduct(data: Partial<Product>): Observable<Product> {
+    return this.http.post<Product>(`${BASE}/inventory/products/`, data);
+  }
+  updateProduct(id: number, data: Partial<Product>): Observable<Product> {
+    return this.http.patch<Product>(`${BASE}/inventory/products/${id}/`, data);
+  }
+  deleteProduct(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/inventory/products/${id}/`);
+  }
+  getComponents(menuItemId?: number): Observable<MenuItemComponent[]> {
+    const url = menuItemId
+      ? `${BASE}/inventory/components/?menu_item=${menuItemId}&page_size=500`
+      : `${BASE}/inventory/components/?page_size=2000`;
+    return unpage(this.http.get<MenuItemComponent[] | Paginated<MenuItemComponent>>(url));
+  }
+  createComponent(data: { menu_item: number; product: number; quantity: number }): Observable<MenuItemComponent> {
+    return this.http.post<MenuItemComponent>(`${BASE}/inventory/components/`, data);
+  }
+  updateComponent(id: number, quantity: number): Observable<MenuItemComponent> {
+    return this.http.patch<MenuItemComponent>(`${BASE}/inventory/components/${id}/`, { quantity });
+  }
+  deleteComponent(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/inventory/components/${id}/`);
+  }
+  getConsumption(dateFrom?: string, dateTo?: string, shiftId?: number): Observable<ConsumptionRow[]> {
+    let params = new HttpParams();
+    if (shiftId)  params = params.set('shift', shiftId);
+    if (dateFrom) params = params.set('date_from', dateFrom);
+    if (dateTo)   params = params.set('date_to', dateTo);
+    return this.http.get<ConsumptionRow[]>(`${BASE}/inventory/consumption/`, { params });
+  }
+  getLowStock(): Observable<Product[]> {
+    return this.http.get<Product[]>(`${BASE}/inventory/products/low_stock/`);
+  }
+  getMovements(productId?: number, shiftId?: number): Observable<InventoryMovement[]> {
+    let params = new HttpParams().set('page_size', '200');
+    if (productId) params = params.set('product', productId);
+    if (shiftId)   params = params.set('shift', shiftId);
+    return unpage(this.http.get<InventoryMovement[] | Paginated<InventoryMovement>>(`${BASE}/inventory/movements/`, { params }));
+  }
+  adjustStock(data: { product: number; quantity: number; reason: MovementReason; note?: string }): Observable<Product> {
+    return this.http.post<Product>(`${BASE}/inventory/movements/adjust/`, data);
   }
 
   // ── Exports ──────────────────────────────────────────────────────

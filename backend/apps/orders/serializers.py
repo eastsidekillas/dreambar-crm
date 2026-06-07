@@ -1,8 +1,13 @@
-import base64
-
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Shift, MenuCategory, MenuItem, Order, OrderItem, EntryTicket, Receipt, PrintJob
+
+from apps.receipts.models import Receipt
+from .models import Order, OrderItem
+
+# Re-export so existing imports like `from apps.orders.serializers import ShiftSerializer` не ломаются
+from apps.shifts.serializers import ShiftSerializer               # noqa: F401
+from apps.tickets.serializers import EntryTicketSerializer        # noqa: F401
+from apps.printers.serializers import PrintJobAgentSerializer     # noqa: F401
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -11,33 +16,9 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'first_name', 'last_name']
 
 
-class MenuCategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = MenuCategory
-        fields = ['id', 'name', 'type', 'sort_order']
-
-
-class MenuItemSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    category_type = serializers.CharField(source='category.type', read_only=True)
-
-    class Meta:
-        model = MenuItem
-        fields = ['id', 'name', 'volume', 'description', 'price', 'cost_price',
-                  'is_active', 'is_out_of_stock', 'sort_order', 'category',
-                  'category_name', 'category_type', 'print_station']
-
-
-class MenuItemWriteSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = MenuItem
-        fields = ['id', 'name', 'volume', 'description', 'price', 'cost_price',
-                  'is_active', 'is_out_of_stock', 'sort_order', 'category', 'print_station']
-
-
 class OrderItemSerializer(serializers.ModelSerializer):
     menu_item_name = serializers.CharField(source='menu_item.name', read_only=True)
-    menu_item_type = serializers.CharField(source='menu_item.category.type', read_only=True)
+    menu_item_type = serializers.CharField(source='menu_item.category.section.station_type', read_only=True)
     subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
     class Meta:
@@ -59,10 +40,9 @@ class OrderItemCreateSerializer(serializers.ModelSerializer):
 
 
 class ReceiptItemSerializer(serializers.ModelSerializer):
-    """Позиция в составе чека (read-only снимок для печати)."""
     menu_item_name   = serializers.CharField(source='menu_item.name',   read_only=True)
     menu_item_volume = serializers.CharField(source='menu_item.volume', read_only=True)
-    menu_item_type   = serializers.CharField(source='menu_item.category.type', read_only=True)
+    menu_item_type   = serializers.CharField(source='menu_item.category.section.station_type', read_only=True)
     subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
     class Meta:
@@ -124,49 +104,3 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             item_data['unit_price'] = item_data['menu_item'].price
             OrderItem.objects.create(order=order, **item_data)
         return order
-
-
-class EntryTicketSerializer(serializers.ModelSerializer):
-    created_by_name = serializers.SerializerMethodField()
-
-    class Meta:
-        model = EntryTicket
-        fields = ['id', 'shift', 'bracelet_number', 'price', 'sold_at',
-                  'created_by', 'created_by_name']
-        read_only_fields = ['created_by', 'sold_at']
-
-    def get_created_by_name(self, obj):
-        if obj.created_by:
-            return obj.created_by.get_full_name() or obj.created_by.username
-        return None
-
-
-class ShiftSerializer(serializers.ModelSerializer):
-    opened_by_name = serializers.SerializerMethodField()
-    total_revenue = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
-    orders_count = serializers.IntegerField(read_only=True)
-    tickets_count = serializers.IntegerField(read_only=True)
-
-    class Meta:
-        model = Shift
-        fields = ['id', 'date', 'opened_by', 'opened_by_name', 'opened_at',
-                  'closed_at', 'is_open', 'notes',
-                  'total_revenue', 'orders_count', 'tickets_count']
-        read_only_fields = ['opened_by', 'opened_at', 'closed_at']
-
-    def get_opened_by_name(self, obj):
-        if obj.opened_by:
-            return obj.opened_by.get_full_name() or obj.opened_by.username
-        return None
-
-
-class PrintJobAgentSerializer(serializers.ModelSerializer):
-    """Представление задания для локального агента: ESC/POS-пакет в base64."""
-    payload_b64 = serializers.SerializerMethodField()
-
-    class Meta:
-        model = PrintJob
-        fields = ['id', 'kind', 'status', 'payload_b64', 'created_at']
-
-    def get_payload_b64(self, obj):
-        return base64.b64encode(bytes(obj.payload)).decode('ascii')

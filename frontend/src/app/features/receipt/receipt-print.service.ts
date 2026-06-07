@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Receipt } from '../../core/models';
 import { ApiService } from '../../core/services/api.service';
-import { ToastService } from '../../shared/ui/toast/toast.service';
+import { ToastService } from '../../shared/ui';
 
 /**
  * Печать чека. Открывает отдельное окно с версткой чека под узкую ленту (~58мм)

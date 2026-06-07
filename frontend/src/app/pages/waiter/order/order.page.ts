@@ -71,7 +71,7 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
           @for (group of searchResults(); track group.cat.id) {
             <div class="mb-5">
               <div class="section-title mb-2">
-                {{ meta(group.cat.type).icon }} {{ group.cat.name }}
+                {{ meta(group.cat.station_type).icon }} {{ group.cat.name }}
               </div>
               <div class="grid grid-cols-2 gap-2.5">
                 @for (item of group.items; track item.id) {
@@ -88,9 +88,9 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
                       </span>
                     }
                     <span class="inline-flex items-center gap-1 text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded-full"
-                          [style.color]="meta(group.cat.type).color"
-                          [style.background]="meta(group.cat.type).bg">
-                      {{ meta(group.cat.type).icon }}
+                          [style.color]="meta(group.cat.station_type).color"
+                          [style.background]="meta(group.cat.station_type).bg">
+                      {{ meta(group.cat.station_type).icon }}
                     </span>
                     <p class="font-semibold text-sm leading-tight mb-0.5" style="color:var(--color-text)">
                       {{ item.name }}
@@ -124,7 +124,7 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
             <button (click)="selectCat(cat.id)"
                     class="cat-chip flex-shrink-0"
                     [class]="catChipClass(cat)">
-              {{ meta(cat.type).icon }} {{ cat.name }}
+              {{ meta(cat.station_type).icon }} {{ cat.name }}
             </button>
           }
         </div>
@@ -149,9 +149,9 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
                 }
 
                 <span class="inline-flex items-center gap-1 text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded-full"
-                      [style.color]="meta(current()!.type).color"
-                      [style.background]="meta(current()!.type).bg">
-                  {{ meta(current()!.type).icon }}
+                      [style.color]="meta(current()!.station_type).color"
+                      [style.background]="meta(current()!.station_type).bg">
+                  {{ meta(current()!.station_type).icon }}
                 </span>
 
                 <p class="font-semibold text-sm leading-tight mb-0.5" style="color:var(--color-text)">
@@ -252,6 +252,6 @@ export class OrderPage implements OnInit {
   catChipClass(cat: MenuByCategory): string {
     const active = this.selectedCatId() === cat.id;
     if (!active) return 'cat-chip-inactive';
-    return `cat-chip-${cat.type} cat-chip-active-${cat.type}`;
+    return `cat-chip-${cat.station_type} cat-chip-active-${cat.station_type}`;
   }
 }

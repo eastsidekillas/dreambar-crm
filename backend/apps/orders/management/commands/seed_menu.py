@@ -1,12 +1,12 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
-from apps.orders.models import MenuCategory, MenuItem
+from apps.menu.models import MenuSection, MenuCategory, MenuItem
 
 # (name, volume, price, description)
 MENU_DATA = {
     'bar': [
         {
-            'name': 'Крепкий алкоголь',
+            'name': 'Водка',
             'items': [
                 ('Водка TUNDRA', '500 мл', 1200, ''),
                 ('Водка TUNDRA', '50 мл', 150, ''),
@@ -16,10 +16,11 @@ MENU_DATA = {
                 ('Водка MAMONT', '50 мл', 300, ''),
                 ('Водка Чистые Росы', '500 мл', 2800, ''),
                 ('Водка Чистые Росы', '50 мл', 300, ''),
-                ('Коньяк Старейшина', '500 мл', 1800, ''),
-                ('Коньяк Старейшина', '50 мл', 200, ''),
-                ('Коньяк Ст. Кёнигсберг', '500 мл', 2200, ''),
-                ('Коньяк Ст. Кёнигсберг', '50 мл', 250, ''),
+            ]
+        },
+        {
+            'name': 'Виски',
+            'items': [
                 ('Виски Fowler\'s', '500 мл', 1800, ''),
                 ('Виски Fowler\'s', '50 мл', 200, ''),
                 ('Виски W. Lawson\'s', '500 мл', 3000, ''),
@@ -30,14 +31,42 @@ MENU_DATA = {
                 ('Виски Red Label', '50 мл', 300, ''),
                 ('Виски Jack Daniel\'s', '700 мл', 6500, ''),
                 ('Виски Jack Daniel\'s', '50 мл', 550, ''),
+            ]
+        },
+        {
+            'name': 'Коньяк',
+            'items': [
+                ('Коньяк Старейшина', '500 мл', 1800, ''),
+                ('Коньяк Старейшина', '50 мл', 200, ''),
+                ('Коньяк Ст. Кёнигсберг', '500 мл', 2200, ''),
+                ('Коньяк Ст. Кёнигсберг', '50 мл', 250, ''),
+            ]
+        },
+        {
+            'name': 'Текила / Ром / Джин',
+            'items': [
+                ('Текила Olmeca', '700 мл', 4500, ''),
+                ('Текила Olmeca', '50 мл', 350, ''),
                 ('Ром Devil\'s Island', '500 мл', 1800, ''),
                 ('Ром Devil\'s Island', '50 мл', 200, ''),
+                ('Джин Barrister', '700 мл', 2200, ''),
+                ('Джин Barrister', '50 мл', 200, ''),
+            ]
+        },
+        {
+            'name': 'Вермут / Мартини',
+            'items': [
                 ('Martini Bianco', '1000 мл', 3000, ''),
                 ('Martini Bianco', '500 мл', 1500, ''),
                 ('Martini Bianco', '50 мл', 150, ''),
                 ('Martini Fiero', '1000 мл', 3000, ''),
                 ('Martini Fiero', '500 мл', 1500, ''),
                 ('Martini Fiero', '50 мл', 150, ''),
+            ]
+        },
+        {
+            'name': 'Ликёры',
+            'items': [
                 ('Ликёр Aperol', '700 мл', 3500, ''),
                 ('Ликёр Aperol', '50 мл', 250, ''),
                 ('Ликёр Cointreau', '500 мл', 3500, ''),
@@ -48,10 +77,6 @@ MENU_DATA = {
                 ('Ликёр Jägermeister', '50 мл', 300, ''),
                 ('Ликёр Sheridan\'s', '750 мл', 5500, ''),
                 ('Ликёр Sheridan\'s', '50 мл', 400, ''),
-                ('Текила Olmeca', '700 мл', 4500, ''),
-                ('Текила Olmeca', '50 мл', 350, ''),
-                ('Джин Barrister', '700 мл', 2200, ''),
-                ('Джин Barrister', '50 мл', 200, ''),
             ]
         },
         {
@@ -109,9 +134,8 @@ MENU_DATA = {
             ]
         },
         {
-            'name': 'Соусы и напитки',
+            'name': 'Соки и воды',
             'items': [
-                ('Соусы (5 видов)', '', 100, ''),
                 ('Сок', '', 300, 'в ассортименте'),
                 ('Вода', '', 150, 'в ассортименте'),
             ]
@@ -194,12 +218,8 @@ class Command(BaseCommand):
 
         # Employees: (username, password, display_name, role)
         staff = [
-            ('admin',     'dreambar2026', 'Администратор',   'admin'),
-            ('waiter1',   'waiter2026',   'Официант Анна',   'waiter'),
-            ('waiter2',   'waiter2026',   'Официант Иван',   'waiter'),
-            ('bartender', 'bar2026',      'Бармен Сергей',   'bartender'),
-            ('kitchen',   'kuhnya2026',   'Повар Дмитрий',   'kitchen'),
-            ('wardrobe',  'gard2026',     'Гардероб Ольга',  'wardrobe'),
+            ('admin', 'dreambar2026', 'Администратор', 'admin'),
+            ('test', 'test', 'Тестовый официант', 'waiter'),
         ]
         for username, password, display, role in staff:
             user, created = User.objects.get_or_create(username=username, defaults={
@@ -216,13 +236,22 @@ class Command(BaseCommand):
             profile.display_name = display
             profile.save()
 
+        section_names = {'bar': 'Бар', 'kitchen': 'Кухня', 'hookah': 'Кальян'}
+        sections = {}
+        for i, (station, name) in enumerate(section_names.items()):
+            sections[station], _ = MenuSection.objects.get_or_create(
+                station_type=station,
+                defaults={'name': name, 'sort_order': i},
+            )
+
         total_items = 0
         sort_cat = 0
         for cat_type, categories in MENU_DATA.items():
+            section = sections[cat_type]
             for cat_data in categories:
                 cat, _ = MenuCategory.objects.get_or_create(
                     name=cat_data['name'],
-                    type=cat_type,
+                    section=section,
                     defaults={'sort_order': sort_cat}
                 )
                 sort_cat += 1
