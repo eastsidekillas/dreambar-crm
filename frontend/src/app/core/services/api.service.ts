@@ -9,6 +9,8 @@ import {
   ShiftDetail, SalesReport, ForecastDay,
   Product, MenuItemComponent, ConsumptionRow, InventoryMovement, MovementReason,
   StaffMember, TokenResponse,
+  PurchaseOrder, PurchaseOrderItem,
+  ModifierGroup, Modifier, MenuItemModifierGroup,
 } from '../models';
 
 export interface BillSpec { item_ids: number[]; payment_method: PaymentMethod; }
@@ -292,6 +294,63 @@ export class ApiService {
   }
   adjustStock(data: { product: number; quantity: number; reason: MovementReason; note?: string }): Observable<Product> {
     return this.http.post<Product>(`${BASE}/inventory/movements/adjust/`, data);
+  }
+
+  // ── Purchases ────────────────────────────────────────────────────
+  getPurchaseOrders(): Observable<PurchaseOrder[]> {
+    return unpage(this.http.get<PurchaseOrder[] | any>(`${BASE}/inventory/purchases/?page_size=200`));
+  }
+  getPurchaseOrder(id: number): Observable<PurchaseOrder> {
+    return this.http.get<PurchaseOrder>(`${BASE}/inventory/purchases/${id}/`);
+  }
+  createPurchaseFromLowStock(): Observable<PurchaseOrder> {
+    return this.http.post<PurchaseOrder>(`${BASE}/inventory/purchases/from_low_stock/`, {});
+  }
+  updatePurchaseStatus(id: number, status: string): Observable<PurchaseOrder> {
+    return this.http.patch<PurchaseOrder>(`${BASE}/inventory/purchases/${id}/`, { status });
+  }
+  receivePurchaseOrder(id: number, items: { id: number; qty_received: number; unit_price: number }[]): Observable<PurchaseOrder> {
+    return this.http.post<PurchaseOrder>(`${BASE}/inventory/purchases/${id}/receive/`, { items });
+  }
+  updatePurchaseItem(orderId: number, itemId: number, data: Partial<PurchaseOrderItem>): Observable<PurchaseOrderItem> {
+    return this.http.patch<PurchaseOrderItem>(`${BASE}/inventory/purchases/${orderId}/items/${itemId}/`, data);
+  }
+  deletePurchaseOrder(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/inventory/purchases/${id}/`);
+  }
+
+  // ── Modifiers ─────────────────────────────────────────────────────
+  getModifierGroups(): Observable<ModifierGroup[]> {
+    return unpage(this.http.get<ModifierGroup[] | any>(`${BASE}/menu/modifier-groups/?page_size=200`));
+  }
+  createModifierGroup(data: Partial<ModifierGroup>): Observable<ModifierGroup> {
+    return this.http.post<ModifierGroup>(`${BASE}/menu/modifier-groups/`, data);
+  }
+  updateModifierGroup(id: number, data: Partial<ModifierGroup>): Observable<ModifierGroup> {
+    return this.http.patch<ModifierGroup>(`${BASE}/menu/modifier-groups/${id}/`, data);
+  }
+  deleteModifierGroup(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/menu/modifier-groups/${id}/`);
+  }
+  createModifier(data: Partial<Modifier>): Observable<Modifier> {
+    return this.http.post<Modifier>(`${BASE}/menu/modifiers/`, data);
+  }
+  updateModifier(id: number, data: Partial<Modifier>): Observable<Modifier> {
+    return this.http.patch<Modifier>(`${BASE}/menu/modifiers/${id}/`, data);
+  }
+  deleteModifier(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/menu/modifiers/${id}/`);
+  }
+  getItemModifierGroups(menuItemId: number): Observable<MenuItemModifierGroup[]> {
+    return this.http.get<MenuItemModifierGroup[]>(`${BASE}/menu/items/${menuItemId}/modifier_groups/`);
+  }
+  assignModifierGroup(menuItemId: number, modifierGroupId: number): Observable<MenuItemModifierGroup> {
+    return this.http.post<MenuItemModifierGroup>(`${BASE}/menu/item-modifiers/`, {
+      menu_item: menuItemId, modifier_group: modifierGroupId,
+    });
+  }
+  removeModifierGroup(linkId: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/menu/item-modifiers/${linkId}/`);
   }
 
   // ── Exports ──────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 
 UNITS = [('мл', 'мл'), ('л', 'л'), ('г', 'г'), ('кг', 'кг'), ('шт', 'шт'), ('уп', 'уп')]
@@ -75,3 +76,45 @@ class InventoryMovement(models.Model):
     def __str__(self):
         sign = '+' if self.quantity >= 0 else ''
         return f"{self.created_at:%d.%m %H:%M} | {self.product.name} {sign}{self.quantity}"
+
+
+class PurchaseOrder(models.Model):
+    STATUS_CHOICES = [
+        ('draft',    'Черновик'),
+        ('ordered',  'Заказано'),
+        ('received', 'Получено'),
+    ]
+    status      = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', verbose_name='Статус')
+    created_by  = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='purchase_orders')
+    created_at  = models.DateTimeField(auto_now_add=True)
+    received_at = models.DateTimeField(null=True, blank=True)
+    notes       = models.TextField(blank=True, verbose_name='Заметки')
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Заказ на закупку'
+        verbose_name_plural = 'Заказы на закупку'
+
+    def __str__(self):
+        return f"Закупка #{self.pk} ({self.get_status_display()}) {self.created_at:%d.%m.%Y}"
+
+    @property
+    def total(self):
+        return sum(i.qty_received * i.unit_price for i in self.items.all())
+
+
+class PurchaseOrderItem(models.Model):
+    order        = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='items')
+    product      = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='purchase_items')
+    qty_ordered  = models.DecimalField(max_digits=10, decimal_places=3, verbose_name='Заказано')
+    qty_received = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name='Получено')
+    unit_price   = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Цена')
+
+    class Meta:
+        unique_together = [('order', 'product')]
+        verbose_name = 'Позиция заказа'
+        verbose_name_plural = 'Позиции заказа'
+
+    def __str__(self):
+        return f"{self.product.name} × {self.qty_ordered}{self.product.unit}"

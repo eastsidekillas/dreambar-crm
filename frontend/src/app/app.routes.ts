@@ -77,7 +77,22 @@ export const routes: Routes = [
       },
       {
         path: 'shifts',
-        loadComponent: () => import('./pages/admin/shifts/shifts.page').then(m => m.ShiftsComponent)
+        loadComponent: () => import('./pages/admin/shifts/shifts-shell').then(m => m.ShiftsShell),
+        children: [
+          { path: '', redirectTo: 'active', pathMatch: 'full' },
+          {
+            path: 'active',
+            loadComponent: () => import('./pages/admin/shifts/shifts-active.page').then(m => m.ShiftsActivePage)
+          },
+          {
+            path: 'day',
+            loadComponent: () => import('./pages/admin/shifts/shifts-day.page').then(m => m.ShiftsDayPage)
+          },
+          {
+            path: 'receipts',
+            loadComponent: () => import('./pages/admin/shifts/shifts-receipts.page').then(m => m.ShiftsReceiptsPage)
+          },
+        ]
       },
       {
         path: 'menu',
@@ -102,6 +117,14 @@ export const routes: Routes = [
       {
         path: 'inventory',
         loadComponent: () => import('./pages/admin/inventory/inventory.page').then(m => m.InventoryPage)
+      },
+      {
+        path: 'purchases',
+        loadComponent: () => import('./pages/admin/purchases/purchases.page').then(m => m.PurchasesPage)
+      },
+      {
+        path: 'modifiers',
+        loadComponent: () => import('./pages/admin/modifiers/modifiers.page').then(m => m.ModifiersPage)
       },
     ]
   },

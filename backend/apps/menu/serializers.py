@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import MenuSection, MenuCategory, MenuItem
+from .models import MenuSection, MenuCategory, MenuItem, ModifierGroup, Modifier, MenuItemModifierGroup
 
 
 class MenuSectionSerializer(serializers.ModelSerializer):
@@ -34,3 +34,26 @@ class MenuItemWriteSerializer(serializers.ModelSerializer):
         model = MenuItem
         fields = ['id', 'name', 'volume', 'description', 'price', 'cost_price',
                   'is_active', 'is_out_of_stock', 'sort_order', 'category', 'print_station']
+
+
+class ModifierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Modifier
+        fields = ['id', 'group', 'name', 'price_delta', 'sort_order', 'is_active']
+
+
+class ModifierGroupSerializer(serializers.ModelSerializer):
+    modifiers = ModifierSerializer(many=True, read_only=True)
+
+    class Meta:
+        model  = ModifierGroup
+        fields = ['id', 'name', 'is_required', 'max_selections', 'sort_order', 'is_active', 'modifiers']
+
+
+class MenuItemModifierGroupSerializer(serializers.ModelSerializer):
+    modifier_group_name = serializers.CharField(source='modifier_group.name', read_only=True)
+    modifiers           = ModifierSerializer(source='modifier_group.modifiers', many=True, read_only=True)
+
+    class Meta:
+        model  = MenuItemModifierGroup
+        fields = ['id', 'menu_item', 'modifier_group', 'modifier_group_name', 'modifiers', 'sort_order']

@@ -62,3 +62,17 @@ class OrderItem(models.Model):
     @property
     def subtotal(self):
         return self.unit_price * self.quantity
+
+
+class OrderItemModifier(models.Model):
+    """Выбранный модификатор к позиции заказа."""
+    order_item = models.ForeignKey(OrderItem, on_delete=models.CASCADE, related_name='selected_modifiers')
+    modifier   = models.ForeignKey('menu.Modifier', on_delete=models.PROTECT)
+    quantity   = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        verbose_name = 'Модификатор позиции заказа'
+        verbose_name_plural = 'Модификаторы позиций заказа'
+
+    def __str__(self):
+        return f"{self.order_item} — {self.modifier.name}"

@@ -87,3 +87,55 @@ class MenuItem(models.Model):
     def effective_station(self) -> str:
         """Итоговая станция для роутинга: позиция → категория → раздел."""
         return self.print_station or self.category.effective_station
+
+
+class ModifierGroup(models.Model):
+    """Группа модификаторов: «Объём льда», «Сироп», «Соус»."""
+    name           = models.CharField(max_length=100, verbose_name='Название')
+    is_required    = models.BooleanField(default=False, verbose_name='Обязательный')
+    max_selections = models.PositiveIntegerField(default=1, verbose_name='Макс. выборов (0=без лимита)')
+    sort_order     = models.PositiveIntegerField(default=0)
+    is_active      = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = 'Группа модификаторов'
+        verbose_name_plural = 'Группы модификаторов'
+
+    def __str__(self):
+        return self.name
+
+
+class Modifier(models.Model):
+    """Конкретный модификатор: «Много льда», «Ванильный сироп +50₽»."""
+    group       = models.ForeignKey(ModifierGroup, on_delete=models.CASCADE, related_name='modifiers')
+    name        = models.CharField(max_length=100, verbose_name='Название')
+    price_delta = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                      verbose_name='Доп. цена (₽)')
+    sort_order  = models.PositiveIntegerField(default=0)
+    is_active   = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = 'Модификатор'
+        verbose_name_plural = 'Модификаторы'
+
+    def __str__(self):
+        suffix = f' +{self.price_delta}₽' if self.price_delta else ''
+        return f'{self.group.name} / {self.name}{suffix}'
+
+
+class MenuItemModifierGroup(models.Model):
+    """M2M: какие группы модификаторов доступны для позиции меню."""
+    menu_item      = models.ForeignKey(MenuItem, on_delete=models.CASCADE, related_name='modifier_groups')
+    modifier_group = models.ForeignKey(ModifierGroup, on_delete=models.CASCADE, related_name='menu_items')
+    sort_order     = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = [('menu_item', 'modifier_group')]
+        ordering = ['sort_order']
+        verbose_name = 'Модификатор позиции'
+        verbose_name_plural = 'Модификаторы позиций'
+
+    def __str__(self):
+        return f'{self.menu_item} ← {self.modifier_group}'

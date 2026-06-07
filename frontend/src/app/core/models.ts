@@ -312,6 +312,59 @@ export interface SalesReport {
 export const PRODUCT_UNITS = ['мл', 'л', 'г', 'кг', 'шт', 'уп'] as const;
 export type ProductUnit = typeof PRODUCT_UNITS[number];
 
+export interface PurchaseOrderItem {
+  id: number;
+  order: number;
+  product: number;
+  product_name: string;
+  product_unit: string;
+  qty_ordered: number;
+  qty_received: number;
+  unit_price: number;
+  subtotal: number;
+}
+
+export interface PurchaseOrder {
+  id: number;
+  status: 'draft' | 'ordered' | 'received';
+  status_label: string;
+  created_by: number | null;
+  created_by_name: string | null;
+  created_at: string;
+  received_at: string | null;
+  notes: string;
+  total: number;
+  items: PurchaseOrderItem[];
+}
+
+export interface Modifier {
+  id: number;
+  group: number;
+  name: string;
+  price_delta: number;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface ModifierGroup {
+  id: number;
+  name: string;
+  is_required: boolean;
+  max_selections: number;
+  sort_order: number;
+  is_active: boolean;
+  modifiers: Modifier[];
+}
+
+export interface MenuItemModifierGroup {
+  id: number;
+  menu_item: number;
+  modifier_group: number;
+  modifier_group_name: string;
+  modifiers: Modifier[];
+  sort_order: number;
+}
+
 export interface Product {
   id: number;
   name: string;

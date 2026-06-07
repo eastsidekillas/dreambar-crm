@@ -3,10 +3,11 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 
-from .models import MenuSection, MenuCategory, MenuItem
+from .models import MenuSection, MenuCategory, MenuItem, ModifierGroup, Modifier, MenuItemModifierGroup
 from .serializers import (
     MenuSectionSerializer, MenuCategorySerializer,
     MenuItemSerializer, MenuItemWriteSerializer,
+    ModifierGroupSerializer, ModifierSerializer, MenuItemModifierGroupSerializer,
 )
 
 
@@ -67,6 +68,15 @@ class MenuItemViewSet(viewsets.ModelViewSet):
         item.is_out_of_stock = not item.is_out_of_stock
         item.save(update_fields=['is_out_of_stock'])
         return Response({'id': item.id, 'is_out_of_stock': item.is_out_of_stock})
+
+    @action(detail=True, methods=['get'])
+    def modifier_groups(self, request, pk=None):
+        """Группы модификаторов, назначенные позиции меню."""
+        item = self.get_object()
+        qs   = MenuItemModifierGroup.objects.filter(menu_item=item).select_related(
+            'modifier_group'
+        ).prefetch_related('modifier_group__modifiers')
+        return Response(MenuItemModifierGroupSerializer(qs, many=True).data)
 
     @action(detail=False, methods=['get'])
     def by_category(self, request):

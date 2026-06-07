@@ -2,6 +2,7 @@ import math
 from decimal import Decimal
 
 from django.db.models import Sum, F
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.views import APIView
@@ -9,8 +10,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser
 
 from apps.orders.models import OrderItem
-from .models import Product, MenuItemComponent, InventoryMovement
-from .serializers import ProductSerializer, ComponentSerializer, InventoryMovementSerializer
+from .models import Product, MenuItemComponent, InventoryMovement, PurchaseOrder, PurchaseOrderItem
+from .serializers import (
+    ProductSerializer, ComponentSerializer, InventoryMovementSerializer,
+    PurchaseOrderSerializer, PurchaseOrderItemSerializer,
+)
 from .services import adjust_stock
 
 
@@ -143,3 +147,88 @@ class ConsumptionView(APIView):
             })
 
         return Response(result)
+
+
+class PurchaseOrderViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAdminUser]
+    serializer_class   = PurchaseOrderSerializer
+
+    def get_queryset(self):
+        return PurchaseOrder.objects.prefetch_related(
+            'items__product', 'created_by__profile'
+        ).all()
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=False, methods=['post'])
+    def from_low_stock(self, request):
+        """Создаёт черновик заявки из позиций ниже минимального остатка."""
+        low = Product.objects.filter(
+            is_active=True, min_stock__isnull=False,
+            stock_quantity__lt=F('min_stock'),
+        )
+        if not low.exists():
+            return Response({'detail': 'Всё в норме — нет позиций ниже минимума.'}, status=400)
+
+        order = PurchaseOrder.objects.create(created_by=request.user)
+        for p in low:
+            need = p.min_stock - p.stock_quantity
+            # округляем вверх до целой упаковки
+            packs = math.ceil(float(need) / float(p.pack_size)) if p.pack_size else 1
+            qty   = Decimal(str(packs)) * p.pack_size
+            PurchaseOrderItem.objects.create(
+                order=order, product=p,
+                qty_ordered=qty,
+                qty_received=qty,
+                unit_price=p.purchase_price,
+            )
+
+        return Response(PurchaseOrderSerializer(order).data, status=201)
+
+    @action(detail=True, methods=['post'])
+    def receive(self, request, pk=None):
+        """Оприходовать заказ: обновить остатки по qty_received, поставить статус received."""
+        order = self.get_object()
+        if order.status == 'received':
+            return Response({'detail': 'Заказ уже оприходован.'}, status=400)
+
+        for item_data in request.data.get('items', []):
+            try:
+                item = order.items.get(pk=item_data['id'])
+            except PurchaseOrderItem.DoesNotExist:
+                continue
+            item.qty_received = Decimal(str(item_data.get('qty_received', item.qty_received)))
+            item.unit_price   = Decimal(str(item_data.get('unit_price',   item.unit_price)))
+            item.save()
+
+            if item.qty_received > 0:
+                adjust_stock(
+                    item.product,
+                    delta=item.qty_received,
+                    reason='manual_in',
+                    user=request.user,
+                    note=f'Закупка #{order.pk}',
+                )
+                # обновляем закупочную цену продукта
+                item.product.purchase_price = item.unit_price
+                item.product.save(update_fields=['purchase_price'])
+
+        order.status      = 'received'
+        order.received_at = timezone.now()
+        order.save(update_fields=['status', 'received_at'])
+
+        return Response(PurchaseOrderSerializer(order).data)
+
+    @action(detail=True, methods=['patch'], url_path='items/(?P<item_pk>[^/.]+)')
+    def update_item(self, request, pk=None, item_pk=None):
+        """Обновить позицию черновика (кол-во, цена)."""
+        order = self.get_object()
+        try:
+            item = order.items.get(pk=item_pk)
+        except PurchaseOrderItem.DoesNotExist:
+            return Response({'detail': 'Позиция не найдена.'}, status=404)
+        serializer = PurchaseOrderItemSerializer(item, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

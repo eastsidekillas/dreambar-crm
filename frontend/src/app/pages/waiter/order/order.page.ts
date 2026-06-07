@@ -29,23 +29,27 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
 
       <!-- ── Guest selector ─────────────────────────────── -->
       <div class="mb-3">
-        <p class="section-title mb-1.5">Записать на гостя</p>
-        <div class="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4" style="scrollbar-width:none">
+        <p class="section-title mb-1.5">Гость</p>
+        <div class="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4" style="scrollbar-width:none">
           <button (click)="activeGuest.set(0)"
-                  class="flex-shrink-0 px-3 h-9 rounded-full text-xs font-semibold"
+                  class="flex-shrink-0 px-4 rounded-xl text-sm font-semibold"
+                  style="min-height:44px"
                   [style.background]="activeGuest() === 0 ? 'var(--color-gold)' : 'var(--color-bg)'"
                   [style.color]="activeGuest() === 0 ? 'white' : 'var(--color-muted)'"
                   [style.border]="'1.5px solid var(--color-border)'">👥 Общий</button>
           @for (g of guestList(); track g) {
             <button (click)="activeGuest.set(g)"
-                    class="flex-shrink-0 w-9 h-9 rounded-full text-xs font-bold"
+                    class="flex-shrink-0 rounded-xl text-sm font-bold"
+                    style="min-width:44px;min-height:44px"
                     [style.background]="activeGuest() === g ? 'var(--color-gold)' : 'var(--color-bg)'"
                     [style.color]="activeGuest() === g ? 'white' : 'var(--color-muted)'"
                     [style.border]="'1.5px solid var(--color-border)'">{{ g }}</button>
           }
           <button (click)="addGuest()"
-                  class="flex-shrink-0 w-9 h-9 rounded-full text-base font-bold"
-                  style="background:var(--color-bg);color:var(--color-muted);border:1.5px dashed var(--color-border-mid)">＋</button>
+                  class="flex-shrink-0 rounded-xl text-base font-bold"
+                  style="min-width:44px;min-height:44px;background:var(--color-bg);color:var(--color-muted);border:1.5px dashed var(--color-border-mid)">
+            ＋
+          </button>
         </div>
       </div>
 
@@ -57,11 +61,13 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
                (input)="onSearch($event)"
                placeholder="Поиск по меню..."
                class="field"
-               style="padding-left:2.25rem;padding-right:2.25rem" />
+               style="padding-left:2.25rem;padding-right:2.25rem;min-height:48px;font-size:1rem" />
         @if (searchQuery()) {
           <button (click)="searchQuery.set('')"
-                  class="absolute right-3 top-1/2 -translate-y-1/2 text-base leading-none"
-                  style="color:var(--color-muted)">✕</button>
+                  class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-lg"
+                  style="color:var(--color-muted);min-width:36px;min-height:36px;background:var(--color-surface2)">
+            ✕
+          </button>
         }
       </div>
 
@@ -118,11 +124,12 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
       <!-- ── BROWSE BY CATEGORY ─────────────────────────── -->
       @if (!isSearching()) {
 
-        <!-- Category tabs -->
+        <!-- Category tabs — touch-sized -->
         <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-4" style="scrollbar-width:none">
           @for (cat of categories(); track cat.id) {
             <button (click)="selectCat(cat.id)"
                     class="cat-chip flex-shrink-0"
+                    style="min-height:44px;padding:0 16px;font-size:0.875rem"
                     [class]="catChipClass(cat)">
               {{ meta(cat.station_type).icon }} {{ cat.name }}
             </button>

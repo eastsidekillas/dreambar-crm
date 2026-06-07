@@ -5,13 +5,13 @@ from apps.receipts.models import Receipt
 from apps.tickets.models import EntryTicket
 from apps.printers.models import Printer, PrintJob
 from apps.audit.models import DeletedOrderItem
-from .orders import Order, OrderItem
+from .orders import Order, OrderItem, OrderItemModifier
 
 __all__ = [
     'UserProfile',
     'MenuSection', 'MenuCategory', 'MenuItem',
     'Shift',
-    'Order', 'OrderItem',
+    'Order', 'OrderItem', 'OrderItemModifier',
     'Receipt',
     'EntryTicket',
     'Printer', 'PrintJob',

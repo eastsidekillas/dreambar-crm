@@ -35,34 +35,39 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
         </div>
 
         <div class="flex items-center gap-3">
-          <!-- Tab buttons -->
-          <div class="flex rounded-lg overflow-hidden" style="border:1px solid #334155">
+          <!-- Tab buttons — touch-sized -->
+          <div class="flex rounded-xl overflow-hidden" style="border:1px solid #334155">
             <button (click)="tab.set('orders')"
-              class="px-4 py-1.5 text-sm font-semibold transition-colors relative"
+              class="relative flex flex-col items-center justify-center px-5 font-semibold transition-colors"
+              style="min-height:52px;min-width:80px;font-size:0.85rem"
               [style]="tab() === 'orders' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
-              Заказы
+              <span>Заказы</span>
               @if (active().length) {
-                <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full text-xs flex items-center justify-center font-bold"
+                <span class="absolute top-1 right-1 w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold"
                       style="background:#ef4444;color:white">{{ active().length }}</span>
               }
             </button>
             <button (click)="openKitchenTab()"
-              class="px-4 py-1.5 text-sm font-semibold transition-colors relative"
+              class="relative flex flex-col items-center justify-center px-5 font-semibold transition-colors"
+              style="min-height:52px;min-width:80px;font-size:0.85rem;border-left:1px solid #334155"
               [style]="tab() === 'kitchen' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
-              🍽 Кухня
+              <span>🍽 Кухня</span>
               @if (kitchenUnseenCount()) {
-                <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full text-xs flex items-center justify-center font-bold"
+                <span class="absolute top-1 right-1 w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold"
                       style="background:#22c55e;color:white">{{ kitchenUnseenCount() }}</span>
               }
             </button>
             <button (click)="tab.set('new')"
-              class="px-4 py-1.5 text-sm font-semibold transition-colors"
+              class="flex flex-col items-center justify-center px-5 font-semibold transition-colors"
+              style="min-height:52px;min-width:80px;font-size:0.85rem;border-left:1px solid #334155"
               [style]="tab() === 'new' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
-              + Свой заказ
+              <span>+ Новый</span>
             </button>
           </div>
 
-          <button (click)="toggleSound()" class="text-xl px-2 py-1 rounded-lg" style="background:#1e293b">
+          <button (click)="toggleSound()"
+                  class="flex items-center justify-center rounded-xl"
+                  style="background:#1e293b;min-width:48px;min-height:48px;font-size:1.25rem">
             {{ soundOn() ? '🔔' : '🔕' }}
           </button>
 
@@ -71,8 +76,11 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
             {{ lastUpdate() }}
           </div>
 
-          <button (click)="auth.logout()" class="text-sm px-3 py-1.5 rounded-lg"
-                  style="background:#1e293b;color:#e2e8f0">Выйти</button>
+          <button (click)="auth.logout()"
+                  class="hidden sm:flex items-center justify-center text-sm px-4 rounded-xl"
+                  style="background:#1e293b;color:#e2e8f0;min-height:48px">
+            Выйти
+          </button>
         </div>
       </header>
 
@@ -132,27 +140,38 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
                       <div class="flex-shrink-0 flex items-center gap-2">
                         @if (it.kitchen_status === 'new') {
                           <button (click)="setStatus(it, 'cooking')"
-                                  class="px-4 py-2 rounded-lg font-bold text-sm"
-                                  style="background:#f59e0b;color:#0f172a">▶ Начать</button>
+                                  class="rounded-xl font-bold"
+                                  style="background:#f59e0b;color:#0f172a;min-height:48px;padding:0 18px;font-size:0.9rem">
+                            ▶ Начать
+                          </button>
                         } @else if (it.kitchen_status === 'cooking') {
                           <button (click)="setStatus(it, 'ready')"
-                                  class="px-4 py-2 rounded-lg font-bold text-sm"
-                                  style="background:#22c55e;color:#0f172a">✓ Готово</button>
+                                  class="rounded-xl font-bold"
+                                  style="background:#22c55e;color:#0f172a;min-height:48px;padding:0 18px;font-size:0.9rem">
+                            ✓ Готово
+                          </button>
                         } @else {
-                          <span class="px-3 py-1.5 rounded-lg text-sm font-bold"
-                                style="background:#15803d;color:white">✓ Готов</span>
+                          <span class="rounded-xl font-bold flex items-center"
+                                style="background:#15803d;color:white;min-height:40px;padding:0 14px;font-size:0.85rem">
+                            ✓ Готов
+                          </span>
                         }
                         @if (barConfirmDelete() === it.id) {
                           <button (click)="barRemoveItem(t.order_id, it)"
-                                  class="px-2 py-1.5 rounded-lg text-xs font-bold"
-                                  style="background:#ef4444;color:white">Да</button>
+                                  class="rounded-lg font-bold"
+                                  style="background:#ef4444;color:white;min-height:44px;padding:0 12px;font-size:0.85rem">
+                            Да
+                          </button>
                           <button (click)="barConfirmDelete.set(null)"
-                                  class="px-2 py-1.5 rounded-lg text-xs"
-                                  style="background:#334155;color:#94a3b8">Нет</button>
+                                  class="rounded-lg"
+                                  style="background:#334155;color:#94a3b8;min-height:44px;padding:0 12px;font-size:0.85rem">
+                            Нет
+                          </button>
                         } @else {
                           <button (click)="barConfirmDelete.set(it.id)"
-                                  class="w-7 h-7 rounded-lg text-sm flex items-center justify-center"
-                                  style="background:#334155;color:#94a3b8" title="Удалить">✕</button>
+                                  class="rounded-lg flex items-center justify-center"
+                                  style="background:#334155;color:#94a3b8;min-width:44px;min-height:44px;font-size:1rem"
+                                  title="Удалить">✕</button>
                         }
                       </div>
                     </div>
@@ -161,8 +180,8 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
 
                 <!-- Mark all ready -->
                 <button (click)="markAllReady(t)"
-                        class="py-3 font-bold text-sm"
-                        style="background:#15803d;color:white">
+                        class="font-bold"
+                        style="background:#15803d;color:white;min-height:56px;font-size:1rem;border:none;width:100%">
                   ✓✓ Все напитки готовы
                 </button>
               </div>

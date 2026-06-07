@@ -147,7 +147,16 @@ export class AdminShell {
 
   nav: NavEntry[] = [
     { type: 'link', path: '/admin/dashboard', label: 'Дашборд',    icon: '📊' },
-    { type: 'link', path: '/admin/shifts',    label: 'Смены',      icon: '📅' },
+    {
+      type: 'group',
+      label: 'Смены',
+      icon: '📅',
+      children: [
+        { path: '/admin/shifts/active',   label: 'Активные смены' },
+        { path: '/admin/shifts/day',      label: 'Итоги дня' },
+        { path: '/admin/shifts/receipts', label: 'Детали по чекам' },
+      ],
+    },
     {
       type: 'group',
       label: 'Аналитика',
@@ -157,8 +166,24 @@ export class AdminShell {
         { path: '/admin/forecast', label: 'Прогноз' },
       ],
     },
-    { type: 'link', path: '/admin/inventory', label: 'Склад',      icon: '📦' },
-    { type: 'link', path: '/admin/menu',      label: 'Меню',       icon: '🍽' },
+    {
+      type: 'group',
+      label: 'Склад',
+      icon: '📦',
+      children: [
+        { path: '/admin/inventory', label: 'Продукты' },
+        { path: '/admin/purchases', label: 'Закупки' },
+      ],
+    },
+    {
+      type: 'group',
+      label: 'Меню',
+      icon: '🍽',
+      children: [
+        { path: '/admin/menu',      label: 'Позиции меню' },
+        { path: '/admin/modifiers', label: 'Модификаторы' },
+      ],
+    },
     { type: 'link', path: '/admin/employees', label: 'Сотрудники', icon: '👥' },
     {
       type: 'group',
@@ -171,16 +196,25 @@ export class AdminShell {
   ];
 
   mobileNav = [
-    { path: '/admin/dashboard', label: 'Дашборд', icon: '📊' },
-    { path: '/admin/shifts',    label: 'Смены',   icon: '📅' },
-    { path: '/admin/inventory', label: 'Склад',   icon: '📦' },
-    { path: '/admin/reports',   label: 'Отчёты',  icon: '📈' },
-    { path: '/admin/menu',      label: 'Меню',    icon: '🍽' },
+    { path: '/admin/dashboard',     label: 'Дашборд', icon: '📊' },
+    { path: '/admin/shifts/active', label: 'Смены',   icon: '📅' },
+    { path: '/admin/inventory',     label: 'Склад',   icon: '📦' },
+    { path: '/admin/reports',       label: 'Отчёты',  icon: '📈' },
+    { path: '/admin/menu',          label: 'Меню',    icon: '🍽' },
   ];
 
   constructor(private auth: AuthService, private router: Router) {
     this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe((e: any) => {
       const url: string = e.urlAfterRedirects ?? e.url ?? '';
+      if (url.includes('/admin/shifts')) {
+        const s = new Set(this.expanded()); s.add('Смены'); this.expanded.set(s);
+      }
+      if (url.includes('/admin/inventory') || url.includes('/admin/purchases')) {
+        const s = new Set(this.expanded()); s.add('Склад'); this.expanded.set(s);
+      }
+      if (url.includes('/admin/menu') || url.includes('/admin/modifiers')) {
+        const s = new Set(this.expanded()); s.add('Меню'); this.expanded.set(s);
+      }
       if (url.includes('/admin/reports') || url.includes('/admin/forecast')) {
         const s = new Set(this.expanded());
         s.add('Аналитика');

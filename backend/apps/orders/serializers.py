@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 
 from apps.receipts.models import Receipt
-from .models import Order, OrderItem
+from .models import Order, OrderItem, OrderItemModifier
 
 # Re-export so existing imports like `from apps.orders.serializers import ShiftSerializer` не ломаются
 from apps.shifts.serializers import ShiftSerializer               # noqa: F401
@@ -16,27 +16,53 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'first_name', 'last_name']
 
 
+class OrderItemModifierSerializer(serializers.ModelSerializer):
+    modifier_name  = serializers.CharField(source='modifier.name',        read_only=True)
+    price_delta    = serializers.DecimalField(source='modifier.price_delta',
+                                              max_digits=10, decimal_places=2, read_only=True)
+
+    class Meta:
+        model  = OrderItemModifier
+        fields = ['id', 'modifier', 'modifier_name', 'price_delta', 'quantity']
+
+
 class OrderItemSerializer(serializers.ModelSerializer):
     menu_item_name = serializers.CharField(source='menu_item.name', read_only=True)
     menu_item_type = serializers.CharField(source='menu_item.category.section.station_type', read_only=True)
-    subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    subtotal       = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    modifiers      = OrderItemModifierSerializer(source='selected_modifiers', many=True, read_only=True)
 
     class Meta:
         model = OrderItem
         fields = ['id', 'menu_item', 'menu_item_name', 'menu_item_type',
                   'quantity', 'unit_price', 'subtotal', 'guest_no', 'receipt',
-                  'kitchen_status']
+                  'kitchen_status', 'modifiers']
 
 
 class OrderItemCreateSerializer(serializers.ModelSerializer):
+    modifiers = serializers.ListField(child=serializers.IntegerField(), required=False, write_only=True)
+
     class Meta:
         model = OrderItem
-        fields = ['menu_item', 'quantity', 'guest_no']
+        fields = ['menu_item', 'quantity', 'guest_no', 'modifiers']
 
     def create(self, validated_data):
-        menu_item = validated_data['menu_item']
+        modifier_ids = validated_data.pop('modifiers', [])
+        menu_item    = validated_data['menu_item']
         validated_data['unit_price'] = menu_item.price
-        return super().create(validated_data)
+        item = super().create(validated_data)
+        for mid in modifier_ids:
+            try:
+                from apps.menu.models import Modifier
+                mod = Modifier.objects.get(pk=mid, is_active=True)
+                OrderItemModifier.objects.create(order_item=item, modifier=mod)
+                # добавляем price_delta к unit_price
+                item.unit_price += mod.price_delta
+            except Modifier.DoesNotExist:
+                pass
+        if modifier_ids:
+            item.save(update_fields=['unit_price'])
+        return item
 
 
 class ReceiptItemSerializer(serializers.ModelSerializer):
