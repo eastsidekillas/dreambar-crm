@@ -184,7 +184,9 @@ export class AdminShell {
         { path: '/admin/modifiers', label: 'Модификаторы' },
       ],
     },
-    { type: 'link', path: '/admin/employees', label: 'Сотрудники', icon: '👥' },
+    { type: 'link', path: '/admin/reservations', label: 'Бронирования', icon: '📅' },
+    { type: 'link', path: '/admin/employees',   label: 'Сотрудники',   icon: '👥' },
+    { type: 'link', path: '/admin/audit',        label: 'Аудит',        icon: '🗑' },
     {
       type: 'group',
       label: 'Настройки',

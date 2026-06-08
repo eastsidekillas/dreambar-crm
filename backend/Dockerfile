@@ -8,7 +8,6 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Зависимости (все ставятся из wheel'ов: psycopg2-binary, Pillow и т.д.)
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 

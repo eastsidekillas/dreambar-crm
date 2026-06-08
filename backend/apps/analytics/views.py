@@ -185,7 +185,10 @@ class ShiftDetailView(APIView):
         receipts = list(Receipt.objects.filter(shift=shift))
         pay_totals: dict = {}
         for r in receipts:
-            pay_totals[r.payment_method] = pay_totals.get(r.payment_method, 0) + float(r.total)
+            d = float(r.deposit_amount or 0)
+            pay_totals[r.payment_method] = pay_totals.get(r.payment_method, 0) + float(r.total) - d
+            if d > 0 and r.deposit_method:
+                pay_totals[r.deposit_method] = pay_totals.get(r.deposit_method, 0) + d
 
         closed_orders = Order.objects.filter(shift=shift, status='closed')
         guests_count  = closed_orders.aggregate(t=Sum('guests'))['t'] or 0
@@ -281,8 +284,14 @@ class SalesReportView(APIView):
         gross_profit = total_rev - total_cogs
 
         receipts = Receipt.objects.filter(shift__in=shifts)
-        pay_data = list(receipts.values('payment_method').annotate(total=Sum('total')).order_by('-total'))
         receipts_count = receipts.count()
+        pay_map: dict = {}
+        for r in receipts:
+            d = float(r.deposit_amount or 0)
+            pay_map[r.payment_method] = pay_map.get(r.payment_method, 0) + float(r.total) - d
+            if d > 0 and r.deposit_method:
+                pay_map[r.deposit_method] = pay_map.get(r.deposit_method, 0) + d
+        pay_data = [{'payment_method': m, 'total': t} for m, t in sorted(pay_map.items(), key=lambda x: -x[1])]
 
         orders = Order.objects.filter(shift__in=shifts, status='closed')
         guests = int(orders.aggregate(t=Sum('guests'))['t'] or 0)

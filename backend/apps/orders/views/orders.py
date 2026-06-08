@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import viewsets, status
@@ -14,7 +16,7 @@ from apps.printers.services import printing
 from apps.inventory.services import deduct_for_receipt
 
 
-def _issue_receipt(order, items, payment_method, user):
+def _issue_receipt(order, items, payment_method, user, deposit_amount=Decimal(0), deposit_method=''):
     total = sum(it.subtotal for it in items)
     receipt = Receipt.objects.create(
         order=order,
@@ -24,6 +26,8 @@ def _issue_receipt(order, items, payment_method, user):
         waiter=order.waiter,
         payment_method=payment_method,
         total=total,
+        deposit_amount=deposit_amount,
+        deposit_method=deposit_method,
     )
     OrderItem.objects.filter(pk__in=[it.pk for it in items]).update(receipt=receipt)
     deduct_for_receipt(items, receipt, user=user)
@@ -51,15 +55,20 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):
-        order = self.get_object()
-        if order.status != 'open':
-            return Response({'detail': 'Заказ уже закрыт или отменён.'}, status=status.HTTP_400_BAD_REQUEST)
-        unpaid = list(order.items.filter(receipt__isnull=True))
-        if not unpaid:
-            return Response({'detail': 'В заказе нет позиций для чека.'}, status=status.HTTP_400_BAD_REQUEST)
         payment_method = request.data.get('payment_method', 'cash')
+        deposit_amount = Decimal(str(request.data.get('deposit_amount') or 0))
+        deposit_method = request.data.get('deposit_method', '')
+        if deposit_amount < 0:
+            return Response({'detail': 'deposit_amount не может быть отрицательным.'}, status=status.HTTP_400_BAD_REQUEST)
         with transaction.atomic():
-            receipt = _issue_receipt(order, unpaid, payment_method, request.user)
+            order = Order.objects.select_for_update().get(pk=pk)
+            if order.status != 'open':
+                return Response({'detail': 'Заказ уже закрыт или отменён.'}, status=status.HTTP_400_BAD_REQUEST)
+            unpaid = list(order.items.filter(receipt__isnull=True))
+            if not unpaid:
+                return Response({'detail': 'В заказе нет позиций для чека.'}, status=status.HTTP_400_BAD_REQUEST)
+            receipt = _issue_receipt(order, unpaid, payment_method, request.user,
+                                     deposit_amount=deposit_amount, deposit_method=deposit_method)
         return Response({
             'order': OrderSerializer(order).data,
             'receipt': ReceiptSerializer(receipt).data,
@@ -67,40 +76,50 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def checkout(self, request, pk=None):
-        order = self.get_object()
-        if order.status != 'open':
-            return Response({'detail': 'Заказ уже закрыт или отменён.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        unpaid = {it.pk: it for it in order.items.filter(receipt__isnull=True)}
-        if not unpaid:
-            return Response({'detail': 'Все позиции уже оплачены.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        bills = request.data.get('bills')
-        if not bills:
-            item_ids = request.data.get('item_ids')
-            bills = [{
-                'item_ids': item_ids if item_ids else list(unpaid.keys()),
-                'payment_method': request.data.get('payment_method', 'cash'),
-            }]
-
-        seen = set()
-        for bill in bills:
-            ids = bill.get('item_ids') or []
-            if not ids:
-                return Response({'detail': 'Пустой чек недопустим.'}, status=status.HTTP_400_BAD_REQUEST)
-            for i in ids:
-                if i not in unpaid:
-                    return Response({'detail': f'Позиция {i} недоступна для оплаты.'}, status=status.HTTP_400_BAD_REQUEST)
-                if i in seen:
-                    return Response({'detail': f'Позиция {i} указана в нескольких чеках.'}, status=status.HTTP_400_BAD_REQUEST)
-                seen.add(i)
+        deposit_amount = Decimal(str(request.data.get('deposit_amount') or 0))
+        deposit_method = request.data.get('deposit_method', '')
+        if deposit_amount < 0:
+            return Response({'detail': 'deposit_amount не может быть отрицательным.'}, status=status.HTTP_400_BAD_REQUEST)
+        bills_data = request.data.get('bills')
 
         with transaction.atomic():
-            receipts = [
-                _issue_receipt(order, [unpaid[i] for i in bill['item_ids']],
-                               bill.get('payment_method', 'cash'), request.user)
-                for bill in bills
-            ]
+            order = Order.objects.select_for_update().get(pk=pk)
+            if order.status != 'open':
+                return Response({'detail': 'Заказ уже закрыт или отменён.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            unpaid = {it.pk: it for it in order.items.filter(receipt__isnull=True)}
+            if not unpaid:
+                return Response({'detail': 'Все позиции уже оплачены.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            bills = bills_data
+            if not bills:
+                item_ids = request.data.get('item_ids')
+                bills = [{
+                    'item_ids': item_ids if item_ids else list(unpaid.keys()),
+                    'payment_method': request.data.get('payment_method', 'cash'),
+                }]
+
+            seen = set()
+            for bill in bills:
+                ids = bill.get('item_ids') or []
+                if not ids:
+                    return Response({'detail': 'Пустой чек недопустим.'}, status=status.HTTP_400_BAD_REQUEST)
+                for i in ids:
+                    if i not in unpaid:
+                        return Response({'detail': f'Позиция {i} недоступна для оплаты.'}, status=status.HTTP_400_BAD_REQUEST)
+                    if i in seen:
+                        return Response({'detail': f'Позиция {i} указана в нескольких чеках.'}, status=status.HTTP_400_BAD_REQUEST)
+                    seen.add(i)
+
+            receipts = []
+            for idx, bill in enumerate(bills):
+                d_amt = deposit_amount if idx == 0 else Decimal(0)
+                d_mth = deposit_method if idx == 0 else ''
+                receipts.append(
+                    _issue_receipt(order, [unpaid[i] for i in bill['item_ids']],
+                                   bill.get('payment_method', 'cash'), request.user,
+                                   deposit_amount=d_amt, deposit_method=d_mth)
+                )
         return Response({
             'order': OrderSerializer(order).data,
             'receipts': ReceiptSerializer(receipts, many=True).data,
@@ -122,7 +141,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     def cancel(self, request, pk=None):
         order = self.get_object()
         order.status = 'cancelled'
-        order.save()
+        order.save(update_fields=['status', 'updated_at'])
         return Response(OrderSerializer(order).data)
 
     @action(detail=True, methods=['post'])

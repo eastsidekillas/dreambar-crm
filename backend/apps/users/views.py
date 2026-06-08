@@ -3,6 +3,7 @@ from django.contrib.auth.hashers import make_password, check_password
 from django.db.models import Q, Sum, F
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -64,7 +65,7 @@ class UserProfileListView(APIView):
 
 class EmployeeDetailView(APIView):
     """PATCH /employees/<id>/ — редактировать роль, имя, пароль, статус."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def patch(self, request, user_id):
         try:
@@ -216,9 +217,14 @@ class StaffListView(APIView):
         return Response(result)
 
 
+class PinLoginThrottle(AnonRateThrottle):
+    scope = 'pin_login'
+
+
 class PinLoginView(APIView):
     """POST {user_id, pin} → JWT-токены."""
     permission_classes = [AllowAny]
+    throttle_classes = [PinLoginThrottle]
 
     def post(self, request):
         user_id = request.data.get('user_id')

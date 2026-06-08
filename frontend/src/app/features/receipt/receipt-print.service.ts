@@ -104,6 +104,8 @@ export class ReceiptPrintService {
       ${rows}
       <div class="hr"></div>
       <div class="row total"><span>ИТОГО</span><span>${this.money(r.total)} ₽</span></div>
+      ${r.deposit_amount > 0 ? `<div class="row"><span>Депозит (${this.esc(r.deposit_method_label || r.deposit_method || '')})</span><span>−${this.money(r.deposit_amount)} ₽</span></div>
+      <div class="row total"><span>К оплате</span><span>${this.money(+r.total - +r.deposit_amount)} ₽</span></div>` : ''}
       <div class="row"><span>Оплата</span><span>${this.esc(r.payment_label)}</span></div>
       <div class="hr"></div>
       <div class="center small">Спасибо за визит!</div>

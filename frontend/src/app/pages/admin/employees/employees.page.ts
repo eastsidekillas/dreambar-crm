@@ -2,6 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
+import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Employee, EmployeeActivity, Shift, Order } from '../../../core/models';
 
 const ROLE_META: Record<string, { label: string; icon: string; cls: string }> = {
@@ -350,7 +351,7 @@ export class EmployeesComponent implements OnInit {
 
   roles = ROLES;
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private toast: ToastService) {}
 
   ngOnInit() {
     this.api.getShifts().subscribe(s => this.shifts.set(s));
@@ -435,9 +436,10 @@ export class EmployeesComponent implements OnInit {
         this.editingId.set(null);
         this.loadEmployees();
       },
-      error: () => {
+      error: (err) => {
         this.saving.set(false);
         this.editError.set('Ошибка при сохранении');
+        this.toast.apiError(err, 'Ошибка при сохранении');
       }
     });
   }
@@ -453,7 +455,7 @@ export class EmployeesComponent implements OnInit {
           e.id === emp.id ? { ...e, has_pin: true } : e
         ));
       },
-      error: () => alert('Ошибка при установке PIN'),
+      error: (err) => this.toast.apiError(err, 'Ошибка при установке PIN'),
     });
   }
 
@@ -464,7 +466,7 @@ export class EmployeesComponent implements OnInit {
         this.editingId.set(null);
         this.employees.update(list => list.filter(e => e.id !== emp.id));
       },
-      error: err => alert(err.error?.detail ?? 'Ошибка при удалении'),
+      error: (err) => this.toast.apiError(err, 'Ошибка при удалении'),
     });
   }
 

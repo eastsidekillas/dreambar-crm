@@ -1,31 +1,106 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ToastService } from './toast.service';
+import { ToastService, ToastType } from './toast.service';
+
+const ICONS: Record<ToastType, string> = {
+  success: '✓',
+  error:   '✕',
+  warn:    '⚠',
+  info:    'ℹ',
+};
 
 @Component({
   selector: 'bd-toast',
   standalone: true,
   imports: [CommonModule],
   template: `
-    @if (svc.toast()) {
-      <div class="fixed top-16 left-4 right-4 z-[999] py-2.5 px-4 text-center"
-           style="background:#15130e;border:1px solid;font-family:'Oswald',sans-serif;font-weight:300;font-size:0.68rem;letter-spacing:0.2em;text-transform:uppercase"
-           [style.border-color]="borderColor()"
-           [style.color]="textColor()">
-        {{ svc.toast()!.message }}
-      </div>
+    <div class="bd-toast-container">
+      @for (t of svc.toasts(); track t.id) {
+        <div class="bd-toast bd-toast-{{ t.type }}" (click)="svc.dismiss(t.id)">
+          <span class="bd-toast-icon">{{ icon(t.type) }}</span>
+          <span class="bd-toast-msg">{{ t.message }}</span>
+          <button class="bd-toast-close" (click)="svc.dismiss(t.id); $event.stopPropagation()">✕</button>
+        </div>
+      }
+    </div>
+  `,
+  styles: [`
+    .bd-toast-container {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(92vw, 440px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 9999;
+      pointer-events: none;
     }
-  `
+    .bd-toast {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 13px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.45;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+      pointer-events: all;
+      cursor: pointer;
+      animation: bd-slide-up 0.22s cubic-bezier(.2,.8,.4,1) both;
+    }
+    @keyframes bd-slide-up {
+      from { opacity: 0; transform: translateY(18px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)    scale(1); }
+    }
+    .bd-toast-success {
+      background: #0d2318;
+      border: 1px solid #166534;
+      color: #86efac;
+    }
+    .bd-toast-error {
+      background: #200d0d;
+      border: 1px solid #991b1b;
+      color: #fca5a5;
+    }
+    .bd-toast-warn {
+      background: #1c1500;
+      border: 1px solid #92400e;
+      color: #fcd34d;
+    }
+    .bd-toast-info {
+      background: #0c1829;
+      border: 1px solid #1e40af;
+      color: #93c5fd;
+    }
+    .bd-toast-icon {
+      font-size: 15px;
+      flex-shrink: 0;
+      margin-top: 1px;
+      font-weight: 700;
+    }
+    .bd-toast-msg {
+      flex: 1;
+      word-break: break-word;
+    }
+    .bd-toast-close {
+      background: none;
+      border: none;
+      color: inherit;
+      opacity: 0.45;
+      font-size: 11px;
+      cursor: pointer;
+      flex-shrink: 0;
+      padding: 2px 0 0 4px;
+      line-height: 1;
+      transition: opacity 0.15s;
+    }
+    .bd-toast-close:hover { opacity: 0.85; }
+  `],
 })
 export class BdToastComponent {
   svc = inject(ToastService);
-
-  borderColor() {
-    const t = this.svc.toast()?.type;
-    return t === 'error' ? '#c0392b' : '#c6a063';
-  }
-  textColor() {
-    const t = this.svc.toast()?.type;
-    return t === 'error' ? '#c0392b' : '#e7d09a';
-  }
+  icon(type: ToastType) { return ICONS[type] ?? 'ℹ'; }
 }

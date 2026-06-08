@@ -2,7 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard, adminGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
-  { path: '', redirectTo: 'waiter', pathMatch: 'full' },
+  { path: '', redirectTo: 'pin', pathMatch: 'full' },
 
   {
     path: 'login',
@@ -125,6 +125,14 @@ export const routes: Routes = [
       {
         path: 'modifiers',
         loadComponent: () => import('./pages/admin/modifiers/modifiers.page').then(m => m.ModifiersPage)
+      },
+      {
+        path: 'audit',
+        loadComponent: () => import('./pages/admin/audit/audit.page').then(m => m.AuditPage)
+      },
+      {
+        path: 'reservations',
+        loadComponent: () => import('./pages/admin/reservations/reservations.page').then(m => m.ReservationsPage)
       },
     ]
   },

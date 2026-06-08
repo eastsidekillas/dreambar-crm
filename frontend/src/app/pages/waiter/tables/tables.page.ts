@@ -6,7 +6,7 @@ import { ApiService } from '../../../core/services/api.service';
 import { CartService } from '../../../features/cart/cart.service';
 import { ReceiptPrintService } from '../../../features/receipt/receipt-print.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
-import { Order, OrderItem, PaymentMethod, Receipt } from '../../../core/models';
+import { Order, OrderItem, PaymentMethod, Receipt, ReservationInfo } from '../../../core/models';
 
 const PAYMENTS: { value: PaymentMethod; label: string; icon: string }[] = [
   { value: 'cash',     label: 'Наличные', icon: '💵' },
@@ -293,22 +293,72 @@ const POLL_MS = 10_000;
             }
           </div>
           <div class="flex-shrink-0 px-4 pt-3 pb-5" style="border-top:1px solid var(--color-border)">
-            <div class="flex items-center justify-between mb-3">
-              <span class="font-medium" style="color:var(--color-muted)">Итого</span>
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-medium" style="color:var(--color-muted)">Итого по чеку</span>
               <span class="text-2xl font-bold">{{ totalAll() | number:'1.0-0' }} ₽</span>
             </div>
-            <div class="flex gap-2 mb-4">
-              @for (p of payments; track p.value) {
-                <button (click)="singlePay.set(p.value)" class="btn btn-sm" style="flex:1"
-                        [class]="singlePay() === p.value ? 'btn-primary' : 'btn-outline'">
-                  {{ p.icon }} {{ p.label }}
-                </button>
-              }
-            </div>
-            <button (click)="confirm()" [disabled]="submitting()"
-                    class="btn btn-primary btn-full" style="height:48px">
-              {{ submitting() ? '⏳ ...' : '🧾 Закрыть счёт и печать' }}
-            </button>
+
+            <!-- Deposit block -->
+            @if (depositInfo()) {
+              <div class="rounded-xl px-3 py-2.5 mb-3 mt-2"
+                   style="background:var(--color-gold-light);border:1px solid var(--color-gold-mid)">
+                <div class="flex items-center justify-between mb-0.5">
+                  <span class="text-sm font-medium" style="color:var(--color-gold-hover)">
+                    Депозит ({{ depositInfo()!.deposit_method_label || 'нал' }})
+                  </span>
+                  <span class="text-sm font-bold" style="color:var(--color-gold-hover)">
+                    −{{ depositInfo()!.deposit_amount | number:'1.0-0' }} ₽
+                  </span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs" style="color:var(--color-muted)">{{ depositInfo()!.name }}</span>
+                  @if (refundAmount() > 0) {
+                    <span class="text-xs font-semibold" style="color:#166534">
+                      Возврат: {{ refundAmount() | number:'1.0-0' }} ₽
+                    </span>
+                  } @else {
+                    <span class="text-xs font-semibold" style="color:var(--color-gold-hover)">
+                      Остаток: {{ remainingAmount() | number:'1.0-0' }} ₽
+                    </span>
+                  }
+                </div>
+              </div>
+            } @else {
+              <div class="mb-3"></div>
+            }
+
+            @if (refundAmount() > 0) {
+              <div class="rounded-xl px-3 py-3 mb-4 text-center" style="background:#dcfce7;border:1px solid #86efac">
+                <span class="text-sm font-semibold" style="color:#16a34a">
+                  ✅ Депозит покрывает счёт · возврат {{ refundAmount() | number:'1.0-0' }} ₽
+                </span>
+              </div>
+              <button (click)="confirm()" [disabled]="submitting()"
+                      class="btn btn-primary btn-full" style="height:48px">
+                {{ submitting() ? '⏳ ...' : '🧾 Закрыть счёт и печать' }}
+              </button>
+            } @else if (remainingAmount() === 0 && depositInfo()) {
+              <div class="rounded-xl px-3 py-3 mb-4 text-center" style="background:#dcfce7;border:1px solid #86efac">
+                <span class="text-sm font-semibold" style="color:#16a34a">✅ Депозит покрывает весь счёт</span>
+              </div>
+              <button (click)="confirm()" [disabled]="submitting()"
+                      class="btn btn-primary btn-full" style="height:48px">
+                {{ submitting() ? '⏳ ...' : '🧾 Закрыть счёт и печать' }}
+              </button>
+            } @else {
+              <div class="flex gap-2 mb-4">
+                @for (p of payments; track p.value) {
+                  <button (click)="singlePay.set(p.value)" class="btn btn-sm" style="flex:1"
+                          [class]="singlePay() === p.value ? 'btn-primary' : 'btn-outline'">
+                    {{ p.icon }} {{ p.label }}
+                  </button>
+                }
+              </div>
+              <button (click)="confirm()" [disabled]="submitting()"
+                      class="btn btn-primary btn-full" style="height:48px">
+                {{ submitting() ? '⏳ ...' : '🧾 Закрыть счёт и печать' }}
+              </button>
+            }
           </div>
         }
 
@@ -475,6 +525,26 @@ export class TablesPage implements OnInit, OnDestroy {
     this.coItems().reduce((s, i) => s + +i.subtotal, 0)
   );
 
+  depositInfo = computed((): ReservationInfo | null => {
+    const o = this.checkout();
+    const r = o?.reservation_info;
+    if (!r || !r.deposit_paid || +r.deposit_amount <= 0) return null;
+    return r;
+  });
+
+  depositAmount = computed(() => {
+    const d = this.depositInfo();
+    return d ? +d.deposit_amount : 0;
+  });
+
+  remainingAmount = computed(() =>
+    Math.max(0, this.totalAll() - this.depositAmount())
+  );
+
+  refundAmount = computed(() =>
+    Math.max(0, this.depositAmount() - this.totalAll())
+  );
+
   // Groups by guest_no (for display in split mode)
   checkoutGuestGroups = computed(() => {
     const byGuest = new Map<number, OrderItem[]>();
@@ -541,6 +611,7 @@ export class TablesPage implements OnInit, OnDestroy {
       shift: this.shiftId, table_number: this.ntTable.trim(), guests: this.ntGuests || 0, notes: this.ntNotes.trim(), items: [],
     }).subscribe({
       next: order => {
+        this.creating.set(false);
         this.cart.setTarget(order);
         this.newTable.set(false);
         this.router.navigate(['/waiter/order']);
@@ -684,14 +755,21 @@ export class TablesPage implements OnInit, OnDestroy {
         }))
       : [{ item_ids: this.coItems().map(i => i.id), payment_method: this.singlePay() }];
 
-    this.api.checkoutOrder(o.id, billsPayload).subscribe({
+    const d = this.split() ? null : this.depositInfo();
+    this.api.checkoutOrder(
+      o.id,
+      billsPayload,
+      d ? +d.deposit_amount : undefined,
+      d ? (d.deposit_method || undefined) : undefined,
+    ).subscribe({
       next: res => {
+        this.submitting.set(false);
         this.printer.printHardware(res.receipts);
         this.toast.success(res.receipts.length > 1 ? 'Чеки сформированы' : 'Чек сформирован');
         this.closeCheckout();
         this.load();
       },
-      error: () => { this.submitting.set(false); this.toast.error('Ошибка при закрытии счёта'); }
+      error: (err) => { this.submitting.set(false); this.toast.apiError(err, 'Ошибка при закрытии счёта'); }
     });
   }
 }

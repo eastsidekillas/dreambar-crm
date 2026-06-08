@@ -11,6 +11,8 @@ import {
   StaffMember, TokenResponse,
   PurchaseOrder, PurchaseOrderItem,
   ModifierGroup, Modifier, MenuItemModifierGroup,
+  DeletedOrderItem,
+  Reservation, ReservationStatus,
 } from '../models';
 
 export interface BillSpec { item_ids: number[]; payment_method: PaymentMethod; }
@@ -121,8 +123,13 @@ export class ApiService {
     return this.http.post<{ order: Order; receipt: Receipt }>(`${BASE}/orders/${orderId}/close/`, { payment_method: paymentMethod });
   }
   /** Закрыть счёт: один чек или раздельный счёт (несколько чеков). */
-  checkoutOrder(orderId: number, bills: BillSpec[]): Observable<{ order: Order; receipts: Receipt[] }> {
-    return this.http.post<{ order: Order; receipts: Receipt[] }>(`${BASE}/orders/${orderId}/checkout/`, { bills });
+  checkoutOrder(orderId: number, bills: BillSpec[], depositAmount?: number, depositMethod?: string): Observable<{ order: Order; receipts: Receipt[] }> {
+    const body: any = { bills };
+    if (depositAmount && depositAmount > 0) {
+      body.deposit_amount = depositAmount;
+      body.deposit_method = depositMethod || '';
+    }
+    return this.http.post<{ order: Order; receipts: Receipt[] }>(`${BASE}/orders/${orderId}/checkout/`, body);
   }
   updateOrder(orderId: number, data: { table_number?: string; guests?: number; notes?: string }): Observable<Order> {
     return this.http.patch<Order>(`${BASE}/orders/${orderId}/`, data);
@@ -353,6 +360,16 @@ export class ApiService {
     return this.http.delete<void>(`${BASE}/menu/item-modifiers/${linkId}/`);
   }
 
+  // ── Audit ────────────────────────────────────────────────────────
+  getDeletedItems(params?: { shift?: number; deleted_by?: number; date_from?: string; date_to?: string }): Observable<DeletedOrderItem[]> {
+    let p = new HttpParams().set('page_size', '500');
+    if (params?.shift)       p = p.set('shift', params.shift);
+    if (params?.deleted_by)  p = p.set('deleted_by', params.deleted_by);
+    if (params?.date_from)   p = p.set('date_from', params.date_from);
+    if (params?.date_to)     p = p.set('date_to', params.date_to);
+    return unpage(this.http.get<DeletedOrderItem[] | Paginated<DeletedOrderItem>>(`${BASE}/audit/deleted-items/`, { params: p }));
+  }
+
   // ── Exports ──────────────────────────────────────────────────────
   exportShift(shiftId: number): string {
     const token = localStorage.getItem('access_token');
@@ -367,5 +384,33 @@ export class ApiService {
   }
   downloadExport(url: string): Observable<Blob> {
     return this.http.get(url, { responseType: 'blob' });
+  }
+
+  // ── Reservations ─────────────────────────────────────────────────
+  getReservations(params?: { date?: string; date_from?: string; date_to?: string; status?: string }): Observable<Reservation[]> {
+    let p = new HttpParams().set('page_size', '200');
+    if (params?.date)      p = p.set('date', params.date);
+    if (params?.date_from) p = p.set('date_from', params.date_from);
+    if (params?.date_to)   p = p.set('date_to', params.date_to);
+    if (params?.status)    p = p.set('status', params.status);
+    return unpage(this.http.get<Reservation[] | Paginated<Reservation>>(`${BASE}/reservations/`, { params: p }));
+  }
+  createReservation(data: Partial<Reservation>): Observable<Reservation> {
+    return this.http.post<Reservation>(`${BASE}/reservations/`, data);
+  }
+  updateReservation(id: number, data: Partial<Reservation>): Observable<Reservation> {
+    return this.http.patch<Reservation>(`${BASE}/reservations/${id}/`, data);
+  }
+  deleteReservation(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/reservations/${id}/`);
+  }
+  setReservationStatus(id: number, status: ReservationStatus): Observable<Reservation> {
+    return this.http.post<Reservation>(`${BASE}/reservations/${id}/set_status/`, { status });
+  }
+  markReservationDeposit(id: number, paid: boolean): Observable<Reservation> {
+    return this.http.post<Reservation>(`${BASE}/reservations/${id}/mark_deposit/`, { paid });
+  }
+  linkReservationToOrder(orderId: number, reservationId: number | null): Observable<Order> {
+    return this.http.patch<Order>(`${BASE}/orders/${orderId}/`, { reservation: reservationId });
   }
 }

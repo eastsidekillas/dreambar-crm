@@ -16,6 +16,8 @@ class Receipt(models.Model):
     waiter         = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='receipts')
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash')
     total          = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Депозит')
+    deposit_method = models.CharField(max_length=20, blank=True, default='', verbose_name='Способ депозита')
     issued_at      = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -34,5 +36,9 @@ class Receipt(models.Model):
 
     @classmethod
     def next_number(cls, shift):
+        # Блокируем строку смены чтобы сериализовать параллельные транзакции
+        # и не допустить дублирующего номера чека (race condition на MAX+INSERT).
+        from apps.shifts.models import Shift as _Shift
+        _Shift.objects.select_for_update().filter(pk=shift.pk).get()
         last = cls.objects.filter(shift=shift).aggregate(m=models.Max('number'))['m'] or 0
         return last + 1

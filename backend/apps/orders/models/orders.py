@@ -18,6 +18,10 @@ class Order(models.Model):
     updated_at   = models.DateTimeField(auto_now=True)
     closed_at    = models.DateTimeField(null=True, blank=True)
     notes        = models.TextField(blank=True)
+    reservation  = models.ForeignKey(
+        'reservations.Reservation', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='orders', verbose_name='Бронь',
+    )
 
     class Meta:
         ordering = ['-created_at']

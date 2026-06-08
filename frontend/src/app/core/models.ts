@@ -179,8 +179,24 @@ export interface Receipt {
   payment_method: PaymentMethod;
   payment_label: string;
   total: number;
+  deposit_amount: number;
+  deposit_method: string;
+  deposit_method_label: string;
   issued_at: string;
   items: ReceiptItem[];
+}
+
+export interface ReservationInfo {
+  id: number;
+  name: string;
+  phone: string;
+  guests_count: number;
+  deposit_amount: string;
+  deposit_method: string;
+  deposit_method_label: string;
+  deposit_paid: boolean;
+  status: string;
+  wishes: string;
 }
 
 export interface Order {
@@ -195,10 +211,36 @@ export interface Order {
   updated_at: string;
   closed_at: string | null;
   notes: string;
+  reservation: number | null;
+  reservation_info: ReservationInfo | null;
   items: OrderItem[];
   receipts: Receipt[];
   total: number;
   is_paid: boolean;
+}
+
+export type ReservationStatus = 'pending' | 'confirmed' | 'arrived' | 'completed' | 'cancelled';
+
+export interface Reservation {
+  id: number;
+  name: string;
+  phone: string;
+  date: string;
+  time_start: string;
+  time_end: string | null;
+  table_number: string;
+  guests_count: number;
+  wishes: string;
+  deposit_amount: number;
+  deposit_method: 'cash' | 'transfer' | '';
+  deposit_method_label: string;
+  deposit_paid: boolean;
+  status: ReservationStatus;
+  status_label: string;
+  notes: string;
+  created_at: string;
+  created_by: number | null;
+  created_by_name: string | null;
 }
 
 export interface EntryTicket {
@@ -432,6 +474,22 @@ export interface ForecastDay {
   avg_check: number;
   by_category: { bar: number; kitchen: number; hookah: number; tickets: number };
   by_hour: ForecastHour[];
+}
+
+export interface DeletedOrderItem {
+  id: number;
+  deleted_at: string;
+  deleted_by: number | null;
+  deleted_by_name: string | null;
+  order: number | null;
+  shift: number | null;
+  table_number: string;
+  menu_item_name: string;
+  menu_item_volume: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  kitchen_status: string;
 }
 
 export type PrinterConnection = 'network' | 'agent';

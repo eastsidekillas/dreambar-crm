@@ -6,7 +6,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { CartService } from '../../features/cart/cart.service';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { ReceiptPrintService } from '../../features/receipt/receipt-print.service';
-import { KitchenTicket, KitchenItem, KitchenStatus, MenuByCategory, MenuItem, PaymentMethod } from '../../core/models';
+import { KitchenTicket, KitchenItem, KitchenStatus, MenuByCategory, MenuItem, PaymentMethod, Product, MenuItemComponent } from '../../core/models';
 
 const REFRESH_MS = 6000;
 
@@ -36,10 +36,10 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
 
         <div class="flex items-center gap-3">
           <!-- Tab buttons — touch-sized -->
-          <div class="flex rounded-xl overflow-hidden" style="border:1px solid #334155">
+          <div class="flex rounded-xl overflow-x-auto" style="border:1px solid #334155">
             <button (click)="tab.set('orders')"
-              class="relative flex flex-col items-center justify-center px-5 font-semibold transition-colors"
-              style="min-height:52px;min-width:80px;font-size:0.85rem"
+              class="relative flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
+              style="min-height:52px;min-width:72px;font-size:0.82rem"
               [style]="tab() === 'orders' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
               <span>Заказы</span>
               @if (active().length) {
@@ -48,8 +48,8 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
               }
             </button>
             <button (click)="openKitchenTab()"
-              class="relative flex flex-col items-center justify-center px-5 font-semibold transition-colors"
-              style="min-height:52px;min-width:80px;font-size:0.85rem;border-left:1px solid #334155"
+              class="relative flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
+              style="min-height:52px;min-width:72px;font-size:0.82rem;border-left:1px solid #334155"
               [style]="tab() === 'kitchen' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
               <span>🍽 Кухня</span>
               @if (kitchenUnseenCount()) {
@@ -58,10 +58,22 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
               }
             </button>
             <button (click)="tab.set('new')"
-              class="flex flex-col items-center justify-center px-5 font-semibold transition-colors"
-              style="min-height:52px;min-width:80px;font-size:0.85rem;border-left:1px solid #334155"
+              class="flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
+              style="min-height:52px;min-width:72px;font-size:0.82rem;border-left:1px solid #334155"
               [style]="tab() === 'new' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
               <span>+ Новый</span>
+            </button>
+            <button (click)="tab.set('stock')"
+              class="flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
+              style="min-height:52px;min-width:72px;font-size:0.82rem;border-left:1px solid #334155"
+              [style]="tab() === 'stock' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
+              <span>📦 Склад</span>
+            </button>
+            <button (click)="tab.set('recipes')"
+              class="flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
+              style="min-height:52px;min-width:80px;font-size:0.82rem;border-left:1px solid #334155"
+              [style]="tab() === 'recipes' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
+              <span>📋 Рецепты</span>
             </button>
           </div>
 
@@ -300,6 +312,117 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
         }
       }
 
+      <!-- ── СКЛАД ──────────────────────────────────────────────────── -->
+      @if (tab() === 'stock') {
+        <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div class="px-3 py-2.5 flex-shrink-0">
+            <input [ngModel]="stockSearch()" (ngModelChange)="stockSearch.set($event)"
+                   class="w-full px-4 py-2.5 rounded-xl text-sm"
+                   placeholder="Поиск продукта..."
+                   style="background:#1e293b;border:1px solid #334155;color:#f1f5f9;outline:none"/>
+          </div>
+          <div class="flex-1 min-h-0 overflow-y-auto px-3 pb-6 space-y-2">
+            @for (p of filteredProducts(); track p.id) {
+              <div class="flex items-center gap-3 rounded-xl px-4 py-3"
+                   style="background:#1e293b;border:1px solid #334155">
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold truncate">{{ p.name }}</p>
+                  <p class="text-xs" style="color:#64748b">
+                    {{ p.unit }}
+                    @if (p.min_stock != null) { · мин: {{ p.min_stock }} }
+                  </p>
+                </div>
+                <div class="text-right mr-2">
+                  <p class="font-bold text-xl leading-none" [style.color]="stockColor(p)">
+                    {{ p.stock_quantity }}
+                  </p>
+                  <p class="text-xs" style="color:#64748b">{{ p.unit }}</p>
+                </div>
+                <button (click)="openStockAdjust(p)"
+                        class="rounded-xl font-bold text-base flex-shrink-0"
+                        style="background:#334155;color:#f1f5f9;min-height:44px;min-width:48px">
+                  ±
+                </button>
+              </div>
+            }
+            @if (!filteredProducts().length) {
+              <p class="text-center py-10 text-sm" style="color:#64748b">Ничего не найдено</p>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- ── РЕЦЕПТУРЫ ───────────────────────────────────────────── -->
+      @if (tab() === 'recipes') {
+        <div class="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-1 pb-6">
+          @for (cat of barMenu(); track cat.id) {
+            <p class="text-xs font-bold uppercase tracking-wider px-1 pt-3 pb-1" style="color:#64748b">
+              {{ cat.name }}
+            </p>
+            @for (item of cat.items; track item.id) {
+              <div class="rounded-xl overflow-hidden mb-2" style="background:#1e293b;border:1px solid #334155">
+                <button (click)="selectRecipeItem(item)"
+                        class="w-full flex items-center gap-3 px-4 py-3"
+                        style="border:none;text-align:left;background:transparent;cursor:pointer">
+                  <div class="flex-1 min-w-0 text-left">
+                    <p class="font-semibold text-sm">
+                      {{ item.name }}
+                      @if (item.volume) {
+                        <span style="color:#64748b"> {{ item.volume }}</span>
+                      }
+                    </p>
+                    <p class="text-xs" style="color:#64748b">{{ item.price }} ₽</p>
+                  </div>
+                  <span class="text-sm flex-shrink-0" style="color:#64748b">
+                    {{ recipeSelectedItem()?.id === item.id ? '▾' : '▸' }}
+                  </span>
+                </button>
+
+                @if (recipeSelectedItem()?.id === item.id) {
+                  <div style="border-top:1px solid #334155">
+                    @if (!recipeComponents().length) {
+                      <p class="px-4 py-3 text-sm" style="color:#64748b">Рецептура не задана</p>
+                    }
+                    @for (comp of recipeComponents(); track comp.id) {
+                      <div class="flex items-center gap-2 px-4 py-2.5" style="border-bottom:1px solid #0f172a">
+                        <p class="flex-1 text-sm font-medium truncate">{{ comp.product_name }}</p>
+                        <input type="number" [value]="comp.quantity" min="0.001" step="0.001"
+                               class="w-20 text-center text-sm rounded-lg py-1.5"
+                               style="background:#0f172a;border:1px solid #334155;color:#f1f5f9"
+                               (change)="updateComponentQty(comp, +$any($event.target).value)"/>
+                        <span class="text-xs w-8 flex-shrink-0" style="color:#64748b">{{ comp.product_unit }}</span>
+                        <button (click)="deleteComponent(comp.id)"
+                                class="rounded-lg flex items-center justify-center flex-shrink-0"
+                                style="background:#ef444422;color:#ef4444;min-width:36px;min-height:36px;border:none;cursor:pointer">
+                          ✕
+                        </button>
+                      </div>
+                    }
+                    <div class="px-3 py-2.5 flex items-center gap-2" style="border-top:1px solid #334155">
+                      <select [(ngModel)]="recipeNewProduct" class="flex-1 text-sm rounded-xl py-2 px-3"
+                              style="background:#0f172a;border:1px solid #334155;color:#f1f5f9">
+                        <option [ngValue]="null">Продукт...</option>
+                        @for (p of products(); track p.id) {
+                          <option [ngValue]="p.id">{{ p.name }} ({{ p.unit }})</option>
+                        }
+                      </select>
+                      <input type="number" [(ngModel)]="recipeNewQty" min="0.001" step="0.001"
+                             class="w-20 text-center text-sm rounded-xl py-2"
+                             style="background:#0f172a;border:1px solid #334155;color:#f1f5f9"/>
+                      <button (click)="addComponent()" [disabled]="!recipeNewProduct || recipeSaving()"
+                              class="rounded-xl font-bold text-sm flex-shrink-0"
+                              style="background:#f59e0b;color:#0f172a;min-height:40px;min-width:44px;border:none;cursor:pointer">
+                        +
+                      </button>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          }
+        </div>
+      }
+
       <!-- ── СВОЙ ЗАКАЗ ───────────────────────────────────────────── -->
       @if (tab() === 'new') {
         <div class="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
@@ -455,6 +578,63 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
         </div>
       }
 
+      <!-- ── Модальное окно корректировки склада ─────────────────── -->
+      @if (stockAdjustTarget()) {
+        <div class="fixed inset-0 z-50 flex items-end justify-center"
+             style="background:rgba(0,0,0,0.75)" (click)="stockAdjustTarget.set(null)">
+          <div class="w-full max-w-md rounded-t-2xl p-5"
+               style="background:#1e293b;border-top:1px solid #334155"
+               (click)="$event.stopPropagation()">
+            <p class="font-bold text-lg mb-0.5">{{ stockAdjustTarget()!.name }}</p>
+            <p class="text-sm mb-4" style="color:#94a3b8">
+              Остаток:
+              <span class="font-bold" [style.color]="stockColor(stockAdjustTarget()!)">
+                {{ stockAdjustTarget()!.stock_quantity }} {{ stockAdjustTarget()!.unit }}
+              </span>
+            </p>
+            <div class="grid grid-cols-2 gap-2 mb-4">
+              <button (click)="stockAdjustReason = 'manual_in'"
+                      class="py-3 rounded-xl font-bold text-sm"
+                      [style]="stockAdjustReason === 'manual_in'
+                        ? 'background:#22c55e;color:#0f172a;border:none'
+                        : 'background:#0f172a;color:#94a3b8;border:1px solid #334155'">
+                ↑ Приход
+              </button>
+              <button (click)="stockAdjustReason = 'manual_out'"
+                      class="py-3 rounded-xl font-bold text-sm"
+                      [style]="stockAdjustReason === 'manual_out'
+                        ? 'background:#ef4444;color:white;border:none'
+                        : 'background:#0f172a;color:#94a3b8;border:1px solid #334155'">
+                ↓ Списание
+              </button>
+            </div>
+            <div class="flex items-center gap-3 mb-4">
+              <button (click)="stockAdjustQty = clamp1(stockAdjustQty - 1)"
+                      class="w-12 h-12 rounded-xl font-bold text-xl flex-shrink-0"
+                      style="background:#0f172a;color:#f1f5f9;border:1px solid #334155">−</button>
+              <input type="number" [(ngModel)]="stockAdjustQty" min="1"
+                     class="flex-1 text-center py-3 rounded-xl font-bold text-xl"
+                     style="background:#0f172a;border:1px solid #334155;color:#f1f5f9"/>
+              <button (click)="stockAdjustQty = stockAdjustQty + 1"
+                      class="w-12 h-12 rounded-xl font-bold text-xl flex-shrink-0"
+                      style="background:#0f172a;color:#f1f5f9;border:1px solid #334155">+</button>
+            </div>
+            <div class="flex gap-2">
+              <button (click)="stockAdjustTarget.set(null)"
+                      class="flex-1 py-3 rounded-xl font-semibold text-sm"
+                      style="background:#0f172a;color:#94a3b8;border:1px solid #334155">
+                Отмена
+              </button>
+              <button (click)="doAdjust()" [disabled]="stockAdjusting()"
+                      class="flex-1 py-3 rounded-xl font-bold text-sm"
+                      style="background:#f59e0b;color:#0f172a;border:none">
+                {{ stockAdjusting() ? '...' : 'Сохранить' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
       <!-- ── Модальное окно оплаты ──────────────────────────────── -->
       @if (payModal()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -510,7 +690,7 @@ export class BartenderPage implements OnInit, OnDestroy {
     this.barConfirmDelete.set(null);
     this.api.removeItemFromOrder(orderId, it.id).subscribe({
       next: () => this.load(),
-      error: () => this.toast.error('Не удалось удалить позицию'),
+      error: (err) => this.toast.apiError(err, 'Не удалось удалить позицию'),
     });
   }
 
@@ -522,7 +702,7 @@ export class BartenderPage implements OnInit, OnDestroy {
     });
   }
 
-  tab        = signal<'orders' | 'new' | 'kitchen'>('orders');
+  tab        = signal<'orders' | 'new' | 'kitchen' | 'stock' | 'recipes'>('orders');
   active     = signal<KitchenTicket[]>([]);
   ready      = signal<KitchenTicket[]>([]);
   noShift    = signal(false);
@@ -576,6 +756,31 @@ export class BartenderPage implements OnInit, OnDestroy {
   goRoot() { this.activeCat.set(0); this.activeDrink.set(''); }
   goCat()  { this.activeDrink.set(''); }
 
+  // ── Stock tab ─────────────────────────────────────────────────────
+  products           = signal<Product[]>([]);
+  stockSearch        = signal('');
+  stockAdjustTarget  = signal<Product | null>(null);
+  stockAdjustQty     = 1;
+  stockAdjustReason: 'manual_in' | 'manual_out' = 'manual_in';
+  stockAdjusting     = signal(false);
+
+  filteredProducts = computed(() => {
+    const q = this.stockSearch().trim().toLowerCase();
+    const list = this.products().slice().sort((a, b) => {
+      const aLow = a.is_low ? 0 : 1;
+      const bLow = b.is_low ? 0 : 1;
+      return aLow - bLow || a.name.localeCompare(b.name);
+    });
+    return q ? list.filter(p => p.name.toLowerCase().includes(q)) : list;
+  });
+
+  // ── Recipes tab ───────────────────────────────────────────────────
+  recipeSelectedItem = signal<MenuItem | null>(null);
+  recipeComponents   = signal<MenuItemComponent[]>([]);
+  recipeNewProduct: number | null = null;
+  recipeNewQty       = 1;
+  recipeSaving       = signal(false);
+
   // payment modal
   payModal    = signal(false);
   selectedPay: PaymentMethod = 'cash';
@@ -592,6 +797,7 @@ export class BartenderPage implements OnInit, OnDestroy {
   ngOnInit() {
     this.load();
     this.loadMenu();
+    this.loadProducts();
     this.timer = setInterval(() => this.load(), REFRESH_MS);
   }
 
@@ -731,6 +937,88 @@ export class BartenderPage implements OnInit, OnDestroy {
         });
       },
       error: () => { this.submitting.set(false); this.toast.error('Нет открытой смены'); },
+    });
+  }
+
+  // ── Stock methods ─────────────────────────────────────────────────
+  loadProducts() {
+    this.api.getProducts().subscribe(p => this.products.set(p));
+  }
+
+  stockColor(p: Product): string {
+    if (p.is_low) return '#ef4444';
+    if (p.min_stock != null && p.stock_quantity < p.min_stock * 1.5) return '#f59e0b';
+    return '#22c55e';
+  }
+
+  openStockAdjust(product: Product) {
+    this.stockAdjustTarget.set(product);
+    this.stockAdjustQty = 1;
+    this.stockAdjustReason = 'manual_in';
+  }
+
+  clamp1(n: number) { return Math.max(1, n); }
+
+  doAdjust() {
+    const p = this.stockAdjustTarget();
+    if (!p) return;
+    this.stockAdjusting.set(true);
+    const qty = this.stockAdjustReason === 'manual_out'
+      ? -Math.abs(this.stockAdjustQty)
+      : Math.abs(this.stockAdjustQty);
+    this.api.adjustStock({ product: p.id, quantity: qty, reason: this.stockAdjustReason }).subscribe({
+      next: updated => {
+        this.products.update(list => list.map(x => x.id === updated.id ? updated : x));
+        this.stockAdjustTarget.set(null);
+        this.stockAdjusting.set(false);
+        this.toast.success('Остатки обновлены');
+      },
+      error: (err) => { this.stockAdjusting.set(false); this.toast.apiError(err, 'Ошибка при обновлении остатков'); },
+    });
+  }
+
+  // ── Recipe methods ────────────────────────────────────────────────
+  selectRecipeItem(item: MenuItem) {
+    if (this.recipeSelectedItem()?.id === item.id) {
+      this.recipeSelectedItem.set(null);
+      return;
+    }
+    this.recipeSelectedItem.set(item);
+    this.recipeComponents.set([]);
+    this.recipeNewProduct = null;
+    this.recipeNewQty = 1;
+    this.api.getComponents(item.id).subscribe(c => this.recipeComponents.set(c));
+  }
+
+  addComponent() {
+    const item = this.recipeSelectedItem();
+    if (!item || !this.recipeNewProduct) return;
+    this.recipeSaving.set(true);
+    this.api.createComponent({ menu_item: item.id, product: this.recipeNewProduct, quantity: this.recipeNewQty }).subscribe({
+      next: () => {
+        this.api.getComponents(item.id).subscribe(c => this.recipeComponents.set(c));
+        this.recipeNewProduct = null;
+        this.recipeNewQty = 1;
+        this.recipeSaving.set(false);
+      },
+      error: (err) => { this.recipeSaving.set(false); this.toast.apiError(err, 'Ошибка при добавлении компонента'); },
+    });
+  }
+
+  updateComponentQty(comp: MenuItemComponent, qty: number) {
+    if (!qty || qty <= 0) return;
+    this.api.updateComponent(comp.id, qty).subscribe({
+      next: updated => this.recipeComponents.update(list => list.map(c => c.id === updated.id ? updated : c)),
+      error: (err) => this.toast.apiError(err, 'Ошибка при обновлении рецепта'),
+    });
+  }
+
+  deleteComponent(compId: number) {
+    const item = this.recipeSelectedItem();
+    if (!item) return;
+    this.api.deleteComponent(compId).subscribe({
+      next: () => this.api.getComponents(item.id).subscribe(c => this.recipeComponents.set(c)),
+      error: (err) => this.toast.apiError(err, 'Ошибка при удалении компонента'),
     });
   }
 

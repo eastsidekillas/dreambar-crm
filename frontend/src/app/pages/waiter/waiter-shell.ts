@@ -7,7 +7,6 @@ import { ApiService } from '../../core/services/api.service';
 import { CartService } from '../../features/cart/cart.service';
 import { CartDrawerComponent, CartSubmit } from '../../widgets/cart-drawer/cart-drawer.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
-import { BdToastComponent } from '../../shared/ui/toast/toast.component';
 import { Shift } from '../../core/models';
 
 interface Tab { path: string; label: string; icon: string; }
@@ -15,7 +14,7 @@ interface Tab { path: string; label: string; icon: string; }
 @Component({
   selector: 'app-waiter-shell',
   standalone: true,
-  imports: [CommonModule, RouterModule, RouterOutlet, CartDrawerComponent, BdToastComponent],
+  imports: [CommonModule, RouterModule, RouterOutlet, CartDrawerComponent],
   template: `
     <div class="flex flex-col" style="height:100dvh;background:var(--color-bg)">
 
@@ -99,7 +98,6 @@ interface Tab { path: string; label: string; icon: string; }
         (close)="cartOpen.set(false)"
         (submit)="onSubmitOrder($event)" />
 
-      <bd-toast />
     </div>
   `
 })

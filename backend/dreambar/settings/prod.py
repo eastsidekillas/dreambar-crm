@@ -2,6 +2,11 @@
 from .base import *  # noqa
 from .base import env, env_list
 
+if SECRET_KEY == 'django-insecure-dev-only-change-me':
+    raise RuntimeError(
+        'DJANGO_SECRET_KEY не задан. Обязательно задайте переменную окружения в production.'
+    )
+
 DEBUG = False
 
 # Сжатая статика с manifest-хешами (whitenoise). Требует collectstatic.

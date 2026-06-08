@@ -38,6 +38,10 @@ class ShiftViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def reopen(self, request, pk=None):
+        if not request.user.is_staff:
+            return Response({'detail': 'Недостаточно прав.'}, status=status.HTTP_403_FORBIDDEN)
+        if Shift.objects.filter(is_open=True).exists():
+            return Response({'detail': 'Уже есть открытая смена.'}, status=status.HTTP_400_BAD_REQUEST)
         shift = self.get_object()
         shift.is_open = True
         shift.closed_at = None

@@ -82,17 +82,23 @@ class ReceiptSerializer(serializers.ModelSerializer):
     code = serializers.CharField(read_only=True)
     waiter_name = serializers.SerializerMethodField()
     payment_label = serializers.CharField(source='get_payment_method_display', read_only=True)
+    deposit_method_label = serializers.SerializerMethodField()
 
     class Meta:
         model = Receipt
         fields = ['id', 'order', 'shift', 'number', 'code', 'table_number',
                   'waiter', 'waiter_name', 'payment_method', 'payment_label',
-                  'total', 'issued_at', 'items']
+                  'total', 'deposit_amount', 'deposit_method', 'deposit_method_label',
+                  'issued_at', 'items']
 
     def get_waiter_name(self, obj):
         if obj.waiter:
             return obj.waiter.get_full_name() or obj.waiter.username
         return None
+
+    def get_deposit_method_label(self, obj):
+        labels = {'cash': 'Наличные', 'transfer': 'Перевод'}
+        return labels.get(obj.deposit_method, '') if obj.deposit_method else ''
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -101,11 +107,13 @@ class OrderSerializer(serializers.ModelSerializer):
     total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     is_paid = serializers.BooleanField(read_only=True)
     waiter_name = serializers.SerializerMethodField()
+    reservation_info = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = ['id', 'shift', 'waiter', 'waiter_name', 'table_number', 'guests',
                   'status', 'created_at', 'updated_at', 'closed_at', 'notes',
+                  'reservation', 'reservation_info',
                   'items', 'receipts', 'total', 'is_paid']
         read_only_fields = ['waiter', 'created_at', 'updated_at', 'closed_at']
 
@@ -114,13 +122,30 @@ class OrderSerializer(serializers.ModelSerializer):
             return obj.waiter.get_full_name() or obj.waiter.username
         return None
 
+    def get_reservation_info(self, obj):
+        r = obj.reservation
+        if not r:
+            return None
+        return {
+            'id': r.id,
+            'name': r.name,
+            'phone': r.phone,
+            'guests_count': r.guests_count,
+            'deposit_amount': str(r.deposit_amount),
+            'deposit_method': r.deposit_method,
+            'deposit_method_label': r.get_deposit_method_display() if r.deposit_method else '',
+            'deposit_paid': r.deposit_paid,
+            'status': r.status,
+            'wishes': r.wishes,
+        }
+
 
 class OrderCreateSerializer(serializers.ModelSerializer):
     items = OrderItemCreateSerializer(many=True, required=False)
 
     class Meta:
         model = Order
-        fields = ['id', 'shift', 'table_number', 'guests', 'notes', 'items']
+        fields = ['id', 'shift', 'table_number', 'guests', 'notes', 'reservation', 'items']
         read_only_fields = ['id']
 
     def create(self, validated_data):

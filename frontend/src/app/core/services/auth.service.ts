@@ -78,7 +78,7 @@ export class AuthService {
     localStorage.removeItem('user');
     this.clearActiveRole();
     this.user.set(null);
-    this.router.navigate(['/login']);
+    this.router.navigate(['/pin']);
   }
 
   getToken(): string | null  { return localStorage.getItem('access_token'); }

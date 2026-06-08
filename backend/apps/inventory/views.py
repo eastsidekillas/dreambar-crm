@@ -7,7 +7,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 
 from apps.orders.models import OrderItem
 from .models import Product, MenuItemComponent, InventoryMovement, PurchaseOrder, PurchaseOrderItem
@@ -19,9 +19,13 @@ from .services import adjust_stock
 
 
 class ProductViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAdminUser]
-    queryset           = Product.objects.all()
-    serializer_class   = ProductSerializer
+    queryset         = Product.objects.all()
+    serializer_class = ProductSerializer
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve', 'low_stock'):
+            return [IsAuthenticated()]
+        return [IsAdminUser()]
 
     @action(detail=False, methods=['get'])
     def low_stock(self, request):

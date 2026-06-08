@@ -1,24 +1,15 @@
-"""
-Базовые настройки DreamBar — общие для всех окружений.
-Конкретные значения переопределяются в dev.py / prod.py и через переменные
-окружения (.env).
-"""
 import os
 from pathlib import Path
 from datetime import timedelta
 
-# .../backend
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-# Подхватываем .env из корня backend, если он есть (локальная разработка).
 try:
     from dotenv import load_dotenv
     load_dotenv(BASE_DIR / '.env')
 except ImportError:
     pass
 
-
-# ── helpers ──────────────────────────────────────────────────────────────────
 def env(key, default=None):
     return os.environ.get(key, default)
 
@@ -37,7 +28,7 @@ def env_list(key, default=None):
     return [item.strip() for item in val.split(',') if item.strip()]
 
 
-# ── core ─────────────────────────────────────────────────────────────────────
+
 SECRET_KEY = env('DJANGO_SECRET_KEY', 'django-insecure-dev-only-change-me')
 DEBUG = env_bool('DEBUG', False)
 ALLOWED_HOSTS = env_list('ALLOWED_HOSTS', ['localhost', '127.0.0.1'])
@@ -64,6 +55,7 @@ INSTALLED_APPS = [
     'apps.orders',
     'apps.analytics',
     'apps.exports',
+    'apps.reservations',
 ]
 
 MIDDLEWARE = [
@@ -99,8 +91,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'dreambar.wsgi.application'
 
 
-# ── database ─────────────────────────────────────────────────────────────────
-# Postgres, если задан DATABASE_NAME, иначе SQLite (локальная разработка).
 if env('DATABASE_NAME'):
     DATABASES = {
         'default': {
@@ -141,7 +131,6 @@ MEDIA_URL = 'media/'
 MEDIA_ROOT = env('MEDIA_ROOT', str(BASE_DIR / 'media'))
 # Хранилище статики по умолчанию (dev). В prod.py заменяется на whitenoise+manifest.
 
-
 # ── DRF / JWT ────────────────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -157,6 +146,9 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'dreambar.pagination.StandardPagination',
     'PAGE_SIZE': 50,
+    'DEFAULT_THROTTLE_RATES': {
+        'pin_login': '10/min',
+    },
 }
 
 SIMPLE_JWT = {
