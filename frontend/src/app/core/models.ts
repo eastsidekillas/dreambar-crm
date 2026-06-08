@@ -1,5 +1,23 @@
 export type Role = 'admin' | 'waiter' | 'bartender' | 'kitchen' | 'wardrobe';
 
+export interface VenueTable {
+  id: number;
+  zone: number;
+  zone_name: string;
+  number: string;
+  seats: number;
+  is_active: boolean;
+  note: string;
+}
+
+export interface Zone {
+  id: number;
+  name: string;
+  color: string;
+  sort: number;
+  tables: VenueTable[];
+}
+
 export type KitchenStatus = 'new' | 'cooking' | 'ready';
 
 export interface KitchenItem {

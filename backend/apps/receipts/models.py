@@ -12,7 +12,7 @@ class Receipt(models.Model):
     order          = models.ForeignKey('orders.Order', on_delete=models.CASCADE, related_name='receipts')
     shift          = models.ForeignKey('shifts.Shift', on_delete=models.CASCADE, related_name='receipts')
     number         = models.PositiveIntegerField(verbose_name='Номер чека в смене')
-    table_number   = models.CharField(max_length=10, blank=True, verbose_name='Стол/зона')
+    table_number   = models.CharField(max_length=50, blank=True, verbose_name='Стол/зона')
     waiter         = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='receipts')
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash')
     total          = models.DecimalField(max_digits=10, decimal_places=2, default=0)

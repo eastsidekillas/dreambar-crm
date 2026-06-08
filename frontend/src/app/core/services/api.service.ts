@@ -13,6 +13,7 @@ import {
   ModifierGroup, Modifier, MenuItemModifierGroup,
   DeletedOrderItem,
   Reservation, ReservationStatus,
+  Zone, VenueTable,
 } from '../models';
 
 export interface BillSpec { item_ids: number[]; payment_method: PaymentMethod; }
@@ -412,5 +413,32 @@ export class ApiService {
   }
   linkReservationToOrder(orderId: number, reservationId: number | null): Observable<Order> {
     return this.http.patch<Order>(`${BASE}/orders/${orderId}/`, { reservation: reservationId });
+  }
+
+  moveOrderTable(orderId: number, tableNumber: string): Observable<Order> {
+    return this.http.post<Order>(`${BASE}/orders/${orderId}/move_table/`, { table_number: tableNumber });
+  }
+
+  // ── Tables & Zones ────────────────────────────────────────────────
+  getZones(): Observable<Zone[]> {
+    return unpage(this.http.get<Zone[] | Paginated<Zone>>(`${BASE}/tables/zones/?page_size=100`));
+  }
+  createZone(data: Partial<Zone>): Observable<Zone> {
+    return this.http.post<Zone>(`${BASE}/tables/zones/`, data);
+  }
+  updateZone(id: number, data: Partial<Zone>): Observable<Zone> {
+    return this.http.patch<Zone>(`${BASE}/tables/zones/${id}/`, data);
+  }
+  deleteZone(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/tables/zones/${id}/`);
+  }
+  createTable(data: Partial<VenueTable>): Observable<VenueTable> {
+    return this.http.post<VenueTable>(`${BASE}/tables/`, data);
+  }
+  updateTable(id: number, data: Partial<VenueTable>): Observable<VenueTable> {
+    return this.http.patch<VenueTable>(`${BASE}/tables/${id}/`, data);
+  }
+  deleteTable(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/tables/${id}/`);
   }
 }

@@ -20,7 +20,7 @@ class Reservation(models.Model):
     date           = models.DateField(verbose_name='Дата брони')
     time_start     = models.TimeField(verbose_name='Начало')
     time_end       = models.TimeField(null=True, blank=True, verbose_name='Конец')
-    table_number   = models.CharField(max_length=10, blank=True, verbose_name='Стол')
+    table_number   = models.CharField(max_length=50, blank=True, verbose_name='Стол')
     guests_count   = models.PositiveSmallIntegerField(default=1, verbose_name='Кол-во гостей')
     wishes         = models.TextField(blank=True, verbose_name='Пожелания')
     deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Депозит')
