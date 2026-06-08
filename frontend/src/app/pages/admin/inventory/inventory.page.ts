@@ -613,7 +613,7 @@ export class InventoryPage implements OnInit {
   consumption        = signal<ConsumptionRow[]>([]);
   consumptionLoading = signal(false);
   consumptionQueried = signal(false);
-  totalCost          = computed(() => this.consumption().reduce((s, r) => s + r.total_cost, 0));
+  totalCost          = computed(() => this.consumption().reduce((s, r) => s + +r.total_cost, 0));
 
   presets = [
     { label: 'Последние 2 смены', days: 14 },

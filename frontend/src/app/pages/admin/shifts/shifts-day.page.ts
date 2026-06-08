@@ -23,7 +23,7 @@ import { Shift } from '../../../core/models';
     <!-- Date selector -->
     <div class="flex items-center gap-3 flex-wrap mb-5">
       <label class="section-title">Учётный день</label>
-      <select [(ngModel)]="selectedDate" class="field" style="width:240px">
+      <select [ngModel]="selectedDate()" (ngModelChange)="selectedDate.set($event)" class="field" style="width:240px">
         @for (d of availableDates(); track d.value) {
           <option [value]="d.value">{{ d.label }}</option>
         }
@@ -125,7 +125,7 @@ import { Shift } from '../../../core/models';
              style="background:#dcfce7;border:1px solid #86efac">
           <span>✅</span>
           <p class="text-sm font-medium" style="color:#166534">
-            Все смены за {{ formatDateLabel(selectedDate) }} закрыты. Учётный день завершён.
+            Все смены за {{ formatDateLabel(selectedDate()) }} закрыты. Учётный день завершён.
           </p>
         </div>
       }
@@ -140,7 +140,7 @@ import { Shift } from '../../../core/models';
 })
 export class ShiftsDayPage implements OnInit {
   shifts       = signal<Shift[]>([]);
-  selectedDate = '';
+  selectedDate = signal('');
 
   availableDates = computed(() => {
     const seen = new Set<string>();
@@ -149,8 +149,8 @@ export class ShiftsDayPage implements OnInit {
       .map(s => ({ value: s.date, label: this.formatDateLabel(s.date) }));
   });
 
-  dayShifts  = computed(() => this.shifts().filter(s => s.date === this.selectedDate));
-  dayRevenue = computed(() => this.dayShifts().reduce((a, s) => a + s.total_revenue, 0));
+  dayShifts  = computed(() => this.shifts().filter(s => s.date === this.selectedDate()));
+  dayRevenue = computed(() => this.dayShifts().reduce((a, s) => a + +s.total_revenue, 0));
   dayOrders  = computed(() => this.dayShifts().reduce((a, s) => a + s.orders_count, 0));
   dayTickets = computed(() => this.dayShifts().reduce((a, s) => a + s.tickets_count, 0));
 
@@ -159,7 +159,7 @@ export class ShiftsDayPage implements OnInit {
   ngOnInit() {
     this.api.getShifts().subscribe(s => {
       this.shifts.set(s);
-      if (s.length && !this.selectedDate) this.selectedDate = s[0].date;
+      if (s.length && !this.selectedDate()) this.selectedDate.set(s[0].date);
     });
   }
 
