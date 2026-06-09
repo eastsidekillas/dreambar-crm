@@ -11,7 +11,7 @@ class Order(models.Model):
     ]
     shift        = models.ForeignKey('shifts.Shift', on_delete=models.CASCADE, related_name='orders')
     waiter       = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='orders')
-    table_number = models.CharField(max_length=10, blank=True, verbose_name='Стол/зона')
+    table_number = models.CharField(max_length=50, blank=True, verbose_name='Стол/зона')
     guests       = models.PositiveSmallIntegerField(default=0, verbose_name='Гостей')
     status       = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
     created_at   = models.DateTimeField(auto_now_add=True)

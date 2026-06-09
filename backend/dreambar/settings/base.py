@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'apps.analytics',
     'apps.exports',
     'apps.reservations',
+    'apps.tables',
 ]
 
 MIDDLEWARE = [
@@ -149,6 +150,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'pin_login': '10/min',
     },
+    'COERCE_DECIMAL_TO_STRING': False,
 }
 
 SIMPLE_JWT = {

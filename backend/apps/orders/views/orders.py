@@ -131,7 +131,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         if not shift:
             return Response([])
         qs = Order.objects.filter(
-            shift=shift, status='open', waiter=request.user,
+            shift=shift, status='open',
         ).select_related(
             'waiter', 'waiter__profile'
         ).prefetch_related('items__menu_item__category', 'receipts__items').order_by('created_at')
@@ -207,6 +207,18 @@ class OrderViewSet(viewsets.ModelViewSet):
         if shift:
             qs = qs.filter(shift=shift)
         return Response(OrderSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['post'])
+    def move_table(self, request, pk=None):
+        order = self.get_object()
+        if order.status != 'open':
+            return Response({'detail': 'Заказ не открыт'}, status=status.HTTP_400_BAD_REQUEST)
+        table_number = str(request.data.get('table_number', '')).strip()
+        if not table_number:
+            return Response({'detail': 'Укажите номер стола'}, status=status.HTTP_400_BAD_REQUEST)
+        order.table_number = table_number
+        order.save(update_fields=['table_number', 'updated_at'])
+        return Response(OrderSerializer(order).data)
 
 
 class ReceiptViewSet(viewsets.ReadOnlyModelViewSet):

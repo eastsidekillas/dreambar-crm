@@ -541,7 +541,7 @@ export class ShiftsComponent implements OnInit {
   });
 
   dayShifts  = computed(() => this.shifts().filter(s => s.date === this.selectedDate));
-  dayRevenue = computed(() => this.dayShifts().reduce((a, s) => a + s.total_revenue, 0));
+  dayRevenue = computed(() => this.dayShifts().reduce((a, s) => a + +s.total_revenue, 0));
   dayOrders  = computed(() => this.dayShifts().reduce((a, s) => a + s.orders_count, 0));
   dayTickets = computed(() => this.dayShifts().reduce((a, s) => a + s.tickets_count, 0));
 
@@ -551,14 +551,14 @@ export class ShiftsComponent implements OnInit {
   receiptsLoading = signal(false);
   openedReceiptId = signal<number | null>(null);
 
-  receiptsTotal = computed(() => this.receipts().reduce((s, r) => s + r.total, 0));
+  receiptsTotal = computed(() => this.receipts().reduce((s, r) => s + +r.total, 0));
 
   receiptsByPayment = computed(() => {
     const map = new Map<string, { method: string; label: string; total: number; count: number }>();
     for (const r of this.receipts()) {
       const k = r.payment_method;
       const cur = map.get(k) ?? { method: k, label: r.payment_label, total: 0, count: 0 };
-      map.set(k, { ...cur, total: cur.total + r.total, count: cur.count + 1 });
+      map.set(k, { ...cur, total: cur.total + +r.total, count: cur.count + 1 });
     }
     return [...map.values()].sort((a, b) => b.total - a.total);
   });

@@ -162,14 +162,14 @@ export class ShiftsReceiptsPage implements OnInit {
   shiftId  = '';
   openedId = signal<number | null>(null);
 
-  receiptsTotal = computed(() => this.receipts().reduce((s, r) => s + r.total, 0));
+  receiptsTotal = computed(() => this.receipts().reduce((s, r) => s + +r.total, 0));
 
   receiptsByPayment = computed(() => {
     const map = new Map<string, { method: string; label: string; total: number; count: number }>();
     for (const r of this.receipts()) {
       const k   = r.payment_method;
       const cur = map.get(k) ?? { method: k, label: r.payment_label, total: 0, count: 0 };
-      map.set(k, { ...cur, total: cur.total + r.total, count: cur.count + 1 });
+      map.set(k, { ...cur, total: cur.total + +r.total, count: cur.count + 1 });
     }
     return [...map.values()].sort((a, b) => b.total - a.total);
   });

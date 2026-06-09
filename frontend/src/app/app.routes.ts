@@ -134,6 +134,10 @@ export const routes: Routes = [
         path: 'reservations',
         loadComponent: () => import('./pages/admin/reservations/reservations.page').then(m => m.ReservationsPage)
       },
+      {
+        path: 'tables',
+        loadComponent: () => import('./pages/admin/tables/tables-admin.page').then(m => m.TablesAdminPage)
+      },
     ]
   },
 

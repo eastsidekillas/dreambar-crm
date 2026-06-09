@@ -9,7 +9,7 @@ class DeletedOrderItem(models.Model):
     deleted_by    = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='deleted_order_items')
     deleted_at    = models.DateTimeField(auto_now_add=True)
 
-    table_number      = models.CharField(max_length=10, blank=True)
+    table_number      = models.CharField(max_length=50, blank=True)
     menu_item_name    = models.CharField(max_length=200)
     menu_item_volume  = models.CharField(max_length=50, blank=True)
     quantity          = models.PositiveIntegerField()

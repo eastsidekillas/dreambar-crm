@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
-import { Reservation, ReservationStatus } from '../../../core/models';
+import { Reservation, ReservationStatus, Zone } from '../../../core/models';
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   pending:   { label: 'Ожидает',      color: '#92400e', bg: '#fef3c7' },
@@ -107,7 +107,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
                   <div class="flex items-center gap-3 flex-wrap text-sm">
                     <span>📅 {{ r.date }}</span>
                     <span>🕐 {{ r.time_start }}@if (r.time_end) { — {{ r.time_end }} }</span>
-                    @if (r.table_number) { <span>🪑 Стол {{ r.table_number }}</span> }
+                    @if (r.table_number) { <span>🪑 {{ r.table_number }}</span> }
                     <span>👥 {{ r.guests_count }} чел.</span>
                   </div>
                   @if (r.wishes) {
@@ -214,7 +214,48 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
               </div>
               <div>
                 <label class="section-title block mb-1">Стол</label>
-                <input [(ngModel)]="form.table_number" class="field" placeholder="VIP 1"/>
+                @if (zones().length) {
+                  <button type="button" (click)="tablePicker.set(!tablePicker())"
+                          class="field text-left flex items-center justify-between"
+                          style="height:40px;cursor:pointer">
+                    <span [style.color]="form.table ? 'inherit' : 'var(--color-muted)'">
+                      {{ selectedTableLabel() || 'Выбрать стол' }}
+                    </span>
+                    <span class="text-xs" style="color:var(--color-muted)">{{ tablePicker() ? '▲' : '▼' }}</span>
+                  </button>
+                  @if (tablePicker()) {
+                    <div class="mt-2 rounded-xl overflow-hidden" style="border:1px solid var(--color-border)">
+                      @for (z of zones(); track z.id) {
+                        @if (z.tables.length) {
+                          <div class="px-3 py-2" style="border-bottom:1px solid var(--color-border)">
+                            <p class="text-xs font-semibold mb-1.5" style="color:var(--color-muted)">{{ z.name }}</p>
+                            <div class="flex flex-wrap gap-1.5">
+                              @for (t of z.tables; track t.id) {
+                                <button type="button" (click)="pickTable(t.id)"
+                                        class="px-2.5 py-1 rounded-lg text-sm font-medium"
+                                        [style]="form.table === t.id
+                                          ? 'background:var(--color-gold);color:white'
+                                          : 'background:var(--color-surface2);color:var(--color-text)'">
+                                  {{ t.number }}
+                                </button>
+                              }
+                            </div>
+                          </div>
+                        }
+                      }
+                      <div class="px-3 py-2">
+                        <button type="button" (click)="pickTable(null)"
+                                class="text-xs" style="color:var(--color-muted)">
+                          ✕ Без стола
+                        </button>
+                      </div>
+                    </div>
+                  }
+                } @else {
+                  <p class="text-xs py-2" style="color:var(--color-muted)">
+                    Сначала создайте зоны и столы в разделе «Столы»
+                  </p>
+                }
               </div>
             </div>
 
@@ -309,6 +350,8 @@ export class ReservationsPage implements OnInit {
 
   reservations = signal<Reservation[]>([]);
   loading      = signal(false);
+  zones        = signal<Zone[]>([]);
+  tablePicker  = signal(false);
 
   filterDate   = '';
   filterDateTo = '';
@@ -339,6 +382,7 @@ export class ReservationsPage implements OnInit {
 
   ngOnInit() {
     this.setToday();
+    this.api.getZones().subscribe({ next: z => this.zones.set(z), error: () => {} });
   }
 
   setToday() {
@@ -367,19 +411,36 @@ export class ReservationsPage implements OnInit {
     return this.form.name.trim() && this.form.phone.trim() && this.form.date && this.form.time_start;
   }
 
+  /** Display label for the currently selected table */
+  selectedTableLabel(): string {
+    if (!this.form.table) return '';
+    for (const z of this.zones()) {
+      const t = z.tables.find(t => t.id === this.form.table);
+      if (t) return t.number;
+    }
+    return '';
+  }
+
+  pickTable(id: number | null) {
+    this.form.table = id;
+    this.tablePicker.set(false);
+  }
+
   openCreate() {
     this.editId.set(null);
     this.form = this.emptyForm();
     this.form.date = this.filterDate || new Date().toISOString().slice(0, 10);
+    this.tablePicker.set(false);
     this.modal.set(true);
   }
 
   openEdit(r: Reservation) {
+    this.tablePicker.set(false);
     this.editId.set(r.id);
     this.form = {
       name: r.name, phone: r.phone, date: r.date,
       time_start: r.time_start, time_end: r.time_end || '',
-      table_number: r.table_number, guests_count: r.guests_count,
+      table: r.table, guests_count: r.guests_count,
       wishes: r.wishes, deposit_amount: +r.deposit_amount,
       deposit_method: r.deposit_method as any,
       deposit_paid: r.deposit_paid, notes: r.notes,
@@ -398,7 +459,7 @@ export class ReservationsPage implements OnInit {
       date:           this.form.date,
       time_start:     this.form.time_start,
       time_end:       this.form.time_end || null as any,
-      table_number:   this.form.table_number.trim(),
+      table:          this.form.table,
       guests_count:   this.form.guests_count || 1,
       wishes:         this.form.wishes.trim(),
       deposit_amount: this.form.deposit_amount || 0,
@@ -461,7 +522,7 @@ export class ReservationsPage implements OnInit {
   private emptyForm() {
     return {
       name: '', phone: '', date: '', time_start: '20:00', time_end: '',
-      table_number: '', guests_count: 2, wishes: '',
+      table: null as number | null, guests_count: 2, wishes: '',
       deposit_amount: 0, deposit_method: '' as 'cash' | 'transfer' | '',
       deposit_paid: false, notes: '',
     };
