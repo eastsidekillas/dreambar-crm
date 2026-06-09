@@ -246,6 +246,7 @@ export interface Reservation {
   date: string;
   time_start: string;
   time_end: string | null;
+  table: number | null;
   table_number: string;
   guests_count: number;
   wishes: string;

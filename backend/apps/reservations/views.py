@@ -8,10 +8,10 @@ from .serializers import ReservationSerializer
 
 class ReservationViewSet(viewsets.ModelViewSet):
     serializer_class = ReservationSerializer
-    filterset_fields = ['date', 'status', 'table_number']
+    filterset_fields = ['date', 'status']
 
     def get_queryset(self):
-        qs = Reservation.objects.select_related('created_by')
+        qs = Reservation.objects.select_related('created_by', 'table', 'table__zone')
         date_from = self.request.query_params.get('date_from')
         date_to   = self.request.query_params.get('date_to')
         if date_from:

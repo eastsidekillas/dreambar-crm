@@ -98,12 +98,21 @@ const POLL_MS = 10_000;
       }
 
       <!-- ══ ACTIONS BAR ═════════════════════════════════════════════ -->
-      <button (click)="openNewTable()" class="btn btn-primary btn-full" style="height:44px;font-size:0.9rem">
-        ＋ Открыть стол
-        @if (myOrders().length) {
-          <span class="text-xs font-normal opacity-70">· {{ myOrders().length }}</span>
+      <div class="flex gap-2">
+        <button (click)="openNewTable()" class="btn btn-primary" style="flex:1;height:44px;font-size:0.9rem">
+          ＋ Открыть стол
+          @if (myOrders().length) {
+            <span class="text-xs font-normal opacity-70">· {{ myOrders().length }}</span>
+          }
+        </button>
+        @if (todayReservations().length) {
+          <button (click)="resvSheet.set(true)"
+                  class="flex items-center gap-1.5 px-3 rounded-xl font-semibold text-sm flex-shrink-0"
+                  style="background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;height:44px">
+            📅 {{ todayReservations().length }}
+          </button>
         }
-      </button>
+      </div>
 
       <!-- ══ MY ORDERS ═══════════════════════════════════════════════ -->
       @for (o of myOrders(); track o.id) {
@@ -233,6 +242,58 @@ const POLL_MS = 10_000;
         </div>
       }
     </div>
+
+    <!-- ── Reservations sheet ────────────────────────────────────────── -->
+    @if (resvSheet()) {
+      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="resvSheet.set(false)"></div>
+      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
+           style="background:white;max-height:80dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
+        <div class="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer" (click)="resvSheet.set(false)">
+          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3 flex-shrink-0"
+             style="border-bottom:1px solid var(--color-border)">
+          <h2 class="font-bold text-base">📅 Брони на сегодня</h2>
+          <button (click)="resvSheet.set(false)" class="btn btn-ghost btn-sm">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+          @for (r of resvSorted(); track r.id) {
+            <div class="flex items-start gap-3 px-3 py-2.5 rounded-xl"
+                 [style]="resvCardStyle(r.status)">
+              <div class="flex-shrink-0 text-center" style="min-width:48px">
+                <p class="font-bold text-sm leading-none">{{ fmtTime(r.time_start) }}</p>
+                @if (r.time_end) {
+                  <p class="text-xs mt-0.5" style="color:var(--color-muted)">{{ fmtTime(r.time_end) }}</p>
+                }
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <p class="font-semibold text-sm">{{ r.name }}</p>
+                  <span class="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                        [style]="resvBadgeStyle(r.status)">{{ resvLabel(r.status) }}</span>
+                </div>
+                <div class="flex items-center gap-2 mt-0.5 text-xs flex-wrap" style="color:var(--color-muted)">
+                  @if (r.table_number) {
+                    <span class="font-medium" style="color:var(--color-text)">🪑 {{ r.table_number }}</span>
+                  } @else {
+                    <span style="color:#f59e0b">⚠️ Стол не назначен</span>
+                  }
+                  <span>👥 {{ r.guests_count }}</span>
+                  @if (+r.deposit_amount > 0) {
+                    <span [style.color]="r.deposit_paid ? '#16a34a' : '#92400e'">
+                      💰 {{ +r.deposit_amount | number:'1.0-0' }} ₽ {{ r.deposit_paid ? '✓' : '⏳' }}
+                    </span>
+                  }
+                </div>
+                @if (r.wishes) {
+                  <p class="text-xs mt-0.5 truncate" style="color:var(--color-muted)">💬 {{ r.wishes }}</p>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
 
     <!-- ── New table dialog ───────────────────────────────────────── -->
     @if (newTable()) {
@@ -665,6 +726,9 @@ export class TablesPage implements OnInit, OnDestroy {
   editNotes  = '';
   saving     = signal(false);
 
+  // reservations sheet
+  resvSheet = signal(false);
+
   // move table sheet
   moveOrder        = signal<Order | null>(null);
   moveSelectedTables: string[] = [];
@@ -694,6 +758,11 @@ export class TablesPage implements OnInit, OnDestroy {
   });
 
   allTables = computed(() => this.zones().flatMap(z => z.tables));
+
+  resvSorted = computed(() =>
+    [...this.todayReservations()]
+      .sort((a, b) => a.time_start.localeCompare(b.time_start))
+  );
 
   coItems = computed(() => {
     const o = this.checkout();
@@ -756,7 +825,7 @@ export class TablesPage implements OnInit, OnDestroy {
     this.api.getZones().subscribe({ next: z => this.zones.set(z), error: () => {} });
     const today = new Date().toISOString().split('T')[0];
     this.api.getReservations({ date: today }).subscribe({
-      next: r => this.todayReservations.set(r.filter(x => ['confirmed', 'arrived'].includes(x.status))),
+      next: r => this.todayReservations.set(r.filter(x => ['pending', 'confirmed', 'arrived'].includes(x.status))),
       error: () => {},
     });
   }
@@ -813,6 +882,26 @@ export class TablesPage implements OnInit, OnDestroy {
   }
 
   fmtTime(t: string): string { return t?.slice(0, 5) ?? ''; }
+
+  private static RESV_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
+    pending:   { label: 'Ожидает',      color: '#92400e', bg: '#fffbeb', border: '#fcd34d' },
+    confirmed: { label: 'Подтверждена', color: '#1e40af', bg: '#eff6ff', border: '#93c5fd' },
+    arrived:   { label: 'Пришли',       color: '#166534', bg: '#f0fdf4', border: '#86efac' },
+    completed: { label: 'Завершена',    color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb' },
+    cancelled: { label: 'Отменена',     color: '#991b1b', bg: '#fef2f2', border: '#fca5a5' },
+  };
+
+  resvCardStyle(status: string): string {
+    const m = TablesPage.RESV_META[status] ?? TablesPage.RESV_META['pending'];
+    return `background:${m.bg};border:1px solid ${m.border}`;
+  }
+  resvBadgeStyle(status: string): string {
+    const m = TablesPage.RESV_META[status] ?? TablesPage.RESV_META['pending'];
+    return `background:${m.border};color:${m.color}`;
+  }
+  resvLabel(status: string): string {
+    return TablesPage.RESV_META[status]?.label ?? status;
+  }
 
   // ── New table ─────────────────────────────────────────────────────
   openNewTable(prefilledTable = '') {
