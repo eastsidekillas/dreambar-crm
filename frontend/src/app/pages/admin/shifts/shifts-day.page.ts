@@ -4,16 +4,17 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { Shift } from '../../../core/models';
+import { LucideCalendarDays, LucideCircleCheck } from '@lucide/angular';
 
 @Component({
   selector: 'app-shifts-day',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideCalendarDays, LucideCircleCheck],
   template: `
 <div class="space-y-4">
 
   <div>
-    <h1 class="text-xl font-bold">🗓 Итоги дня</h1>
+    <h1 class="text-xl font-bold flex items-center gap-2"><svg lucideCalendarDays [size]="20"></svg> Итоги дня</h1>
     <p class="text-xs mt-0.5" style="color:var(--color-muted)">
       Сводка выручки за учётный день
     </p>
@@ -33,7 +34,7 @@ import { Shift } from '../../../core/models';
               [style]="dayShifts().some(s => s.is_open)
                 ? 'background:#dcfce7;color:#166534'
                 : 'background:var(--color-surface2);color:var(--color-muted)'">
-          {{ dayShifts().some(s => s.is_open) ? '⚡ Смена открыта' : '✓ День завершён' }}
+          {{ dayShifts().some(s => s.is_open) ? 'Смена открыта' : 'День завершён' }}
         </span>
       }
     </div>
@@ -123,7 +124,7 @@ import { Shift } from '../../../core/models';
       @if (dayShifts().every(s => !s.is_open)) {
         <div class="mt-4 p-3 rounded-xl flex items-center gap-3"
              style="background:#dcfce7;border:1px solid #86efac">
-          <span>✅</span>
+          <svg lucideCircleCheck [size]="20" style="color:#166534;flex-shrink:0"></svg>
           <p class="text-sm font-medium" style="color:#166534">
             Все смены за {{ formatDateLabel(selectedDate()) }} закрыты. Учётный день завершён.
           </p>

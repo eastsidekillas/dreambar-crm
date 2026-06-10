@@ -3,13 +3,18 @@ import { CommonModule } from '@angular/common';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { KitchenTicket, KitchenItem, KitchenStatus } from '../../core/models';
+import {
+  LucideChefHat, LucideBell, LucideBellOff,
+  LucideGlassWater, LucideArmchair, LucideClock,
+  LucideCheck, LucideCheckCheck, LucideCircleCheck,
+} from '@lucide/angular';
 
 const REFRESH_MS = 8000;
 
 @Component({
   selector: 'app-kitchen',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LucideChefHat, LucideBell, LucideBellOff, LucideGlassWater, LucideArmchair, LucideClock, LucideCheck, LucideCheckCheck, LucideCircleCheck],
   template: `
     <div class="min-h-screen flex flex-col" style="background:#1C1917;color:#F5F3EE">
 
@@ -17,7 +22,7 @@ const REFRESH_MS = 8000;
       <header class="sticky top-0 z-30 px-4 py-3 flex items-center justify-between"
               style="background:#0C0A09;border-bottom:1px solid #44403C">
         <div class="flex items-center gap-2">
-          <span class="text-2xl">🍳</span>
+          <svg lucideChefHat [size]="24"></svg>
           <div class="leading-tight">
             <p class="font-bold">Кухня</p>
             <p class="text-xs" style="color:#A8A29E">{{ auth.user()?.display_name }}</p>
@@ -36,9 +41,9 @@ const REFRESH_MS = 8000;
 
           <!-- Sound toggle -->
           <button (click)="toggleSound()"
-                  class="text-xl px-2 py-1.5 rounded-lg" style="background:#292524"
+                  class="px-2 py-1.5 rounded-lg flex items-center justify-center" style="background:#292524"
                   [title]="soundOn() ? 'Звук включён' : 'Звук выключен'">
-            {{ soundOn() ? '🔔' : '🔕' }}
+            @if (soundOn()) { <svg lucideBell [size]="20"></svg> } @else { <svg lucideBellOff [size]="20"></svg> }
           </button>
 
           <div class="hidden sm:flex items-center gap-1.5 text-xs" style="color:#A8A29E">
@@ -62,7 +67,7 @@ const REFRESH_MS = 8000;
         <!-- Active -->
         @if (!active().length) {
           <div class="flex flex-col items-center justify-center text-center px-4 py-12">
-            <span class="text-5xl mb-3">✅</span>
+            <svg lucideCircleCheck [size]="48" class="mb-3" style="color:#4ADE80"></svg>
             <p class="text-lg font-bold mb-1">Нет блюд в работе</p>
             <p style="color:#A8A29E">Новые заказы появятся здесь автоматически</p>
           </div>
@@ -83,14 +88,14 @@ const REFRESH_MS = 8000;
                           [style]="t.source === 'bar'
                             ? 'background:#7C3AED;color:white'
                             : 'background:rgba(0,0,0,0.2);color:#1C1917'">
-                      {{ t.source === 'bar' ? '🍸 Бар' : '🪑 Стол' }}
+                      @if (t.source === 'bar') { <svg lucideGlassWater [size]="12"></svg> Бар } @else { <svg lucideArmchair [size]="12"></svg> Стол }
                     </span>
                     @if (t.table_number) {
                       <span class="text-sm font-semibold px-2 py-0.5 rounded"
                             style="background:rgba(0,0,0,0.15);color:#1C1917">{{ t.table_number }}</span>
                     }
                   </div>
-                  <span class="font-bold text-sm" style="color:#1C1917">⏱ {{ t.elapsed_min }} мин</span>
+                  <span class="font-bold text-sm flex items-center gap-1" style="color:#1C1917"><svg lucideClock [size]="14"></svg> {{ t.elapsed_min }} мин</span>
                 </div>
 
                 <div class="px-3 pt-2 text-xs" style="color:#A8A29E">Принял: {{ t.waiter_name }}</div>
@@ -108,7 +113,7 @@ const REFRESH_MS = 8000;
                         @if (it.kitchen_status === 'cooking') {
                           <span class="text-xs px-2 py-0.5 rounded-full" style="background:#F59E0B;color:#1C1917">готовится</span>
                         } @else if (it.kitchen_status === 'ready') {
-                          <span class="text-xs px-2 py-0.5 rounded-full" style="background:#22C55E;color:#1C1917">✓ готов</span>
+                          <span class="text-xs px-2 py-0.5 rounded-full flex items-center gap-1" style="background:#22C55E;color:#1C1917"><svg lucideCheck [size]="12"></svg> готов</span>
                         }
                       </div>
                       @if (it.volume) { <p class="text-xs mb-2" style="color:#A8A29E">{{ it.volume }}</p> }
@@ -119,16 +124,16 @@ const REFRESH_MS = 8000;
                                   style="background:#F59E0B;color:#1C1917">▶ В работу</button>
                         } @else if (it.kitchen_status === 'cooking') {
                           <button (click)="setStatus(it, 'ready')"
-                                  class="flex-1 py-2 rounded-lg font-semibold text-sm"
-                                  style="background:#22C55E;color:#1C1917">✓ Готово</button>
+                                  class="flex-1 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-1"
+                                  style="background:#22C55E;color:#1C1917"><svg lucideCheck [size]="14"></svg> Готово</button>
                         }
                       </div>
                     </div>
                   }
                 </div>
 
-                <button (click)="markAllReady(t)" class="py-2.5 font-semibold text-sm"
-                        style="background:#16A34A;color:white">✓✓ Весь заказ готов</button>
+                <button (click)="markAllReady(t)" class="py-2.5 font-semibold text-sm flex items-center justify-center gap-1"
+                        style="background:#16A34A;color:white"><svg lucideCheckCheck [size]="16"></svg> Весь заказ готов</button>
               </div>
             }
           </main>
@@ -141,7 +146,7 @@ const REFRESH_MS = 8000;
                     class="flex items-center gap-2 mb-3 text-sm font-semibold"
                     style="color:#A8A29E">
               <span>{{ showReady() ? '▾' : '▸' }}</span>
-              ✅ Готовые заказы ({{ ready().length }})
+              <svg lucideCircleCheck [size]="16"></svg> Готовые заказы ({{ ready().length }})
             </button>
 
             @if (showReady()) {
@@ -156,13 +161,13 @@ const REFRESH_MS = 8000;
                               [style]="t.source === 'bar'
                                 ? 'background:#7C3AED;color:white'
                                 : 'background:#334155;color:#CBD5E1'">
-                          {{ t.source === 'bar' ? '🍸 Бар' : '🪑 Стол' }}
+                          @if (t.source === 'bar') { <svg lucideGlassWater [size]="12"></svg> Бар } @else { <svg lucideArmchair [size]="12"></svg> Стол }
                         </span>
                         @if (t.table_number) {
                           <span class="text-xs" style="color:#A8A29E">{{ t.table_number }}</span>
                         }
                       </div>
-                      <span class="text-xs" style="color:#4ADE80">✓ готов</span>
+                      <span class="text-xs flex items-center gap-1" style="color:#4ADE80"><svg lucideCheck [size]="12"></svg> готов</span>
                     </div>
                     <div class="space-y-0.5 mb-2">
                       @for (it of t.items; track it.id) {

@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { EntryTicket } from '../../../core/models';
+import { LucideTicket, LucidePackage } from '@lucide/angular';
 
 @Component({
   selector: 'app-tickets-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideTicket, LucidePackage],
   template: `
     <div class="space-y-4 pb-4">
 
@@ -26,7 +27,7 @@ import { EntryTicket } from '../../../core/models';
       <!-- Add single ticket -->
       <div class="card">
         <h3 class="font-semibold mb-3 flex items-center gap-2">
-          <span class="text-lg">🎟</span> Добавить билет
+          <svg lucideTicket [size]="18"></svg> Добавить билет
         </h3>
         <div class="flex gap-2 mb-3">
           <input [(ngModel)]="newBracelet"
@@ -41,14 +42,14 @@ import { EntryTicket } from '../../../core/models';
         </div>
         <button (click)="addTicket()" [disabled]="!newBracelet || adding()"
                 class="btn btn-primary btn-full">
-          {{ adding() ? '⏳ Добавление...' : '+ Добавить билет' }}
+          {{ adding() ? '... Добавление...' : '+ Добавить билет' }}
         </button>
       </div>
 
       <!-- Range -->
       <div class="card">
         <h3 class="font-semibold mb-3 flex items-center gap-2">
-          <span class="text-lg">📦</span> Диапазон браслетов
+          <svg lucidePackage [size]="18"></svg> Диапазон браслетов
         </h3>
         <div class="grid grid-cols-3 gap-2 mb-3">
           <div>
@@ -69,7 +70,7 @@ import { EntryTicket } from '../../../core/models';
         </div>
         <button (click)="addRange()" [disabled]="!rangeStart || !rangeEnd || adding()"
                 class="btn btn-outline btn-full">
-          {{ adding() ? '⏳ Добавление...' : 'Добавить диапазон' }}
+          {{ adding() ? '... Добавление...' : 'Добавить диапазон' }}
         </button>
       </div>
 
@@ -84,7 +85,7 @@ import { EntryTicket } from '../../../core/models';
           <div class="flex items-center justify-between py-2.5"
                style="border-bottom:1px solid var(--color-border)">
             <div class="flex items-center gap-2">
-              <span class="text-sm">🎟</span>
+              <svg lucideTicket [size]="14"></svg>
               <span class="font-mono text-sm font-medium">{{ t.bracelet_number }}</span>
             </div>
             <div class="flex items-center gap-3">
@@ -96,7 +97,7 @@ import { EntryTicket } from '../../../core/models';
 
         @if (!tickets().length) {
           <div class="text-center py-8">
-            <span class="text-3xl block mb-2">🎟</span>
+            <svg lucideTicket [size]="40" class="mx-auto mb-2" style="color:var(--color-muted)"></svg>
             <p style="color:var(--color-muted)">Билетов пока нет</p>
           </div>
         }
@@ -104,7 +105,7 @@ import { EntryTicket } from '../../../core/models';
 
       @if (msg()) {
         <div class="fixed top-20 left-4 right-4 z-50 p-3 rounded-xl text-sm font-medium text-center"
-             [class]="msg().startsWith('✅') ? 'badge-green' : 'badge-red'"
+             [class]="msgOk() ? 'badge-green' : 'badge-red'"
              style="box-shadow:0 4px 16px rgba(0,0,0,0.15)">
           {{ msg() }}
         </div>
@@ -120,6 +121,7 @@ export class TicketsPage implements OnInit {
   rangeEnd:   number | null = null;
   adding = signal(false);
   msg    = signal('');
+  msgOk  = signal(true);
   private shiftId: number | null = null;
 
   totalRevenue() { return this.tickets().reduce((s, t) => s + +t.price, 0); }
@@ -144,8 +146,8 @@ export class TicketsPage implements OnInit {
     this.adding.set(true);
     this.api.createTicket({ shift: this.shiftId, bracelet_number: this.newBracelet, price: this.ticketPrice })
       .subscribe({
-        next: t => { this.tickets.update(l => [t, ...l]); this.newBracelet = ''; this.adding.set(false); this.show('✅ Билет добавлен'); },
-        error: () => { this.adding.set(false); this.show('❌ Ошибка: такой браслет уже есть'); }
+        next: t => { this.tickets.update(l => [t, ...l]); this.newBracelet = ''; this.adding.set(false); this.show('Билет добавлен', true); },
+        error: () => { this.adding.set(false); this.show('Ошибка: такой браслет уже есть', false); }
       });
   }
 
@@ -154,10 +156,10 @@ export class TicketsPage implements OnInit {
     this.adding.set(true);
     this.api.bulkCreateTickets({ shift: this.shiftId, start: this.rangeStart, end: this.rangeEnd, price: this.ticketPrice })
       .subscribe({
-        next: r => { this.load(); this.rangeStart = null; this.rangeEnd = null; this.adding.set(false); this.show(`✅ Добавлено ${r.created} билетов`); },
-        error: () => { this.adding.set(false); this.show('❌ Ошибка при добавлении'); }
+        next: r => { this.load(); this.rangeStart = null; this.rangeEnd = null; this.adding.set(false); this.show(`Добавлено ${r.created} билетов`, true); },
+        error: () => { this.adding.set(false); this.show('Ошибка при добавлении', false); }
       });
   }
 
-  private show(m: string) { this.msg.set(m); setTimeout(() => this.msg.set(''), 2500); }
+  private show(m: string, ok = true) { this.msgOk.set(ok); this.msg.set(m); setTimeout(() => this.msg.set(''), 2500); }
 }

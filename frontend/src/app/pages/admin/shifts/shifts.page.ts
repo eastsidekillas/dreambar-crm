@@ -1,26 +1,34 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { Shift, ShiftDetail, Receipt } from '../../../core/models';
+import {
+  LucideDynamicIcon,
+  LucideBanknote, LucideCreditCard, LucideSmartphone, LucideShuffle,
+  LucideGlassWater, LucideUtensilsCrossed, LucideWind, LucideTicket,
+  LucideTrash2, LucideDownload, LucideCalendar, LucideCheck, LucideCircleCheck,
+} from '@lucide/angular';
 
 type Tab = 'active' | 'day' | 'receipts';
 
-const PAY_ICON: Record<string, string> = {
-  cash: '💵', card: '💳', transfer: '📲', mixed: '🔀',
+const PAY_ICON: Record<string, LucideIconInput> = {
+  cash: LucideBanknote, card: LucideCreditCard, transfer: LucideSmartphone, mixed: LucideShuffle,
 };
 
 @Component({
   selector: 'app-shifts',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideDynamicIcon,
+    LucideTrash2, LucideDownload, LucideCalendar, LucideCircleCheck],
   template: `
 <div class="space-y-4">
 
   <!-- ── Header ──────────────────────────────────────────────────── -->
   <div class="flex items-center justify-between flex-wrap gap-3">
     <div>
-      <h1 class="text-xl font-bold">📅 Кассовые смены</h1>
+      <h1 class="text-xl font-bold flex items-center gap-2"><svg lucideCalendar [size]="20"></svg> Кассовые смены</h1>
       <p class="text-xs mt-0.5" style="color:var(--color-muted)">
         {{ shifts().length }} смен · {{ openShifts().length }} открыто
       </p>
@@ -51,7 +59,7 @@ const PAY_ICON: Record<string, string> = {
 
     @if (!shifts().length) {
       <div class="card text-center py-16">
-        <span class="text-4xl block mb-3">📅</span>
+        <svg lucideCalendar [size]="48" class="mb-3 mx-auto" style="color:var(--color-muted)"></svg>
         <p style="color:var(--color-muted)">Смен пока нет. Нажмите «Открыть смену».</p>
       </div>
     }
@@ -123,7 +131,7 @@ const PAY_ICON: Record<string, string> = {
                 {{ openedId() === shift.id ? '▲' : '▼ Детали' }}
               </button>
               <button (click)="exportShift(shift)" class="btn btn-ghost btn-sm"
-                      title="Экспорт в Excel">📥</button>
+                      title="Экспорт в Excel"><svg lucideDownload [size]="14"></svg></button>
             </div>
           </div>
 
@@ -156,7 +164,7 @@ const PAY_ICON: Record<string, string> = {
                     @for (row of categoryRows(detail()!); track row.label) {
                       <div class="mb-3">
                         <div class="flex justify-between text-sm mb-1">
-                          <span>{{ row.icon }} {{ row.label }}</span>
+                          <span class="flex items-center gap-1"><svg [lucideIcon]="row.icon" [size]="14"></svg> {{ row.label }}</span>
                           <span class="font-medium">{{ row.amount | number:'1.0-0' }} ₽
                             <span style="color:var(--color-muted)">{{ row.pct }}%</span>
                           </span>
@@ -177,14 +185,14 @@ const PAY_ICON: Record<string, string> = {
                       <div class="flex items-center justify-between text-sm py-2"
                            style="border-bottom:1px solid var(--color-border)">
                         <span class="flex items-center gap-1.5">
-                          <span>{{ payIcon(p.method) }}</span> {{ p.label }}
+                          <svg [lucideIcon]="payIcon(p.method)" [size]="14"></svg> {{ p.label }}
                         </span>
                         <span class="font-semibold">{{ p.amount | number:'1.0-0' }} ₽</span>
                       </div>
                     }
                     @if (detail()!.summary.deleted_count) {
                       <div class="flex justify-between text-sm py-2 mt-1">
-                        <span style="color:#ef4444">🗑 Удалено позиций</span>
+                        <span class="flex items-center gap-1" style="color:#ef4444"><svg lucideTrash2 [size]="14"></svg> Удалено позиций</span>
                         <span style="color:#ef4444" class="font-medium">
                           {{ detail()!.summary.deleted_count }} шт /
                           {{ detail()!.summary.deleted_amount | number:'1.0-0' }} ₽
@@ -279,7 +287,7 @@ const PAY_ICON: Record<string, string> = {
                 [style]="dayShifts().some(s => s.is_open)
                   ? 'background:#dcfce7;color:#166534'
                   : 'background:var(--color-surface2);color:var(--color-muted)'">
-            {{ dayShifts().some(s => s.is_open) ? '⚡ Смена открыта' : '✓ День завершён' }}
+            {{ dayShifts().some(s => s.is_open) ? 'Смена открыта' : 'День завершён' }}
           </span>
         }
       </div>
@@ -348,7 +356,7 @@ const PAY_ICON: Record<string, string> = {
                       <button (click)="goToReceipts(s)" class="btn btn-ghost btn-sm"
                               style="font-size:11px">Чеки</button>
                       <button (click)="exportShift(s)" class="btn btn-ghost btn-sm"
-                              style="font-size:11px">📥</button>
+                              style="font-size:11px"><svg lucideDownload [size]="12"></svg></button>
                     </div>
                   </td>
                 </tr>
@@ -360,7 +368,7 @@ const PAY_ICON: Record<string, string> = {
         @if (dayShifts().every(s => !s.is_open)) {
           <div class="mt-4 p-3 rounded-xl flex items-center gap-3"
                style="background:#dcfce7;border:1px solid #86efac">
-            <span>✅</span>
+            <svg lucideCircleCheck [size]="20" style="color:#166534;flex-shrink:0"></svg>
             <p class="text-sm font-medium" style="color:#166534">
               Все смены за {{ selectedDate }} закрыты. Учётный день завершён.
             </p>
@@ -427,7 +435,7 @@ const PAY_ICON: Record<string, string> = {
                   <td class="px-3 py-2.5">{{ r.waiter_name }}</td>
                   <td class="px-3 py-2.5">
                     <span class="flex items-center gap-1">
-                      {{ payIcon(r.payment_method) }} {{ r.payment_label }}
+                      <svg [lucideIcon]="payIcon(r.payment_method)" [size]="14"></svg> {{ r.payment_label }}
                     </span>
                   </td>
                   <td class="px-3 py-2.5 text-right font-semibold"
@@ -495,7 +503,7 @@ const PAY_ICON: Record<string, string> = {
         <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
           @for (ps of receiptsByPayment(); track ps.method) {
             <div class="rounded-xl p-3 text-center" style="background:var(--color-surface2)">
-              <p class="text-xs section-title mb-1">{{ payIcon(ps.method) }} {{ ps.label }}</p>
+              <p class="text-xs section-title mb-1 flex items-center justify-center gap-1"><svg [lucideIcon]="payIcon(ps.method)" [size]="12"></svg> {{ ps.label }}</p>
               <p class="font-bold" style="color:var(--color-gold-hover)">{{ ps.total | number:'1.0-0' }} ₽</p>
               <p class="text-xs" style="color:var(--color-muted)">{{ ps.count }} чеков</p>
             </div>
@@ -633,14 +641,14 @@ export class ShiftsComponent implements OnInit {
   categoryRows(d: ShiftDetail) {
     const total = d.summary.total_revenue || 1;
     return [
-      { label: 'Бар',    icon: '🍸', amount: d.by_category.bar,     pct: Math.round(d.by_category.bar     / total * 100) },
-      { label: 'Кухня',  icon: '🍽', amount: d.by_category.kitchen, pct: Math.round(d.by_category.kitchen / total * 100) },
-      { label: 'Кальян', icon: '💨', amount: d.by_category.hookah,  pct: Math.round(d.by_category.hookah  / total * 100) },
-      { label: 'Билеты', icon: '🎫', amount: d.by_category.tickets, pct: Math.round(d.by_category.tickets / total * 100) },
+      { label: 'Бар',    icon: LucideGlassWater,      amount: d.by_category.bar,     pct: Math.round(d.by_category.bar     / total * 100) },
+      { label: 'Кухня',  icon: LucideUtensilsCrossed, amount: d.by_category.kitchen, pct: Math.round(d.by_category.kitchen / total * 100) },
+      { label: 'Кальян', icon: LucideWind,            amount: d.by_category.hookah,  pct: Math.round(d.by_category.hookah  / total * 100) },
+      { label: 'Билеты', icon: LucideTicket,          amount: d.by_category.tickets, pct: Math.round(d.by_category.tickets / total * 100) },
     ].filter(r => r.amount > 0);
   }
 
-  payIcon(method: string) { return PAY_ICON[method] ?? '💰'; }
+  payIcon(method: string): LucideIconInput { return PAY_ICON[method] ?? LucideBanknote; }
 
   formatDate(d: string) {
     return new Date(d).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });

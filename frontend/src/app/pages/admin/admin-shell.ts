@@ -1,17 +1,25 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { filter } from 'rxjs/operators';
+import {
+  LucideDynamicIcon,
+  LucideLayoutDashboard, LucideCalendar, LucideTrendingUp, LucidePackage,
+  LucideUtensilsCrossed, LucideMap, LucideUsers, LucideTrash2, LucideSettings,
+  LucideChefHat, LucideSmartphone, LucideLogOut, LucideGlassWater,
+} from '@lucide/angular';
 
-interface NavItem  { type: 'link';  path: string; label: string; icon: string; }
-interface NavGroup { type: 'group'; label: string; icon: string; badge?: string; children: { path: string; label: string }[]; }
+interface NavItem  { type: 'link';  path: string; label: string; icon: LucideIconInput; }
+interface NavGroup { type: 'group'; label: string; icon: LucideIconInput; badge?: string; children: { path: string; label: string }[]; }
 type NavEntry = NavItem | NavGroup;
 
 @Component({
   selector: 'app-admin-shell',
   standalone: true,
-  imports: [CommonModule, RouterModule, RouterOutlet],
+  imports: [CommonModule, RouterModule, RouterOutlet, LucideDynamicIcon,
+    LucideChefHat, LucideSmartphone, LucideLogOut, LucideGlassWater],
   template: `
     <div class="min-h-screen" style="background:var(--color-bg)">
       <div class="flex">
@@ -24,7 +32,7 @@ type NavEntry = NavItem | NavGroup;
                style="border-bottom:1px solid var(--color-border)">
             <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                  style="background:var(--color-gold)">
-              <span class="text-sm">🍸</span>
+              <svg lucideGlassWater [size]="18" style="color:white"></svg>
             </div>
             <div>
               <p class="font-bold text-sm leading-none">BAR DREAM</p>
@@ -42,7 +50,7 @@ type NavEntry = NavItem | NavGroup;
                    [style.background]="rla.isActive ? 'var(--color-gold-light)' : 'transparent'"
                    [style.color]="rla.isActive ? 'var(--color-gold-hover)' : 'var(--color-muted)'"
                    style="text-decoration:none">
-                  <span class="text-base flex-shrink-0">{{ entry.icon }}</span>
+                  <svg [lucideIcon]="entry.icon" [size]="16" class="flex-shrink-0"></svg>
                   {{ entry.label }}
                 </a>
               }
@@ -56,7 +64,7 @@ type NavEntry = NavItem | NavGroup;
                     [style.background]="isGroupActive(entry) ? 'var(--color-gold-light)' : 'transparent'"
                     [style.color]="isGroupActive(entry) ? 'var(--color-gold-hover)' : 'var(--color-muted)'"
                     style="border:none;cursor:pointer;text-align:left">
-                    <span class="text-base flex-shrink-0">{{ entry.icon }}</span>
+                    <svg [lucideIcon]="entry.icon" [size]="16" class="flex-shrink-0"></svg>
                     <span class="flex-1">{{ entry.label }}</span>
                     @if (entry.badge) {
                       <span class="text-xs font-semibold px-1.5 py-0.5 rounded"
@@ -94,14 +102,16 @@ type NavEntry = NavItem | NavGroup;
           <div class="px-3 py-4 flex-shrink-0" style="border-top:1px solid var(--color-border)">
             <a routerLink="/kitchen"
                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full mb-1"
-               style="color:var(--color-muted);text-decoration:none">🍳 Экран кухни</a>
+               style="color:var(--color-muted);text-decoration:none">
+              <svg lucideChefHat [size]="16"></svg> Экран кухни</a>
             <a routerLink="/waiter"
                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full mb-1"
-               style="color:var(--color-muted);text-decoration:none">📱 Режим официанта</a>
+               style="color:var(--color-muted);text-decoration:none">
+              <svg lucideSmartphone [size]="16"></svg> Режим официанта</a>
             <button (click)="logout()"
                     class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full"
                     style="color:var(--color-red);background:none;border:none;cursor:pointer">
-              🚪 Выйти
+              <svg lucideLogOut [size]="16"></svg> Выйти
             </button>
           </div>
         </aside>
@@ -113,7 +123,7 @@ type NavEntry = NavItem | NavGroup;
           <header class="md:hidden sticky top-0 z-40 px-4 py-3 flex items-center justify-between"
                   style="background:white;border-bottom:1px solid var(--color-border);box-shadow:0 1px 4px rgba(0,0,0,0.06)">
             <div class="flex items-center gap-2">
-              <span>🍸</span>
+              <svg lucideGlassWater [size]="18"></svg>
               <span class="font-bold text-sm">BAR DREAM — Управление</span>
             </div>
             <button (click)="logout()" class="text-sm" style="color:var(--color-muted)">Выйти</button>
@@ -128,7 +138,7 @@ type NavEntry = NavItem | NavGroup;
                  [style.color]="rla.isActive ? 'var(--color-gold)' : 'var(--color-muted)'"
                  [style.border-top]="rla.isActive ? '2px solid var(--color-gold)' : '2px solid transparent'"
                  style="text-decoration:none">
-                <span class="text-xl leading-none">{{ item.icon }}</span>
+                <svg [lucideIcon]="item.icon" [size]="20"></svg>
                 <span class="text-xs font-medium">{{ item.label }}</span>
               </a>
             }
@@ -146,11 +156,11 @@ export class AdminShell {
   expanded = signal<Set<string>>(new Set(['Аналитика']));
 
   nav: NavEntry[] = [
-    { type: 'link', path: '/admin/dashboard', label: 'Дашборд',    icon: '📊' },
+    { type: 'link', path: '/admin/dashboard', label: 'Дашборд',    icon: LucideLayoutDashboard },
     {
       type: 'group',
       label: 'Смены',
-      icon: '📅',
+      icon: LucideCalendar,
       children: [
         { path: '/admin/shifts/active',   label: 'Активные смены' },
         { path: '/admin/shifts/day',      label: 'Итоги дня' },
@@ -160,7 +170,7 @@ export class AdminShell {
     {
       type: 'group',
       label: 'Аналитика',
-      icon: '📈',
+      icon: LucideTrendingUp,
       children: [
         { path: '/admin/reports',  label: 'Отчёты' },
         { path: '/admin/forecast', label: 'Прогноз' },
@@ -169,7 +179,7 @@ export class AdminShell {
     {
       type: 'group',
       label: 'Склад',
-      icon: '📦',
+      icon: LucidePackage,
       children: [
         { path: '/admin/inventory', label: 'Продукты' },
         { path: '/admin/purchases', label: 'Закупки' },
@@ -178,20 +188,20 @@ export class AdminShell {
     {
       type: 'group',
       label: 'Меню',
-      icon: '🍽',
+      icon: LucideUtensilsCrossed,
       children: [
         { path: '/admin/menu',      label: 'Позиции меню' },
         { path: '/admin/modifiers', label: 'Модификаторы' },
       ],
     },
-    { type: 'link', path: '/admin/reservations', label: 'Бронирования', icon: '📅' },
-    { type: 'link', path: '/admin/tables',       label: 'Столы',        icon: '🗺' },
-    { type: 'link', path: '/admin/employees',   label: 'Сотрудники',   icon: '👥' },
-    { type: 'link', path: '/admin/audit',        label: 'Аудит',        icon: '🗑' },
+    { type: 'link', path: '/admin/reservations', label: 'Бронирования', icon: LucideCalendar },
+    { type: 'link', path: '/admin/tables',       label: 'Столы',        icon: LucideMap },
+    { type: 'link', path: '/admin/employees',   label: 'Сотрудники',   icon: LucideUsers },
+    { type: 'link', path: '/admin/audit',        label: 'Аудит',        icon: LucideTrash2 },
     {
       type: 'group',
       label: 'Настройки',
-      icon: '⚙️',
+      icon: LucideSettings,
       children: [
         { path: '/admin/printers', label: 'Принтеры' },
       ],
@@ -199,11 +209,11 @@ export class AdminShell {
   ];
 
   mobileNav = [
-    { path: '/admin/dashboard',     label: 'Дашборд', icon: '📊' },
-    { path: '/admin/shifts/active', label: 'Смены',   icon: '📅' },
-    { path: '/admin/inventory',     label: 'Склад',   icon: '📦' },
-    { path: '/admin/reports',       label: 'Отчёты',  icon: '📈' },
-    { path: '/admin/menu',          label: 'Меню',    icon: '🍽' },
+    { path: '/admin/dashboard',     label: 'Дашборд', icon: LucideLayoutDashboard },
+    { path: '/admin/shifts/active', label: 'Смены',   icon: LucideCalendar },
+    { path: '/admin/inventory',     label: 'Склад',   icon: LucidePackage },
+    { path: '/admin/reports',       label: 'Отчёты',  icon: LucideTrendingUp },
+    { path: '/admin/menu',          label: 'Меню',    icon: LucideUtensilsCrossed },
   ];
 
   constructor(private auth: AuthService, private router: Router) {

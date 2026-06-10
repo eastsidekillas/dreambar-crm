@@ -4,6 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Reservation, ReservationStatus, Zone } from '../../../core/models';
+import {
+  LucideCalendar, LucidePhone, LucideClock, LucideArmchair, LucideUsers,
+  LucideMessageCircle, LucideCheck, LucideHandshake, LucideCircleCheck,
+  LucideX, LucideBanknote, LucidePencil, LucideTrash2,
+} from '@lucide/angular';
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   pending:   { label: 'Ожидает',      color: '#92400e', bg: '#fef3c7' },
@@ -16,13 +21,16 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 @Component({
   selector: 'app-reservations',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule,
+    LucideCalendar, LucidePhone, LucideClock, LucideArmchair, LucideUsers,
+    LucideMessageCircle, LucideCheck, LucideHandshake, LucideCircleCheck,
+    LucideX, LucideBanknote, LucidePencil, LucideTrash2],
   template: `
     <div class="space-y-5">
 
       <!-- Header -->
       <div class="flex items-center justify-between flex-wrap gap-3">
-        <h1 class="text-xl font-bold">📅 Бронирования</h1>
+        <h1 class="text-xl font-bold flex items-center gap-2"><svg lucideCalendar [size]="20"></svg> Бронирования</h1>
         <button (click)="openCreate()" class="btn btn-primary btn-sm">+ Новая бронь</button>
       </div>
 
@@ -101,18 +109,18 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
                       {{ statusMeta(r.status).label }}
                     </span>
                   </div>
-                  <div class="text-sm mb-1" style="color:var(--color-muted)">
-                    📞 {{ r.phone }}
+                  <div class="text-sm mb-1 flex items-center gap-1" style="color:var(--color-muted)">
+                    <svg lucidePhone [size]="12"></svg> {{ r.phone }}
                   </div>
                   <div class="flex items-center gap-3 flex-wrap text-sm">
-                    <span>📅 {{ r.date }}</span>
-                    <span>🕐 {{ r.time_start }}@if (r.time_end) { — {{ r.time_end }} }</span>
-                    @if (r.table_number) { <span>🪑 {{ r.table_number }}</span> }
-                    <span>👥 {{ r.guests_count }} чел.</span>
+                    <span class="flex items-center gap-1"><svg lucideCalendar [size]="12"></svg> {{ r.date }}</span>
+                    <span class="flex items-center gap-1"><svg lucideClock [size]="12"></svg> {{ r.time_start }}@if (r.time_end) { — {{ r.time_end }} }</span>
+                    @if (r.table_number) { <span class="flex items-center gap-1"><svg lucideArmchair [size]="12"></svg> {{ r.table_number }}</span> }
+                    <span class="flex items-center gap-1"><svg lucideUsers [size]="12"></svg> {{ r.guests_count }} чел.</span>
                   </div>
                   @if (r.wishes) {
-                    <div class="mt-1 text-sm italic" style="color:var(--color-muted)">
-                      💬 {{ r.wishes }}
+                    <div class="mt-1 text-sm italic flex items-center gap-1" style="color:var(--color-muted)">
+                      <svg lucideMessageCircle [size]="12"></svg> {{ r.wishes }}
                     </div>
                   }
                 </div>
@@ -130,7 +138,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
                           [style.color]="r.deposit_paid ? '#166534' : '#92400e'"
                           [style.background]="r.deposit_paid ? '#dcfce7' : '#fef3c7'">
-                      {{ r.deposit_paid ? '✅ Оплачен' : '⏳ Не оплачен' }}
+                      {{ r.deposit_paid ? 'Оплачен' : 'Не оплачен' }}
                     </span>
                   } @else {
                     <span class="text-xs" style="color:var(--color-muted)">Без депозита</span>
@@ -142,23 +150,23 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
               <div class="flex items-center gap-2 mt-3 flex-wrap"
                    style="border-top:1px solid var(--color-border);padding-top:10px">
                 @if (r.status === 'pending') {
-                  <button (click)="setStatus(r, 'confirmed')" class="btn btn-outline btn-sm">✓ Подтвердить</button>
+                  <button (click)="setStatus(r, 'confirmed')" class="btn btn-outline btn-sm flex items-center gap-1"><svg lucideCheck [size]="14"></svg> Подтвердить</button>
                 }
                 @if (r.status === 'confirmed' || r.status === 'pending') {
-                  <button (click)="setStatus(r, 'arrived')" class="btn btn-outline btn-sm"
-                          style="color:#166534;border-color:#166534">👋 Пришли</button>
+                  <button (click)="setStatus(r, 'arrived')" class="btn btn-outline btn-sm flex items-center gap-1"
+                          style="color:#166534;border-color:#166534"><svg lucideHandshake [size]="14"></svg> Пришли</button>
                 }
                 @if (r.status === 'arrived') {
-                  <button (click)="setStatus(r, 'completed')" class="btn btn-outline btn-sm">✅ Завершить</button>
+                  <button (click)="setStatus(r, 'completed')" class="btn btn-outline btn-sm flex items-center gap-1"><svg lucideCircleCheck [size]="14"></svg> Завершить</button>
                 }
                 @if (r.status !== 'cancelled' && r.status !== 'completed') {
-                  <button (click)="setStatus(r, 'cancelled')" class="btn btn-outline btn-sm"
-                          style="color:var(--color-red);border-color:var(--color-red)">✗ Отменить</button>
+                  <button (click)="setStatus(r, 'cancelled')" class="btn btn-outline btn-sm flex items-center gap-1"
+                          style="color:var(--color-red);border-color:var(--color-red)"><svg lucideX [size]="14"></svg> Отменить</button>
                 }
                 @if (+r.deposit_amount > 0 && !r.deposit_paid) {
-                  <button (click)="markDeposit(r, true)" class="btn btn-sm"
+                  <button (click)="markDeposit(r, true)" class="btn btn-sm flex items-center gap-1"
                           style="background:#dcfce7;color:#166534;border:1px solid #86efac">
-                    💵 Депозит получен
+                    <svg lucideBanknote [size]="14"></svg> Депозит получен
                   </button>
                 }
                 @if (r.deposit_paid) {
@@ -166,9 +174,9 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
                           style="color:var(--color-muted)">Отменить оплату</button>
                 }
                 <div class="flex-1"></div>
-                <button (click)="openEdit(r)" class="btn btn-ghost btn-sm">✏️ Изменить</button>
+                <button (click)="openEdit(r)" class="btn btn-ghost btn-sm flex items-center gap-1"><svg lucidePencil [size]="14"></svg> Изменить</button>
                 <button (click)="confirmDeleteItem(r)" class="btn btn-ghost btn-sm"
-                        style="color:var(--color-red)">🗑</button>
+                        style="color:var(--color-red)"><svg lucideTrash2 [size]="14"></svg></button>
               </div>
             </div>
           }
@@ -191,7 +199,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
           <div class="flex items-center justify-between px-5 py-4 flex-shrink-0"
                style="border-bottom:1px solid var(--color-border)">
             <h2 class="font-bold text-base">{{ editId() ? 'Изменить бронь' : 'Новая бронь' }}</h2>
-            <button (click)="closeModal()" class="btn btn-ghost btn-sm">✕</button>
+            <button (click)="closeModal()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
           </div>
 
           <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
@@ -245,8 +253,8 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
                       }
                       <div class="px-3 py-2">
                         <button type="button" (click)="pickTable(null)"
-                                class="text-xs" style="color:var(--color-muted)">
-                          ✕ Без стола
+                                class="text-xs flex items-center gap-1" style="color:var(--color-muted)">
+                          <svg lucideX [size]="12"></svg> Без стола
                         </button>
                       </div>
                     </div>
@@ -293,7 +301,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
                         [style.background]="form.deposit_paid ? '#dcfce7' : 'white'"
                         [style.color]="form.deposit_paid ? '#166534' : 'var(--color-muted)'"
                         style="border:1.5px solid var(--color-border);min-width:90px">
-                  {{ form.deposit_paid ? '✅ Оплачен' : 'Не оплачен' }}
+                  {{ form.deposit_paid ? 'Оплачен' : 'Не оплачен' }}
                 </button>
               </div>
             </div>
@@ -316,7 +324,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
             <button (click)="closeModal()" class="btn btn-outline" style="flex:1">Отмена</button>
             <button (click)="save()" [disabled]="saving() || !isFormValid()"
                     class="btn btn-primary" style="flex:2">
-              {{ saving() ? '⏳ ...' : (editId() ? 'Сохранить' : 'Создать бронь') }}
+              {{ saving() ? '...' : (editId() ? 'Сохранить' : 'Создать бронь') }}
             </button>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import {
   Shift, MenuByCategory, MenuItem, Order, EntryTicket, Receipt, PaymentMethod,
-  DashboardData, ShiftAnalytics, TopItem, MonthlyData, MenuCategory, MenuSection,
+  DashboardData, ShiftAnalytics, TopItem, MonthlyData, Menu, MenuCategory, MenuSection,
   Employee, EmployeeActivity, KitchenData, KitchenStatus, Printer,
   ShiftDetail, SalesReport, ForecastDay,
   Product, MenuItemComponent, ConsumptionRow, InventoryMovement, MovementReason,
@@ -50,9 +50,32 @@ export class ApiService {
     return this.http.post<Shift>(`${BASE}/shifts/${id}/reopen/`, {});
   }
 
-  // ── Menu ─────────────────────────────────────────────────────────
-  getMenuByCategory(): Observable<MenuByCategory[]> {
-    return this.http.get<MenuByCategory[]>(`${BASE}/menu/items/by_category/`);
+  // ── Menus ────────────────────────────────────────────────────────
+  getMenus(): Observable<Menu[]> {
+    return unpage(this.http.get<Menu[] | Paginated<Menu>>(`${BASE}/menu/?page_size=50`));
+  }
+  createMenu(data: { name: string }): Observable<Menu> {
+    return this.http.post<Menu>(`${BASE}/menu/`, data);
+  }
+  updateMenu(id: number, data: Partial<Menu>): Observable<Menu> {
+    return this.http.patch<Menu>(`${BASE}/menu/${id}/`, data);
+  }
+  activateMenu(id: number): Observable<Menu> {
+    return this.http.post<Menu>(`${BASE}/menu/${id}/activate/`, {});
+  }
+  duplicateMenu(id: number, name?: string): Observable<Menu> {
+    return this.http.post<Menu>(`${BASE}/menu/${id}/duplicate/`, name ? { name } : {});
+  }
+  deleteMenu(id: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/menu/${id}/`);
+  }
+
+  // ── Menu items ───────────────────────────────────────────────────
+  getMenuByCategory(menuId?: number): Observable<MenuByCategory[]> {
+    const url = menuId
+      ? `${BASE}/menu/items/by_category/?menu=${menuId}`
+      : `${BASE}/menu/items/by_category/`;
+    return this.http.get<MenuByCategory[]>(url);
   }
   getMenuItems(): Observable<MenuItem[]> {
     return unpage(this.http.get<MenuItem[] | Paginated<MenuItem>>(`${BASE}/menu/items/?page_size=500`));
@@ -61,7 +84,7 @@ export class ApiService {
     return unpage(this.http.get<MenuCategory[] | Paginated<MenuCategory>>(`${BASE}/menu/categories/?page_size=200`));
   }
   getMenuSections(): Observable<MenuSection[]> {
-    return unpage(this.http.get<MenuSection[] | Paginated<MenuSection>>(`${BASE}/menu/sections/?page_size=50`));
+    return unpage(this.http.get<MenuSection[] | Paginated<MenuSection>>(`${BASE}/menu/sections/?page_size=200`));
   }
   createMenuItem(data: Partial<MenuItem>): Observable<MenuItem> {
     return this.http.post<MenuItem>(`${BASE}/menu/items/`, data);

@@ -1,9 +1,14 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { StaffMember } from '../../core/models';
+import {
+  LucideDynamicIcon,
+  LucideCrown, LucideGlassWater, LucideBell, LucideChefHat, LucideWind, LucideShirt,
+} from '@lucide/angular';
 
 const ROLE_COLOR: Record<string, string> = {
   admin:     '#f59e0b',
@@ -14,26 +19,26 @@ const ROLE_COLOR: Record<string, string> = {
   wardrobe:  '#64748b',
 };
 
-const ROLE_ICON: Record<string, string> = {
-  admin:     '👑',
-  bartender: '🍸',
-  waiter:    '🛎',
-  kitchen:   '🍳',
-  hookah:    '💨',
-  wardrobe:  '🧥',
+const ROLE_ICON: Record<string, LucideIconInput> = {
+  admin:     LucideCrown,
+  bartender: LucideGlassWater,
+  waiter:    LucideBell,
+  kitchen:   LucideChefHat,
+  hookah:    LucideWind,
+  wardrobe:  LucideShirt,
 };
 
 @Component({
   selector: 'app-pin-login',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LucideDynamicIcon, LucideGlassWater],
   template: `
 <div class="pin-screen" (click)="onScreenClick()">
 
   <!-- ── Logo / clock ─────────────────────────────────────────────── -->
   <div class="pin-header">
     <div class="flex items-center gap-3">
-      <span style="font-size:2rem">🍸</span>
+      <svg lucideGlassWater [size]="32" style="color:#f1f5f9"></svg>
       <div>
         <p class="font-bold text-lg leading-none" style="color:#f1f5f9">BAR DREAM</p>
         <p style="color:#64748b;font-size:13px">{{ timeStr() }}</p>
@@ -60,8 +65,7 @@ const ROLE_ICON: Record<string, string> = {
           @for (s of staffWithPin(); track s.id) {
             <button class="staff-card" (click)="selectStaff(s); $event.stopPropagation()">
               <div class="staff-avatar" [style.background]="roleColor(s.role)">
-                <span class="staff-icon">{{ roleIcon(s.role) }}</span>
-                <span class="staff-initials">{{ initials(s.display_name) }}</span>
+                <svg [lucideIcon]="roleIcon(s.role)" [size]="26" style="color:white"></svg>
               </div>
               <span class="staff-name">{{ s.display_name }}</span>
               <span class="staff-role" [style.color]="roleColor(s.role)">{{ s.role_label }}</span>
@@ -89,8 +93,7 @@ const ROLE_ICON: Record<string, string> = {
 
       <div class="selected-person">
         <div class="staff-avatar lg" [style.background]="roleColor(selected()!.role)">
-          <span class="staff-icon lg">{{ roleIcon(selected()!.role) }}</span>
-          <span class="staff-initials lg">{{ initials(selected()!.display_name) }}</span>
+          <svg [lucideIcon]="roleIcon(selected()!.role)" [size]="36" style="color:white"></svg>
         </div>
         <p class="staff-name lg">{{ selected()!.display_name }}</p>
         <p class="staff-role" [style.color]="roleColor(selected()!.role)">{{ selected()!.role_label }}</p>
@@ -418,7 +421,7 @@ export class PinLoginPage implements OnInit {
   }
 
   roleColor(role: string) { return ROLE_COLOR[role] ?? '#64748b'; }
-  roleIcon(role: string)  { return ROLE_ICON[role]  ?? '👤'; }
+  roleIcon(role: string): LucideIconInput  { return ROLE_ICON[role] ?? LucideCrown; }
 
   initials(name: string): string {
     return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);

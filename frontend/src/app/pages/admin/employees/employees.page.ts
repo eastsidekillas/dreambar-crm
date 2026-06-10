@@ -1,16 +1,22 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Employee, EmployeeActivity, Shift, Order } from '../../../core/models';
+import {
+  LucideDynamicIcon,
+  LucideCrown, LucideUser, LucideGlassWater, LucideChefHat, LucideShirt,
+  LucideUsers, LucideTrash2, LucideX,
+} from '@lucide/angular';
 
-const ROLE_META: Record<string, { label: string; icon: string; cls: string }> = {
-  admin:     { label: 'Администратор', icon: '👤', cls: 'badge-gold'  },
-  waiter:    { label: 'Официант',      icon: '🧑‍🍳', cls: 'badge-green' },
-  bartender: { label: 'Бармен',        icon: '🍸', cls: 'badge-amber' },
-  kitchen:   { label: 'Кухня',         icon: '🍳', cls: 'badge-blue'  },
-  wardrobe:  { label: 'Гардероб',      icon: '🧥', cls: 'badge-gray'  },
+const ROLE_META: Record<string, { label: string; icon: LucideIconInput; cls: string }> = {
+  admin:     { label: 'Администратор', icon: LucideCrown,       cls: 'badge-gold'  },
+  waiter:    { label: 'Официант',      icon: LucideUser,        cls: 'badge-green' },
+  bartender: { label: 'Бармен',        icon: LucideGlassWater,  cls: 'badge-amber' },
+  kitchen:   { label: 'Кухня',         icon: LucideChefHat,     cls: 'badge-blue'  },
+  wardrobe:  { label: 'Гардероб',      icon: LucideShirt,       cls: 'badge-gray'  },
 };
 
 const ROLES = Object.entries(ROLE_META).map(([value, m]) => ({ value, label: m.label }));
@@ -25,11 +31,12 @@ interface EditState {
 @Component({
   selector: 'app-employees',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideDynamicIcon,
+    LucideUsers, LucideTrash2, LucideX],
   template: `
     <div class="space-y-5">
       <div class="flex items-center justify-between flex-wrap gap-3">
-        <h1 class="text-xl font-bold">👥 Сотрудники</h1>
+        <h1 class="text-xl font-bold flex items-center gap-2"><svg lucideUsers [size]="20"></svg> Сотрудники</h1>
         <div class="flex items-center gap-2">
           <!-- Tab switcher -->
           <div class="flex rounded-lg overflow-hidden" style="border:1px solid var(--color-border)">
@@ -45,7 +52,7 @@ interface EditState {
             </button>
           </div>
           <button (click)="toggleAdd()" class="btn btn-primary">
-            {{ showAdd() ? '✕ Отмена' : '+ Сотрудник' }}
+            @if (showAdd()) { <svg lucideX [size]="14"></svg> Отмена } @else { + Сотрудник }
           </button>
         </div>
       </div>
@@ -101,7 +108,7 @@ interface EditState {
                     <div class="flex items-center gap-2 flex-wrap">
                       <span class="font-medium">{{ emp.display_name }}</span>
                       <span class="text-xs" style="color:var(--color-muted)">&#64;{{ emp.username }}</span>
-                      <span class="badge" [class]="roleCls(emp.role)">{{ roleIcon(emp.role) }} {{ roleLabel(emp.role) }}</span>
+                      <span class="badge flex items-center gap-1" [class]="roleCls(emp.role)"><svg [lucideIcon]="roleIcon(emp.role)" [size]="12"></svg> {{ roleLabel(emp.role) }}</span>
                       @if (!emp.is_active) {
                         <span class="badge badge-gray">неактивен</span>
                       }
@@ -165,7 +172,7 @@ interface EditState {
                               class="btn btn-sm ml-auto"
                               style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5"
                               [disabled]="saving()">
-                        🗑 Удалить сотрудника
+                        <svg lucideTrash2 [size]="14" class="inline-block mr-1"></svg>Удалить сотрудника
                       </button>
                       <!-- PIN management -->
                       @if (pinEditId() === emp.id) {
@@ -178,13 +185,13 @@ interface EditState {
                                   [disabled]="pinInput.length < 4">
                             Сохранить PIN
                           </button>
-                          <button (click)="pinEditId.set(null)" class="btn btn-ghost btn-sm">✕</button>
+                          <button (click)="pinEditId.set(null)" class="btn btn-ghost btn-sm"><svg lucideX [size]="14"></svg></button>
                         </div>
                       } @else {
                         <button (click)="pinEditId.set(emp.id); pinInput=''"
                                 class="btn btn-sm"
                                 style="background:#172554;color:#93c5fd;border:1px solid #1e3a8a">
-                          🔐 {{ emp.has_pin ? 'Изменить PIN' : 'Установить PIN' }}
+                          {{ emp.has_pin ? 'Изменить PIN' : 'Установить PIN' }}
                         </button>
                       }
                     </div>
@@ -227,7 +234,7 @@ interface EditState {
                   <th class="text-right py-2 section-title">Кальян</th>
                   <th class="text-right py-2 section-title">Билеты</th>
                   <th class="text-right py-2 section-title">Итого</th>
-                  <th class="text-right py-2 section-title" title="Удалённые позиции">🗑</th>
+                  <th class="text-right py-2 section-title" title="Удалённые позиции"><svg lucideTrash2 [size]="12" class="inline-block"></svg></th>
                   <th></th>
                 </tr>
               </thead>
@@ -235,7 +242,7 @@ interface EditState {
                 @for (e of activity(); track e.user_id) {
                   <tr style="border-bottom:1px solid var(--color-border)">
                     <td class="py-2.5 font-medium">{{ e.display_name }}</td>
-                    <td class="py-2.5"><span class="badge" [class]="roleCls(e.role)">{{ roleIcon(e.role) }} {{ e.role_label }}</span></td>
+                    <td class="py-2.5"><span class="badge flex items-center gap-1" [class]="roleCls(e.role)"><svg [lucideIcon]="roleIcon(e.role)" [size]="12"></svg> {{ e.role_label }}</span></td>
                     <td class="py-2.5 text-right">{{ e.orders_count }}</td>
                     <td class="py-2.5 text-right" style="color:var(--color-muted)">{{ e.total_guests }}</td>
                     <td class="py-2.5 text-right">{{ e.avg_check | number:'1.0-0' }} ₽</td>
@@ -294,7 +301,7 @@ interface EditState {
               <div class="p-3 rounded-lg" style="background:var(--color-surface2);border:1px solid var(--color-border)">
                 <div class="flex items-center justify-between mb-2">
                   <span class="font-semibold">{{ e.display_name }}</span>
-                  <span class="badge" [class]="roleCls(e.role)">{{ roleIcon(e.role) }} {{ e.role_label }}</span>
+                  <span class="badge flex items-center gap-1" [class]="roleCls(e.role)"><svg [lucideIcon]="roleIcon(e.role)" [size]="12"></svg> {{ e.role_label }}</span>
                 </div>
                 <div class="grid grid-cols-3 gap-2 text-xs mb-2">
                   <div><span style="color:var(--color-muted)">Заказов:</span> {{ e.orders_count }}</div>
@@ -490,9 +497,9 @@ export class EmployeesComponent implements OnInit {
     return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
   }
 
-  roleCls(r: string)   { return ROLE_META[r]?.cls ?? 'badge-gray'; }
-  roleIcon(r: string)  { return ROLE_META[r]?.icon ?? '👤'; }
-  roleLabel(r: string) { return ROLE_META[r]?.label ?? r; }
+  roleCls(r: string)            { return ROLE_META[r]?.cls ?? 'badge-gray'; }
+  roleIcon(r: string): LucideIconInput  { return ROLE_META[r]?.icon ?? LucideUser; }
+  roleLabel(r: string)          { return ROLE_META[r]?.label ?? r; }
 
   formatDate(d: string) {
     return new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });

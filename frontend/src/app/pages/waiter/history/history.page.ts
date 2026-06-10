@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { ReceiptPrintService } from '../../../features/receipt/receipt-print.service';
 import { Receipt } from '../../../core/models';
+import { LucideReceipt, LucideClock, LucidePrinter } from '@lucide/angular';
 
 @Component({
   selector: 'app-history-page',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LucideReceipt, LucideClock, LucidePrinter],
   template: `
     <div class="space-y-3 pb-4">
       <div class="flex items-center justify-between">
@@ -24,7 +25,7 @@ import { Receipt } from '../../../core/models';
         <div class="card">
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
-              <span class="font-bold text-sm" style="color:var(--color-text)">🧾 {{ r.code }}</span>
+              <span class="font-bold text-sm flex items-center gap-1" style="color:var(--color-text)"><svg lucideReceipt [size]="14"></svg> {{ r.code }}</span>
               @if (r.table_number) { <span class="badge badge-gray">{{ r.table_number }}</span> }
               <span class="badge badge-green">{{ r.payment_label }}</span>
             </div>
@@ -44,15 +45,15 @@ import { Receipt } from '../../../core/models';
           </div>
 
           <div class="flex items-center justify-between mt-2">
-            <p class="text-xs" style="color:var(--color-light)">🕐 {{ formatTime(r.issued_at) }} · {{ r.waiter_name }}</p>
-            <button (click)="reprint(r)" class="btn btn-ghost btn-sm">🖨 Печать</button>
+            <p class="text-xs flex items-center gap-1" style="color:var(--color-light)"><svg lucideClock [size]="12"></svg> {{ formatTime(r.issued_at) }} · {{ r.waiter_name }}</p>
+            <button (click)="reprint(r)" class="btn btn-ghost btn-sm flex items-center gap-1"><svg lucidePrinter [size]="14"></svg> Печать</button>
           </div>
         </div>
       }
 
       @if (!receipts().length) {
         <div class="card text-center py-12">
-          <span class="text-4xl block mb-3">🧾</span>
+          <svg lucideReceipt [size]="48" class="mb-3 mx-auto" style="color:var(--color-muted)"></svg>
           <p style="color:var(--color-muted)">Чеков за эту смену нет</p>
         </div>
       }

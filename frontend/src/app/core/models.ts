@@ -114,8 +114,19 @@ export interface Shift {
   tickets_count: number;
 }
 
+export interface Menu {
+  id: number;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+  sections_count: number;
+  items_count: number;
+}
+
 export interface MenuSection {
   id: number;
+  menu: number;
+  menu_name: string;
   name: string;
   station_type: 'bar' | 'kitchen' | 'hookah';
   icon: string;

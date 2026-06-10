@@ -1,3 +1,4 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -8,11 +9,19 @@ import { CartService } from '../../../features/cart/cart.service';
 import { ReceiptPrintService } from '../../../features/receipt/receipt-print.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Order, OrderItem, PaymentMethod, Receipt, ReservationInfo, Zone, Reservation } from '../../../core/models';
+import {
+  LucideDynamicIcon,
+  LucideCalendar, LucideUsers, LucideMessageCircle, LucideArmchair,
+  LucideBanknote, LucideCreditCard, LucideSmartphone,
+  LucideCheck, LucideClock, LucideX, LucideReceipt, LucidePencil,
+  LucidePlus, LucideArrowLeftRight,
+  LucideUtensilsCrossed, LucideTriangleAlert,
+} from '@lucide/angular';
 
-const PAYMENTS: { value: PaymentMethod; label: string; icon: string }[] = [
-  { value: 'cash',     label: 'Наличные', icon: '💵' },
-  { value: 'card',     label: 'Карта',    icon: '💳' },
-  { value: 'transfer', label: 'Перевод',  icon: '📲' },
+const PAYMENTS: { value: PaymentMethod; label: string; icon: LucideIconInput }[] = [
+  { value: 'cash',     label: 'Наличные', icon: LucideBanknote },
+  { value: 'card',     label: 'Карта',    icon: LucideCreditCard },
+  { value: 'transfer', label: 'Перевод',  icon: LucideSmartphone },
 ];
 
 const POLL_MS = 10_000;
@@ -20,7 +29,12 @@ const POLL_MS = 10_000;
 @Component({
   selector: 'app-tables-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideDynamicIcon,
+    LucideCalendar, LucideUsers, LucideMessageCircle, LucideArmchair,
+    LucideBanknote, LucideCreditCard,
+    LucideCheck, LucideClock, LucideX, LucideReceipt, LucidePencil,
+    LucidePlus, LucideArrowLeftRight,
+    LucideUtensilsCrossed, LucideTriangleAlert],
   template: `
     <div class="space-y-3 pb-4">
 
@@ -67,8 +81,8 @@ const POLL_MS = 10_000;
                     @if (status === 'free') {
                       <p class="text-xs mt-1" style="color:var(--color-muted)">свободен</p>
                       @if (resv) {
-                        <p class="text-xs mt-0.5 font-medium" style="color:#2563eb">
-                          📅 {{ fmtTime(resv.time_start) }}
+                        <p class="text-xs mt-0.5 font-medium flex items-center justify-center gap-0.5" style="color:#2563eb">
+                          <svg lucideCalendar [size]="10"></svg> {{ fmtTime(resv.time_start) }}
                         </p>
                       }
                     } @else if (status === 'occupied' && order) {
@@ -87,7 +101,7 @@ const POLL_MS = 10_000;
                     } @else if (status === 'reserved' && resv) {
                       <p class="text-xs mt-1 font-medium truncate" style="color:#1d4ed8">{{ resv.name }}</p>
                       <p class="text-xs" style="color:#2563eb">{{ fmtTime(resv.time_start) }}</p>
-                      <p class="text-xs" style="color:var(--color-muted)">👥 {{ resv.guests_count }}</p>
+                      <p class="text-xs flex items-center justify-center gap-0.5" style="color:var(--color-muted)"><svg lucideUsers [size]="10"></svg> {{ resv.guests_count }}</p>
                     }
                   </button>
                 }
@@ -109,7 +123,7 @@ const POLL_MS = 10_000;
           <button (click)="resvSheet.set(true)"
                   class="flex items-center gap-1.5 px-3 rounded-xl font-semibold text-sm flex-shrink-0"
                   style="background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;height:44px">
-            📅 {{ todayReservations().length }}
+            <svg lucideCalendar [size]="16"></svg> {{ todayReservations().length }}
           </button>
         }
       </div>
@@ -124,14 +138,14 @@ const POLL_MS = 10_000;
             <div class="flex items-center gap-2 min-w-0">
               <span class="font-bold text-base truncate">{{ o.table_number || 'Стол' }}</span>
               @if (o.guests) {
-                <span class="text-xs flex-shrink-0" style="color:var(--color-muted)">· 👥 {{ o.guests }}</span>
+                <span class="text-xs flex items-center gap-0.5 flex-shrink-0" style="color:var(--color-muted)">· <svg lucideUsers [size]="12"></svg> {{ o.guests }}</span>
               }
               @if (readyCount(o) > 0) {
-                <span class="flex-shrink-0 px-1.5 py-0.5 rounded-full text-xs font-bold animate-pulse"
-                      style="background:#16a34a;color:white">✓ {{ readyCount(o) }}</span>
+                <span class="flex-shrink-0 px-1.5 py-0.5 rounded-full text-xs font-bold animate-pulse flex items-center gap-0.5"
+                      style="background:#16a34a;color:white"><svg lucideCheck [size]="10"></svg> {{ readyCount(o) }}</span>
               }
               <button (click)="openEdit(o)" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded"
-                      style="color:var(--color-muted)">✏️</button>
+                      style="color:var(--color-muted)"><svg lucidePencil [size]="14"></svg></button>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
               <span class="text-xs" style="color:var(--color-muted)">{{ elapsed(o) }}</span>
@@ -144,7 +158,7 @@ const POLL_MS = 10_000;
           @if (o.notes) {
             <div class="px-3 py-2 text-xs flex items-start gap-1.5"
                  style="background:#fffbeb;border-bottom:1px solid var(--color-gold-mid);color:#92400e">
-              <span>📝</span><span>{{ o.notes }}</span>
+              <svg lucideMessageCircle [size]="12" class="flex-shrink-0 mt-0.5"></svg><span>{{ o.notes }}</span>
             </div>
           }
 
@@ -152,12 +166,12 @@ const POLL_MS = 10_000;
             @let r = orderReservation(o)!;
             <div class="px-3 py-2 text-xs flex items-center gap-1.5"
                  style="background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1d4ed8">
-              <span>📅</span>
+              <svg lucideCalendar [size]="12" class="flex-shrink-0"></svg>
               <span class="font-medium">{{ r.name }}</span>
               <span style="color:#3b82f6">{{ r.time_start }}</span>
-              <span>· 👥 {{ r.guests_count }}</span>
+              <span class="flex items-center gap-0.5">· <svg lucideUsers [size]="12"></svg> {{ r.guests_count }}</span>
               @if (+r.deposit_amount > 0) {
-                <span class="ml-auto font-medium">💰 {{ +r.deposit_amount | number:'1.0-0' }} ₽</span>
+                <span class="ml-auto font-medium flex items-center gap-0.5"><svg lucideBanknote [size]="12"></svg> {{ +r.deposit_amount | number:'1.0-0' }} ₽</span>
               }
             </div>
           }
@@ -176,9 +190,9 @@ const POLL_MS = 10_000;
                     <span class="flex-1 text-sm truncate">{{ item.menu_item_name }}</span>
                     <span class="text-xs" style="color:var(--color-muted)">× {{ item.quantity }}</span>
                     @if (item.kitchen_status === 'ready') {
-                      <span class="text-xs font-bold" style="color:#16a34a">✓</span>
+                      <svg lucideCheck [size]="12" style="color:#16a34a;flex-shrink:0"></svg>
                     } @else if (item.kitchen_status === 'cooking') {
-                      <span class="text-xs" style="color:var(--color-amber)">⏳</span>
+                      <svg lucideClock [size]="12" style="color:var(--color-amber);flex-shrink:0"></svg>
                     }
                     @if (confirmDeleteItem() === item.id) {
                       <button (click)="removeItem(o, item)"
@@ -190,7 +204,7 @@ const POLL_MS = 10_000;
                     } @else {
                       <button (click)="askDeleteItem(item)"
                               class="w-5 h-5 flex items-center justify-center rounded text-xs flex-shrink-0"
-                              style="color:var(--color-muted)">✕</button>
+                              style="color:var(--color-muted)"><svg lucideX [size]="12"></svg></button>
                     }
                   </div>
                 }
@@ -206,8 +220,8 @@ const POLL_MS = 10_000;
           @if (o.receipts.length) {
             <div class="flex flex-wrap gap-1 px-3 py-2" style="border-bottom:1px solid var(--color-border)">
               @for (r of o.receipts; track r.id) {
-                <button (click)="reprint(r)" class="badge badge-green" style="cursor:pointer">
-                  🧾 {{ r.code }} · {{ r.total | number:'1.0-0' }} ₽
+                <button (click)="reprint(r)" class="badge badge-green flex items-center gap-1" style="cursor:pointer">
+                  <svg lucideReceipt [size]="12"></svg> {{ r.code }} · {{ r.total | number:'1.0-0' }} ₽
                 </button>
               }
             </div>
@@ -217,19 +231,19 @@ const POLL_MS = 10_000;
             <button (click)="addMore(o)"
                     class="flex items-center justify-center gap-1 py-3 font-semibold text-sm"
                     style="border-right:1px solid var(--color-border);color:var(--color-text)">
-              ➕ Дозаказ
+              <svg lucidePlus [size]="14"></svg> Дозаказ
             </button>
             <button (click)="openMoveSheet(o)"
                     class="flex items-center justify-center gap-1 py-3 font-medium text-sm"
                     style="border-right:1px solid var(--color-border);color:var(--color-muted)">
-              ↔️ Пересадить
+              <svg lucideArrowLeftRight [size]="14"></svg> Пересадить
             </button>
             <button (click)="openCheckout(o)" [disabled]="!unpaidItems(o).length"
                     class="flex items-center justify-center gap-1 py-3 font-bold text-sm"
                     [style]="unpaidItems(o).length
                       ? 'background:var(--color-gold);color:white'
                       : 'color:var(--color-muted)'">
-              💳 Счёт
+              <svg lucideCreditCard [size]="14"></svg> Счёт
             </button>
           </div>
         </div>
@@ -237,7 +251,7 @@ const POLL_MS = 10_000;
 
       @if (!myOrders().length && !zones().length) {
         <div class="text-center py-16">
-          <span class="text-4xl block mb-3">🍽</span>
+          <svg lucideUtensilsCrossed [size]="48" class="mb-3 mx-auto" style="color:var(--color-muted)"></svg>
           <p style="color:var(--color-muted)">Нет открытых столов</p>
         </div>
       }
@@ -253,8 +267,8 @@ const POLL_MS = 10_000;
         </div>
         <div class="flex items-center justify-between px-4 py-3 flex-shrink-0"
              style="border-bottom:1px solid var(--color-border)">
-          <h2 class="font-bold text-base">📅 Брони на сегодня</h2>
-          <button (click)="resvSheet.set(false)" class="btn btn-ghost btn-sm">✕</button>
+          <h2 class="font-bold text-base flex items-center gap-2"><svg lucideCalendar [size]="16"></svg> Брони на сегодня</h2>
+          <button (click)="resvSheet.set(false)" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
         </div>
         <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           @for (r of resvSorted(); track r.id) {
@@ -274,19 +288,19 @@ const POLL_MS = 10_000;
                 </div>
                 <div class="flex items-center gap-2 mt-0.5 text-xs flex-wrap" style="color:var(--color-muted)">
                   @if (r.table_number) {
-                    <span class="font-medium" style="color:var(--color-text)">🪑 {{ r.table_number }}</span>
+                    <span class="font-medium flex items-center gap-0.5" style="color:var(--color-text)"><svg lucideArmchair [size]="12"></svg> {{ r.table_number }}</span>
                   } @else {
-                    <span style="color:#f59e0b">⚠️ Стол не назначен</span>
+                    <span class="flex items-center gap-0.5" style="color:#f59e0b"><svg lucideTriangleAlert [size]="12"></svg> Стол не назначен</span>
                   }
-                  <span>👥 {{ r.guests_count }}</span>
+                  <span class="flex items-center gap-0.5"><svg lucideUsers [size]="12"></svg> {{ r.guests_count }}</span>
                   @if (+r.deposit_amount > 0) {
-                    <span [style.color]="r.deposit_paid ? '#16a34a' : '#92400e'">
-                      💰 {{ +r.deposit_amount | number:'1.0-0' }} ₽ {{ r.deposit_paid ? '✓' : '⏳' }}
+                    <span class="flex items-center gap-0.5" [style.color]="r.deposit_paid ? '#16a34a' : '#92400e'">
+                      <svg lucideBanknote [size]="12"></svg> {{ +r.deposit_amount | number:'1.0-0' }} ₽ {{ r.deposit_paid ? '✓' : '...' }}
                     </span>
                   }
                 </div>
                 @if (r.wishes) {
-                  <p class="text-xs mt-0.5 truncate" style="color:var(--color-muted)">💬 {{ r.wishes }}</p>
+                  <p class="text-xs mt-0.5 truncate flex items-center gap-0.5" style="color:var(--color-muted)"><svg lucideMessageCircle [size]="12"></svg> {{ r.wishes }}</p>
                 }
               </div>
             </div>
@@ -305,8 +319,8 @@ const POLL_MS = 10_000;
         </div>
         <div class="flex items-center justify-between px-4 py-3 flex-shrink-0"
              style="border-bottom:1px solid var(--color-border)">
-          <h2 class="font-bold text-base">🍽 Открыть стол</h2>
-          <button (click)="closeNewTable()" class="btn btn-ghost btn-sm">✕</button>
+          <h2 class="font-bold text-base flex items-center gap-2"><svg lucideUtensilsCrossed [size]="16"></svg> Открыть стол</h2>
+          <button (click)="closeNewTable()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
         </div>
         <div class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
 
@@ -368,9 +382,9 @@ const POLL_MS = 10_000;
           @if (ntSelectedTables.length === 1 && tableReservation(ntSelectedTables[0])) {
             @let resv = tableReservation(ntSelectedTables[0])!;
             <div class="rounded-xl px-3 py-2.5" style="background:#eff6ff;border:1px solid #bfdbfe">
-              <p class="text-xs font-semibold mb-0.5" style="color:#1d4ed8">📅 Бронь на этом столе</p>
+              <p class="text-xs font-semibold mb-0.5 flex items-center gap-1" style="color:#1d4ed8"><svg lucideCalendar [size]="12"></svg> Бронь на этом столе</p>
               <p class="text-sm font-medium">{{ resv.name }} · {{ resv.time_start }}</p>
-              <p class="text-xs" style="color:#3b82f6">👥 {{ resv.guests_count }}
+              <p class="text-xs flex items-center gap-0.5" style="color:#3b82f6"><svg lucideUsers [size]="12"></svg> {{ resv.guests_count }}
                 @if (+resv.deposit_amount > 0) { · Депозит {{ +resv.deposit_amount | number:'1.0-0' }} ₽ }
               </p>
               @if (resv.wishes) {
@@ -391,7 +405,7 @@ const POLL_MS = 10_000;
           <button (click)="createTable()"
                   [disabled]="creating() || (!ntSelectedTables.length && !ntTableFallback.trim())"
                   class="btn btn-primary btn-full" style="height:48px">
-            {{ creating() ? '⏳ ...' : 'Открыть стол → меню' }}
+            {{ creating() ? '...' : 'Открыть стол → меню' }}
           </button>
         </div>
       </div>
@@ -407,8 +421,8 @@ const POLL_MS = 10_000;
         </div>
         <div class="flex items-center justify-between px-4 py-3"
              style="border-bottom:1px solid var(--color-border)">
-          <h2 class="font-bold text-base">✏️ Изменить стол</h2>
-          <button (click)="closeEdit()" class="btn btn-ghost btn-sm">✕</button>
+          <h2 class="font-bold text-base flex items-center gap-2"><svg lucidePencil [size]="16"></svg> Изменить стол</h2>
+          <button (click)="closeEdit()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
         </div>
         <div class="px-4 py-4 space-y-3">
           <div>
@@ -422,7 +436,7 @@ const POLL_MS = 10_000;
           </div>
           <button (click)="saveEdit()" [disabled]="saving()"
                   class="btn btn-primary btn-full" style="height:48px">
-            {{ saving() ? '⏳ ...' : 'Сохранить' }}
+            {{ saving() ? '...' : 'Сохранить' }}
           </button>
         </div>
       </div>
@@ -439,10 +453,10 @@ const POLL_MS = 10_000;
         <div class="flex items-center justify-between px-4 py-3 flex-shrink-0"
              style="border-bottom:1px solid var(--color-border)">
           <div>
-            <h2 class="font-bold text-base">↔️ Пересадить</h2>
+            <h2 class="font-bold text-base flex items-center gap-2"><svg lucideArrowLeftRight [size]="16"></svg> Пересадить</h2>
             <p class="text-xs" style="color:var(--color-muted)">Текущий: {{ moveOrder()!.table_number }}</p>
           </div>
-          <button (click)="closeMoveSheet()" class="btn btn-ghost btn-sm">✕</button>
+          <button (click)="closeMoveSheet()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
         </div>
         <div class="flex-1 overflow-y-auto px-4 py-4">
           <!-- Move multi-select: can also merge with another table -->
@@ -478,7 +492,7 @@ const POLL_MS = 10_000;
               <div class="sticky bottom-0 pt-3" style="background:white">
                 <button (click)="doMoveTable()" [disabled]="moveSaving()"
                         class="btn btn-primary btn-full" style="height:48px">
-                  {{ moveSaving() ? '⏳ ...' : 'Пересадить → ' + moveSelectedTables.join('+') }}
+                  {{ moveSaving() ? '...' : 'Пересадить → ' + moveSelectedTables.join('+') }}
                 </button>
               </div>
             }
@@ -506,9 +520,9 @@ const POLL_MS = 10_000;
               <button (click)="checkoutStep.set('mode')"
                       class="text-sm font-semibold" style="color:var(--color-muted)">← Назад</button>
             }
-            <h2 class="font-bold text-base">💳 {{ co.table_number || 'Стол' }}</h2>
+            <h2 class="font-bold text-base flex items-center gap-2"><svg lucideCreditCard [size]="16"></svg> {{ co.table_number || 'Стол' }}</h2>
           </div>
-          <button (click)="closeCheckout()" class="btn btn-ghost btn-sm">✕</button>
+          <button (click)="closeCheckout()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
         </div>
 
         @if (checkoutStep() === 'mode') {
@@ -517,7 +531,7 @@ const POLL_MS = 10_000;
             <button (click)="chooseSingle()"
                     class="w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left"
                     style="border:2px solid var(--color-border);background:white">
-              <span class="text-3xl">🧾</span>
+              <svg lucideReceipt [size]="32" style="color:var(--color-muted);flex-shrink:0"></svg>
               <div>
                 <p class="font-bold text-base">Один счёт</p>
                 <p class="text-sm" style="color:var(--color-muted)">
@@ -528,7 +542,7 @@ const POLL_MS = 10_000;
             <button (click)="chooseSplit()"
                     class="w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left"
                     style="border:2px solid var(--color-gold);background:var(--color-gold-light)">
-              <span class="text-3xl">👥</span>
+              <svg lucideUsers [size]="32" style="color:var(--color-gold-hover);flex-shrink:0"></svg>
               <div>
                 <p class="font-bold text-base">Раздельно</p>
                 <p class="text-sm" style="color:var(--color-gold-hover)">
@@ -588,37 +602,37 @@ const POLL_MS = 10_000;
             @if (refundAmount() > 0) {
               <div class="rounded-xl px-3 py-3 mb-4 text-center"
                    style="background:#dcfce7;border:1px solid #86efac">
-                <span class="text-sm font-semibold" style="color:#16a34a">
-                  ✅ Депозит покрывает счёт · возврат {{ refundAmount() | number:'1.0-0' }} ₽
+                <span class="text-sm font-semibold flex items-center justify-center gap-1" style="color:#16a34a">
+                  <svg lucideCheck [size]="16"></svg> Депозит покрывает счёт · возврат {{ refundAmount() | number:'1.0-0' }} ₽
                 </span>
               </div>
               <button (click)="confirm()" [disabled]="submitting()"
-                      class="btn btn-primary btn-full" style="height:48px">
-                {{ submitting() ? '⏳ ...' : '🧾 Закрыть счёт и печать' }}
+                      class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
+                @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> } {{ submitting() ? '...' : 'Закрыть счёт и печать' }}
               </button>
             } @else if (remainingAmount() === 0 && depositInfo()) {
               <div class="rounded-xl px-3 py-3 mb-4 text-center"
                    style="background:#dcfce7;border:1px solid #86efac">
-                <span class="text-sm font-semibold" style="color:#16a34a">
-                  ✅ Депозит покрывает весь счёт
+                <span class="text-sm font-semibold flex items-center justify-center gap-1" style="color:#16a34a">
+                  <svg lucideCheck [size]="16"></svg> Депозит покрывает весь счёт
                 </span>
               </div>
               <button (click)="confirm()" [disabled]="submitting()"
-                      class="btn btn-primary btn-full" style="height:48px">
-                {{ submitting() ? '⏳ ...' : '🧾 Закрыть счёт и печать' }}
+                      class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
+                @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> } {{ submitting() ? '...' : 'Закрыть счёт и печать' }}
               </button>
             } @else {
               <div class="flex gap-2 mb-4">
                 @for (p of payments; track p.value) {
-                  <button (click)="singlePay.set(p.value)" class="btn btn-sm" style="flex:1"
+                  <button (click)="singlePay.set(p.value)" class="btn btn-sm flex items-center gap-1" style="flex:1"
                           [class]="singlePay() === p.value ? 'btn-primary' : 'btn-outline'">
-                    {{ p.icon }} {{ p.label }}
+                    <svg [lucideIcon]="p.icon" [size]="14"></svg> {{ p.label }}
                   </button>
                 }
               </div>
               <button (click)="confirm()" [disabled]="submitting()"
-                      class="btn btn-primary btn-full" style="height:48px">
-                {{ submitting() ? '⏳ ...' : '🧾 Закрыть счёт и печать' }}
+                      class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
+                @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> } {{ submitting() ? '...' : 'Закрыть счёт и печать' }}
               </button>
             }
           </div>
@@ -675,9 +689,9 @@ const POLL_MS = 10_000;
                   </div>
                   <div class="flex gap-2 px-3 py-2.5">
                     @for (p of payments; track p.value) {
-                      <button (click)="setBillPay(bill.billNo, p.value)" class="btn btn-sm" style="flex:1"
+                      <button (click)="setBillPay(bill.billNo, p.value)" class="btn btn-sm flex items-center gap-1" style="flex:1"
                               [class]="billPayOf(bill.billNo) === p.value ? 'btn-primary' : 'btn-outline'">
-                        {{ p.icon }} {{ p.label }}
+                        <svg [lucideIcon]="p.icon" [size]="14"></svg> {{ p.label }}
                       </button>
                     }
                   </div>
@@ -687,9 +701,9 @@ const POLL_MS = 10_000;
           </div>
           <div class="flex-shrink-0 px-4 py-3" style="border-top:1px solid var(--color-border)">
             <button (click)="confirm()" [disabled]="submitting()"
-                    class="btn btn-primary btn-full" style="height:48px">
-              {{ submitting() ? '⏳ ...'
-                : '🧾 Закрыть и печать (' + splitBills().length + ' чека)' }}
+                    class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
+              @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> }
+              {{ submitting() ? '...' : 'Закрыть и печать (' + splitBills().length + ' чека)' }}
             </button>
           </div>
         }
@@ -1082,7 +1096,7 @@ export class TablesPage implements OnInit, OnDestroy {
 
   // ── Helpers ───────────────────────────────────────────────────────
   firstName(name: string): string { return name?.split(' ')[0] ?? ''; }
-  guestLabel(guest: number): string { return guest === 0 ? '👥 Общий' : 'Гость ' + guest; }
+  guestLabel(guest: number): string { return guest === 0 ? 'Общий' : 'Гость ' + guest; }
   guestOptions(o: Order): number[] {
     const used = this.unpaidItems(o).reduce((m, i) => Math.max(m, i.guest_no), 0);
     const n = Math.max(o.guests ?? 0, used);
