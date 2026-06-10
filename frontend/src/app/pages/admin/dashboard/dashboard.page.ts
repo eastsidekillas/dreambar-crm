@@ -4,7 +4,7 @@ import { RouterModule } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { DashboardData, ShiftAnalytics, TopItem, Shift } from '../../../core/models';
 import { Chart, registerables, ChartConfiguration } from 'chart.js';
-import { LucideClock } from '@lucide/angular';
+import { LucideClock, LucideDownload } from '@lucide/angular';
 
 Chart.register(...registerables);
 
@@ -42,7 +42,30 @@ const donutCenter = {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, LucideClock],
+  imports: [CommonModule, RouterModule, LucideClock, LucideDownload],
+  styles: [`
+    .kpi-card {
+      display: block; text-decoration: none; color: inherit;
+      transition: transform .15s, box-shadow .15s, border-color .15s;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,.08);
+      border-color: var(--color-gold);
+    }
+    .kpi-hint {
+      display: flex; align-items: center; gap: 4px;
+      margin-top: 8px; font-size: 0.72rem; font-weight: 600;
+      color: var(--color-light); transition: color .15s;
+    }
+    .kpi-card:hover .kpi-hint { color: var(--color-gold-hover); }
+    .card-link {
+      font-size: 0.78rem; font-weight: 600; white-space: nowrap;
+      color: var(--color-gold-hover); text-decoration: none;
+      padding: 4px 8px; border-radius: 8px; transition: background .15s;
+    }
+    .card-link:hover { background: var(--color-gold-light); }
+  `],
   template: `
     <div class="space-y-5">
 
@@ -98,19 +121,30 @@ const donutCenter = {
         }
       }
 
-      <h1 class="text-xl font-bold">Аналитика</h1>
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <h1 class="text-xl font-bold">Аналитика</h1>
+        <div class="flex items-center gap-2">
+          <a routerLink="/admin/reports" class="btn btn-ghost btn-sm"
+             title="Детальные отчёты: категории, позиции, оплаты">Отчёты</a>
+          <a routerLink="/admin/export" class="btn btn-outline btn-sm flex items-center gap-1.5"
+             title="Скачать сводный отчёт или отчёт по смене в .xlsx">
+            <svg lucideDownload [size]="14"></svg> Экспорт в Excel
+          </a>
+        </div>
+      </div>
 
       @if (data()) {
-        <!-- KPI row -->
+        <!-- KPI row: каждая карточка ведёт на детальную страницу -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           @for (kpi of kpis(); track kpi.label) {
-            <div class="card">
+            <a class="card kpi-card" [routerLink]="kpi.link" [title]="kpi.hint">
               <p class="section-title mb-1">{{ kpi.label }}</p>
               <p class="text-2xl font-bold" style="color:var(--color-text)">{{ kpi.value }}</p>
               @if (kpi.sub) {
                 <p class="text-xs mt-0.5" style="color:var(--color-muted)">{{ kpi.sub }}</p>
               }
-            </div>
+              <p class="kpi-hint">{{ kpi.hint }} <span>→</span></p>
+            </a>
           }
         </div>
 
@@ -132,7 +166,11 @@ const donutCenter = {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Donut -->
           <div class="card">
-            <h3 class="font-semibold text-sm mb-1">Выручка по категориям</h3>
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="font-semibold text-sm mb-1">Выручка по категориям</h3>
+              <a routerLink="/admin/reports" class="card-link"
+                 title="Отчёт по продажам с разбивкой по категориям">Подробнее →</a>
+            </div>
             <p class="text-xs mb-3" style="color:var(--color-muted)">за последние 30 дней</p>
             @if (hasCategoryData()) {
               <div style="position:relative;height:260px">
@@ -148,7 +186,11 @@ const donutCenter = {
 
           <!-- Top items -->
           <div class="card">
-            <h3 class="font-semibold text-sm mb-1">Топ позиций</h3>
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="font-semibold text-sm mb-1">Топ позиций</h3>
+              <a routerLink="/admin/reports" class="card-link"
+                 title="Полный отчёт по всем позициям меню">Все позиции →</a>
+            </div>
             <p class="text-xs mb-3" style="color:var(--color-muted)">по выручке</p>
             @for (item of topItems().slice(0,8); track item.menu_item__id) {
               <div class="py-1.5" style="border-bottom:1px solid var(--color-border)">
@@ -173,7 +215,11 @@ const donutCenter = {
 
         <!-- Shifts bar chart -->
         <div class="card">
-          <h3 class="font-semibold text-sm mb-1">Выручка по сменам</h3>
+          <div class="flex items-start justify-between gap-2">
+            <h3 class="font-semibold text-sm mb-1">Выручка по сменам</h3>
+            <a routerLink="/admin/shifts/day" class="card-link"
+               title="Итоги по каждому дню с детализацией">Итоги дня →</a>
+          </div>
           <p class="text-xs mb-3" style="color:var(--color-muted)">последние {{ shiftAnalytics().length }} смен · с разбивкой по категориям</p>
           @if (shiftAnalytics().length) {
             <div style="position:relative;height:300px">
@@ -246,10 +292,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (!d) return [];
     const avg = d.shifts_count ? Math.round(d.total_revenue / d.shifts_count) : 0;
     return [
-      { label: 'Выручка за 30 дней', value: money(d.total_revenue), sub: undefined },
-      { label: 'Средняя за смену',   value: money(avg),             sub: undefined },
-      { label: 'Заказов принято',    value: d.total_orders,         sub: 'гостей: ' + d.total_guests },
-      { label: 'Смен проведено',     value: d.shifts_count,         sub: undefined },
+      { label: 'Выручка за 30 дней', value: money(d.total_revenue), sub: undefined,
+        link: '/admin/reports',         hint: 'Отчёт по продажам' },
+      { label: 'Средняя за смену',   value: money(avg),             sub: undefined,
+        link: '/admin/shifts/day',      hint: 'Итоги по дням' },
+      { label: 'Заказов принято',    value: d.total_orders,         sub: 'гостей: ' + d.total_guests,
+        link: '/admin/shifts/receipts', hint: 'Детали по чекам' },
+      { label: 'Смен проведено',     value: d.shifts_count,         sub: undefined,
+        link: '/admin/shifts/day',      hint: 'Итоги по дням' },
     ];
   }
 

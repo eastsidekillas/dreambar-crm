@@ -1,14 +1,32 @@
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ..models import Shift, OrderItem
 
+KITCHEN_ROLES = {'kitchen', 'bartender', 'admin'}
+
+
+class IsKitchenStaff(BasePermission):
+    message = 'Доступно только кухне, бару и администратору.'
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_staff or user.is_superuser:
+            return True
+        profile = getattr(user, 'profile', None)
+        if profile is None:
+            return False
+        roles = {profile.role, *(profile.allowed_roles or [])}
+        return bool(roles & KITCHEN_ROLES)
+
 
 class KitchenOrdersView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsKitchenStaff]
 
     READY_LIMIT = 15
 
@@ -41,8 +59,17 @@ class KitchenOrdersView(APIView):
 
         ready_today = kitchen_items.filter(kitchen_status='ready').count()
 
+        # Закрытые заказы, где всё готово, на экране не нужны —
+        # не тянем их позиции, чтобы выборка не росла к концу смены.
+        has_unready = OrderItem.objects.filter(
+            order_id=OuterRef('order_id'),
+        ).exclude(kitchen_status='ready')
+        display_items = kitchen_items.filter(
+            Q(order__status='open') | Exists(has_unready)
+        )
+
         tickets = {}
-        for it in kitchen_items.order_by('order__created_at'):
+        for it in display_items.order_by('order__created_at'):
             o = it.order
             if o.id not in tickets:
                 waiter  = o.waiter
@@ -91,7 +118,7 @@ class KitchenOrdersView(APIView):
 
 
 class KitchenItemStatusView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsKitchenStaff]
 
     def post(self, request, item_id):
         new_status = request.data.get('status')
@@ -107,7 +134,7 @@ class KitchenItemStatusView(APIView):
 
 
 class KitchenOrderReadyView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsKitchenStaff]
 
     def post(self, request, order_id):
         category_type = request.query_params.get('type')

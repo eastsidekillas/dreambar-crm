@@ -139,65 +139,73 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
-        order = self.get_object()
-        order.status = 'cancelled'
-        order.save(update_fields=['status', 'updated_at'])
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=pk)
+            if order.status != 'open':
+                return Response({'detail': 'Заказ уже закрыт или отменён.'}, status=status.HTTP_400_BAD_REQUEST)
+            if order.receipts.exists():
+                return Response({'detail': 'По заказу уже выбиты чеки — отмена невозможна.'}, status=status.HTTP_400_BAD_REQUEST)
+            order.status = 'cancelled'
+            order.save(update_fields=['status', 'updated_at'])
         return Response(OrderSerializer(order).data)
 
     @action(detail=True, methods=['post'])
     def add_item(self, request, pk=None):
-        order = self.get_object()
-        if order.status != 'open':
-            return Response({'detail': 'Нельзя добавить в закрытый заказ.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = OrderItemCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(order=order)
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=pk)
+            if order.status != 'open':
+                return Response({'detail': 'Нельзя добавить в закрытый заказ.'}, status=status.HTTP_400_BAD_REQUEST)
+            serializer.save(order=order)
         return Response(OrderSerializer(order).data)
 
     @action(detail=True, methods=['delete'], url_path='remove_item/(?P<item_id>[^/.]+)')
     def remove_item(self, request, pk=None, item_id=None):
-        order = self.get_object()
-        if order.status != 'open':
-            return Response({'detail': 'Нельзя изменить закрытый заказ.'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            item = order.items.get(pk=item_id)
-        except OrderItem.DoesNotExist:
-            return Response({'detail': 'Позиция не найдена.'}, status=status.HTTP_404_NOT_FOUND)
-        if item.receipt_id is not None:
-            return Response({'detail': 'Позиция уже оплачена — удаление невозможно.'}, status=status.HTTP_400_BAD_REQUEST)
-        DeletedOrderItem.objects.create(
-            order=order,
-            shift=order.shift,
-            deleted_by=request.user,
-            table_number=order.table_number,
-            menu_item_name=item.menu_item.name,
-            menu_item_volume=item.menu_item.volume,
-            quantity=item.quantity,
-            unit_price=item.unit_price,
-            kitchen_status=item.kitchen_status,
-        )
-        item.delete()
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=pk)
+            if order.status != 'open':
+                return Response({'detail': 'Нельзя изменить закрытый заказ.'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                item = order.items.get(pk=item_id)
+            except OrderItem.DoesNotExist:
+                return Response({'detail': 'Позиция не найдена.'}, status=status.HTTP_404_NOT_FOUND)
+            if item.receipt_id is not None:
+                return Response({'detail': 'Позиция уже оплачена — удаление невозможно.'}, status=status.HTTP_400_BAD_REQUEST)
+            DeletedOrderItem.objects.create(
+                order=order,
+                shift=order.shift,
+                deleted_by=request.user,
+                table_number=order.table_number,
+                menu_item_name=item.menu_item.name,
+                menu_item_volume=item.menu_item.volume,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                kitchen_status=item.kitchen_status,
+            )
+            item.delete()
         return Response(OrderSerializer(order).data)
 
     @action(detail=True, methods=['post'], url_path='item/(?P<item_id>[^/.]+)/guest')
     def set_item_guest(self, request, pk=None, item_id=None):
-        order = self.get_object()
-        if order.status != 'open':
-            return Response({'detail': 'Нельзя изменить закрытый заказ.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             guest_no = int(request.data.get('guest_no'))
         except (TypeError, ValueError):
             return Response({'detail': 'Некорректный номер гостя.'}, status=status.HTTP_400_BAD_REQUEST)
         if guest_no < 0:
             return Response({'detail': 'Некорректный номер гостя.'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            item = order.items.get(pk=item_id)
-        except OrderItem.DoesNotExist:
-            return Response({'detail': 'Позиция не найдена.'}, status=status.HTTP_404_NOT_FOUND)
-        if item.receipt_id is not None:
-            return Response({'detail': 'Позиция уже оплачена.'}, status=status.HTTP_400_BAD_REQUEST)
-        item.guest_no = guest_no
-        item.save(update_fields=['guest_no'])
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=pk)
+            if order.status != 'open':
+                return Response({'detail': 'Нельзя изменить закрытый заказ.'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                item = order.items.get(pk=item_id)
+            except OrderItem.DoesNotExist:
+                return Response({'detail': 'Позиция не найдена.'}, status=status.HTTP_404_NOT_FOUND)
+            if item.receipt_id is not None:
+                return Response({'detail': 'Позиция уже оплачена.'}, status=status.HTTP_400_BAD_REQUEST)
+            item.guest_no = guest_no
+            item.save(update_fields=['guest_no'])
         return Response(OrderSerializer(order).data)
 
     @action(detail=False, methods=['get'])
@@ -210,14 +218,15 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def move_table(self, request, pk=None):
-        order = self.get_object()
-        if order.status != 'open':
-            return Response({'detail': 'Заказ не открыт'}, status=status.HTTP_400_BAD_REQUEST)
         table_number = str(request.data.get('table_number', '')).strip()
         if not table_number:
             return Response({'detail': 'Укажите номер стола'}, status=status.HTTP_400_BAD_REQUEST)
-        order.table_number = table_number
-        order.save(update_fields=['table_number', 'updated_at'])
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=pk)
+            if order.status != 'open':
+                return Response({'detail': 'Заказ не открыт'}, status=status.HTTP_400_BAD_REQUEST)
+            order.table_number = table_number
+            order.save(update_fields=['table_number', 'updated_at'])
         return Response(OrderSerializer(order).data)
 
 
