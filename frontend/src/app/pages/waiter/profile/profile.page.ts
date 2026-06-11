@@ -51,7 +51,7 @@ import { ROLE_LABEL } from '../../../shared/lib/roles';
       <div class="card">
         <h3 class="font-semibold text-sm mb-3">Моя смена</h3>
         @if (shift()) {
-          <div class="grid grid-cols-3 gap-2">
+          <div class="grid grid-cols-2 gap-2">
             <div class="stat-tile">
               <p class="text-xl font-bold">{{ openTables() }}</p>
               <p class="text-xs mt-0.5" style="color:var(--color-muted)">открытых столов</p>
@@ -59,11 +59,6 @@ import { ROLE_LABEL } from '../../../shared/lib/roles';
             <div class="stat-tile">
               <p class="text-xl font-bold">{{ receiptsCount() }}</p>
               <p class="text-xs mt-0.5" style="color:var(--color-muted)">чеков пробито</p>
-            </div>
-            <div class="stat-tile">
-              <p class="text-xl font-bold" style="color:var(--color-gold-hover)">
-                {{ revenue() | number:'1.0-0' }} ₽</p>
-              <p class="text-xs mt-0.5" style="color:var(--color-muted)">моя выручка</p>
             </div>
           </div>
         } @else {
@@ -115,7 +110,6 @@ export class WaiterProfilePage implements OnInit {
   shift         = signal<Shift | null>(null);
   openTables    = signal(0);
   receiptsCount = signal(0);
-  revenue       = signal(0);
   saving        = signal(false);
   hasPin        = signal(false);
 
@@ -148,7 +142,6 @@ export class WaiterProfilePage implements OnInit {
         const mine = receipts.filter(r => r.waiter === me);
         this.openTables.set(orders.filter(o => o.status === 'open').length);
         this.receiptsCount.set(mine.length);
-        this.revenue.set(mine.reduce((sum, r) => sum + Number(r.total || 0), 0));
       });
     });
   }

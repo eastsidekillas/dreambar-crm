@@ -6,7 +6,7 @@ import { KitchenTicket, KitchenItem, KitchenStatus } from '../../core/models';
 import {
   LucideChefHat, LucideBell, LucideBellOff,
   LucideGlassWater, LucideArmchair, LucideClock,
-  LucideCheck, LucideCheckCheck, LucideCircleCheck,
+  LucideCheck, LucideCheckCheck, LucideCircleCheck, LucideMessageSquare,
 } from '@lucide/angular';
 
 const REFRESH_MS = 8000;
@@ -14,7 +14,7 @@ const REFRESH_MS = 8000;
 @Component({
   selector: 'app-kitchen',
   standalone: true,
-  imports: [CommonModule, LucideChefHat, LucideBell, LucideBellOff, LucideGlassWater, LucideArmchair, LucideClock, LucideCheck, LucideCheckCheck, LucideCircleCheck],
+  imports: [CommonModule, LucideChefHat, LucideBell, LucideBellOff, LucideGlassWater, LucideArmchair, LucideClock, LucideCheck, LucideCheckCheck, LucideCircleCheck, LucideMessageSquare],
   template: `
     <div class="min-h-screen flex flex-col" style="background:#1C1917;color:#F5F3EE">
 
@@ -99,6 +99,14 @@ const REFRESH_MS = 8000;
                 </div>
 
                 <div class="px-3 pt-2 text-xs" style="color:#A8A29E">Принял: {{ t.waiter_name }}</div>
+
+                @if (t.notes) {
+                  <div class="mx-3 mt-2 px-2.5 py-2 rounded-lg flex items-start gap-2 text-sm font-semibold"
+                       style="background:#422006;color:#FBBF24">
+                    <svg lucideMessageSquare [size]="14" class="flex-shrink-0 mt-0.5"></svg>
+                    <span style="white-space:pre-wrap">{{ t.notes }}</span>
+                  </div>
+                }
 
                 <div class="p-3 flex-1 space-y-2">
                   @for (it of t.items; track it.id) {

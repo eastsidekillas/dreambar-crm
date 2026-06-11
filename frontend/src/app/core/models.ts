@@ -33,6 +33,7 @@ export interface KitchenTicket {
   table_number: string;
   waiter_name: string;
   source: 'bar' | 'table';
+  notes: string;
   created_at: string;
   elapsed_min: number;
   items: KitchenItem[];

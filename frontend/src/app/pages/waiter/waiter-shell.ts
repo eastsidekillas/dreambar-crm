@@ -40,9 +40,6 @@ interface Tab { path: string; label: string; icon: LucideIconInput; }
               <span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background:var(--color-green)"></span>
               {{ formatDate(shift()!.date) }}
             </span>
-            <span class="text-xs font-bold" style="color:var(--color-gold-hover)">
-              {{ shift()!.total_revenue | number:'1.0-0' }} ₽
-            </span>
           } @else {
             <button (click)="openShift()" class="btn btn-primary btn-sm">Открыть смену</button>
           }
