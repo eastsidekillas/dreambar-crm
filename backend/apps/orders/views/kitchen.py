@@ -83,6 +83,7 @@ class KitchenOrdersView(APIView):
                     'waiter_name': (profile.get_display() if profile else
                                     (waiter.get_full_name() or waiter.username) if waiter else '—'),
                     'source': source,
+                    'notes': o.notes or '',
                     'created_at': o.created_at,
                     'elapsed_min': elapsed,
                     'items': [],

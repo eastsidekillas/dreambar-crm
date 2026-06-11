@@ -5,6 +5,7 @@ import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { KitchenTicket, KitchenItem, KitchenStatus } from '../../../core/models';
 import {
   LucideCheck, LucideCheckCheck, LucideX, LucideCircleCheck, LucideClock, LucidePlay,
+  LucideMessageSquare,
 } from '@lucide/angular';
 import { tableChips } from './bar-ui';
 
@@ -12,7 +13,7 @@ import { tableChips } from './bar-ui';
 @Component({
   selector: 'bar-orders-tab',
   standalone: true,
-  imports: [CommonModule, LucideCheck, LucideCheckCheck, LucideX, LucideCircleCheck, LucideClock, LucidePlay],
+  imports: [CommonModule, LucideCheck, LucideCheckCheck, LucideX, LucideCircleCheck, LucideClock, LucidePlay, LucideMessageSquare],
   host: { style: 'display: contents' },
   template: `
     @if (noShift) {
@@ -57,6 +58,15 @@ import { tableChips } from './bar-ui';
                 <svg lucideClock [size]="12" class="inline-block mr-0.5"></svg> {{ t.elapsed_min }} мин
               </span>
             </div>
+
+            <!-- Комментарий официанта -->
+            @if (t.notes) {
+              <div class="px-3 py-2 flex items-start gap-2 text-sm font-semibold"
+                   style="background:#422006;color:#fbbf24;border-bottom:1px solid #334155">
+                <svg lucideMessageSquare [size]="14" class="flex-shrink-0 mt-0.5"></svg>
+                <span style="white-space:pre-wrap">{{ t.notes }}</span>
+              </div>
+            }
 
             <!-- Drinks -->
             <div class="p-3 flex-1 space-y-2">
