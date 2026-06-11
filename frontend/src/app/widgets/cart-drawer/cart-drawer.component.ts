@@ -2,13 +2,14 @@ import { Component, Input, Output, EventEmitter, signal, inject } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CartService } from '../../features/cart/cart.service';
+import { LucidePlus, LucideShoppingCart, LucideX, LucideTrash2, LucideCircleCheck } from '@lucide/angular';
 
 export interface CartSubmit { table: string; guests: number; }
 
 @Component({
   selector: 'cart-drawer',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucidePlus, LucideShoppingCart, LucideX, LucideTrash2, LucideCircleCheck],
   template: `
     @if (open) {
       <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.4)"
@@ -27,14 +28,14 @@ export interface CartSubmit { table: string; guests: number; }
              style="border-bottom:1px solid var(--color-border)">
           <div>
             @if (cart.target(); as t) {
-              <h2 class="font-bold text-base">➕ Дозаказ · {{ t.table_number || 'Стол' }}</h2>
+              <h2 class="font-bold text-base flex items-center gap-1"><svg lucidePlus [size]="16"></svg> Дозаказ · {{ t.table_number || 'Стол' }}</h2>
               <p class="text-xs mt-0.5" style="color:var(--color-muted)">Добавится к открытому счёту · {{ cart.count() }} поз.</p>
             } @else {
-              <h2 class="font-bold text-base">🛒 Новый стол</h2>
+              <h2 class="font-bold text-base flex items-center gap-1"><svg lucideShoppingCart [size]="16"></svg> Новый стол</h2>
               <p class="text-xs mt-0.5" style="color:var(--color-muted)">{{ cart.count() }} позиций</p>
             }
           </div>
-          <button (click)="close.emit()" class="btn btn-ghost btn-sm">✕ Закрыть</button>
+          <button (click)="close.emit()" class="btn btn-ghost btn-sm flex items-center gap-1"><svg lucideX [size]="14"></svg> Закрыть</button>
         </div>
 
         <!-- Items list -->
@@ -105,12 +106,18 @@ export interface CartSubmit { table: string; guests: number; }
           </div>
 
           <div class="flex gap-2">
-            <button (click)="onClear()" class="btn btn-ghost" style="flex:1">
-              🗑 Очистить
+            <button (click)="onClear()" class="btn btn-ghost flex items-center gap-1" style="flex:1">
+              <svg lucideTrash2 [size]="14"></svg> Очистить
             </button>
             <button (click)="onSubmit()" [disabled]="submitting()"
-                    class="btn btn-primary" style="flex:2;height:48px;font-size:0.95rem">
-              {{ submitting() ? '⏳ Отправка...' : (cart.target() ? '➕ Добавить к столу' : '✅ Открыть стол') }}
+                    class="btn btn-primary flex items-center justify-center gap-1" style="flex:2;height:48px;font-size:0.95rem">
+              @if (submitting()) {
+                Отправка...
+              } @else if (cart.target()) {
+                <svg lucidePlus [size]="16"></svg> Добавить к столу
+              } @else {
+                <svg lucideCircleCheck [size]="16"></svg> Открыть стол
+              }
             </button>
           </div>
         </div>

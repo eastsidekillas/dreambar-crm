@@ -3,14 +3,15 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { Shift } from '../../../core/models';
+import { LucideDownload } from '@lucide/angular';
 
 @Component({
   selector: 'app-export',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideDownload],
   template: `
     <div class="space-y-5 max-w-xl">
-      <h1 class="text-xl font-bold">📥 Экспорт в Excel</h1>
+      <h1 class="text-xl font-bold flex items-center gap-2"><svg lucideDownload [size]="20"></svg> Экспорт в Excel</h1>
 
       <div class="card">
         <h3 class="font-semibold mb-1">Полный отчёт за период</h3>
@@ -29,8 +30,9 @@ import { Shift } from '../../../core/models';
             <input type="date" [(ngModel)]="dateTo" class="field" style="color-scheme:light"/>
           </div>
         </div>
-        <button (click)="downloadReport()" [disabled]="downloading()" class="btn btn-primary btn-full btn-lg">
-          {{ downloading() ? '⏳ Формирование файла...' : '📥 Скачать сводный отчёт' }}
+        <button (click)="downloadReport()" [disabled]="downloading()" class="btn btn-primary btn-full btn-lg flex items-center justify-center gap-1">
+          @if (!downloading()) { <svg lucideDownload [size]="16"></svg> }
+          {{ downloading() ? 'Формирование файла...' : 'Скачать сводный отчёт' }}
         </button>
       </div>
 
@@ -47,7 +49,7 @@ import { Shift } from '../../../core/models';
                 <span class="text-sm font-bold" style="color:var(--color-gold-hover)">
                   {{ shift.total_revenue | number:'1.0-0' }} ₽
                 </span>
-                <button (click)="downloadShift(shift)" class="btn btn-outline btn-sm">📥 Excel</button>
+                <button (click)="downloadShift(shift)" class="btn btn-outline btn-sm flex items-center gap-1"><svg lucideDownload [size]="12"></svg> Excel</button>
               </div>
             </div>
           }
@@ -59,8 +61,7 @@ import { Shift } from '../../../core/models';
 
       @if (msg()) {
         <div class="p-3 rounded-xl text-sm font-medium text-center"
-             [class]="msg().startsWith('✅') ? 'badge-green' : 'badge-red'"
-             style="padding:12px">{{ msg() }}</div>
+             style="padding:12px;background:var(--color-surface2)">{{ msg() }}</div>
       }
     </div>
   `
@@ -72,12 +73,12 @@ export class ExportComponent implements OnInit {
   downloadReport() {
     this.downloading.set(true);
     this.api.downloadExport(this.api.exportReport(this.dateFrom || undefined, this.dateTo || undefined)).subscribe({
-      next: blob => { this.downloading.set(false); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'bardream_report_' + new Date().toISOString().slice(0,10) + '.xlsx'; a.click(); this.show('✅ Отчёт скачан'); },
-      error: () => { this.downloading.set(false); this.show('❌ Ошибка при формировании'); }
+      next: blob => { this.downloading.set(false); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'bardream_report_' + new Date().toISOString().slice(0,10) + '.xlsx'; a.click(); this.show('Отчёт скачан'); },
+      error: () => { this.downloading.set(false); this.show('Ошибка при формировании'); }
     });
   }
   downloadShift(shift: Shift) {
-    this.api.downloadExport(this.api.exportShift(shift.id)).subscribe({ next: blob => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'bardream_shift_' + shift.date + '.xlsx'; a.click(); this.show('✅ Файл скачан'); }, error: () => this.show('❌ Ошибка') });
+    this.api.downloadExport(this.api.exportShift(shift.id)).subscribe({ next: blob => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'bardream_shift_' + shift.date + '.xlsx'; a.click(); this.show('Файл скачан'); }, error: () => this.show('Ошибка') });
   }
   formatDate(d: string) { return new Date(d).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' }); }
   private show(m: string) { this.msg.set(m); setTimeout(() => this.msg.set(''), 3000); }

@@ -1,38 +1,114 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
-import { MenuItem, MenuCategory, MenuSection } from '../../../core/models';
+import { ToastService } from '../../../shared/ui/toast/toast.service';
+import { Menu, MenuItem, MenuCategory, MenuSection } from '../../../core/models';
+import {
+  LucideDynamicIcon,
+  LucideGlassWater, LucideUtensilsCrossed, LucideWind, LucideClipboardList,
+  LucideSearch, LucideX, LucidePencil, LucideTrash2, LucideEye,
+  LucideCheck,
+} from '@lucide/angular';
 
-const STATIONS: { value: string; label: string; icon: string }[] = [
-  { value: 'bar',     label: 'Бар',    icon: '🍹' },
-  { value: 'kitchen', label: 'Кухня',  icon: '🍽' },
-  { value: 'hookah',  label: 'Кальян', icon: '💨' },
+const STATIONS: { value: string; label: string; icon: LucideIconInput }[] = [
+  { value: 'bar',     label: 'Бар',    icon: LucideGlassWater },
+  { value: 'kitchen', label: 'Кухня',  icon: LucideUtensilsCrossed },
+  { value: 'hookah',  label: 'Кальян', icon: LucideWind },
 ];
 
-const stationIcon = (t: string) => STATIONS.find(s => s.value === t)?.icon ?? '📋';
+const stationIcon  = (t: string): LucideIconInput => STATIONS.find(s => s.value === t)?.icon ?? LucideClipboardList;
 const stationLabel = (t: string) => STATIONS.find(s => s.value === t)?.label ?? t;
 
-interface SectionNode extends MenuSection {
-  categories: CategoryNode[];
-}
-interface CategoryNode extends MenuCategory {
-  items: MenuItem[];
-}
+interface SectionNode extends MenuSection { categories: CategoryNode[]; }
+interface CategoryNode extends MenuCategory { items: MenuItem[]; }
 
 @Component({
   selector: 'app-menu',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideDynamicIcon,
+    LucideUtensilsCrossed,
+    LucideSearch, LucideX, LucidePencil, LucideTrash2, LucideEye, LucideCheck],
   template: `
 <div class="space-y-3">
 
-  <!-- ── Header ──────────────────────────────────────────────────── -->
+  <!-- ── Menu tabs ──────────────────────────────────────────────────── -->
+  <div class="flex items-center gap-2 flex-wrap">
+    @for (menu of menus(); track menu.id) {
+      <button (click)="selectMenu(menu.id)"
+              class="btn btn-sm flex items-center gap-1.5"
+              [style]="selectedMenuId() === menu.id
+                ? 'background:var(--color-gold-light);color:var(--color-gold-hover);border:1.5px solid var(--color-gold)'
+                : 'background:var(--color-bg);color:var(--color-muted);border:1px solid var(--color-border)'">
+        {{ menu.name }}
+        @if (menu.is_active) {
+          <span title="Активное — используется в заказах"
+                style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0"></span>
+        }
+        <span style="opacity:0.6;font-size:10px">{{ menu.items_count }}</span>
+      </button>
+    }
+    <button (click)="creatingMenu.set(!creatingMenu())"
+            class="btn btn-sm btn-ghost"
+            style="font-size:12px">
+      + Меню
+    </button>
+  </div>
+
+  <!-- ── Create menu form ───────────────────────────────────────────── -->
+  @if (creatingMenu()) {
+    <div class="card" style="border-color:var(--color-gold);padding:12px">
+      <p class="font-semibold text-sm mb-2">Новое меню</p>
+      <div class="flex gap-2 items-center">
+        <input [(ngModel)]="newMenuName"
+               class="field" style="height:32px;flex:1;max-width:280px"
+               placeholder="Название меню..." />
+        <button (click)="createMenu()" class="btn btn-primary btn-sm">Создать</button>
+        <button (click)="creatingMenu.set(false)" class="btn btn-ghost btn-sm">Отмена</button>
+      </div>
+    </div>
+  }
+
+  <!-- ── Selected menu actions ──────────────────────────────────────── -->
+  @if (selectedMenu()) {
+    <div class="flex items-center gap-3 flex-wrap" style="padding:6px 0;border-bottom:1px solid var(--color-border)">
+      @if (selectedMenu()!.is_active) {
+        <span class="text-xs font-medium" style="color:#16a34a">● Активное меню — используется официантами</span>
+      } @else {
+        <button (click)="activateSelectedMenu()"
+                class="btn btn-sm"
+                style="background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0;font-size:11px">
+          Активировать для официантов
+        </button>
+      }
+      <button (click)="startRename()" class="btn btn-ghost btn-sm" style="font-size:11px">Переименовать</button>
+      <button (click)="duplicateSelectedMenu()" class="btn btn-ghost btn-sm" style="font-size:11px">Дублировать</button>
+      @if (!selectedMenu()!.is_active && selectedMenu()!.sections_count === 0) {
+        <button (click)="deleteSelectedMenu()"
+                class="btn btn-sm ml-auto"
+                style="background:#fee2e2;color:#dc2626;font-size:11px">
+          Удалить меню
+        </button>
+      }
+    </div>
+  }
+
+  <!-- ── Rename form ────────────────────────────────────────────────── -->
+  @if (renamingMenu()) {
+    <div class="flex items-center gap-2">
+      <input [(ngModel)]="renameValue" class="field" style="height:30px;flex:1;max-width:280px"/>
+      <button (click)="saveRename()" class="btn btn-primary btn-sm">Сохранить</button>
+      <button (click)="renamingMenu.set(false)" class="btn btn-ghost btn-sm">Отмена</button>
+    </div>
+  }
+
+  <!-- ── Header ──────────────────────────────────────────────────────── -->
   <div class="flex items-start justify-between gap-3 flex-wrap">
     <div>
       <h1 class="text-xl font-bold">Меню</h1>
       <p class="text-xs mt-0.5" style="color:var(--color-muted)">
-        {{ sections().length }} разд. · {{ categories().length }} кат. · {{ items().length }} позиций
+        {{ menuSections().length }} разд. · {{ menuCategories().length }} кат. · {{ menuItems().length }} позиций
         @if (hiddenCount() > 0) {
           · <span style="color:var(--color-muted)">{{ hiddenCount() }} скрыто</span>
         }
@@ -41,7 +117,7 @@ interface CategoryNode extends MenuCategory {
     <div class="flex items-center gap-2 flex-wrap">
       <!-- Search -->
       <div class="relative">
-        <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs" style="color:var(--color-muted)">🔍</span>
+        <svg lucideSearch [size]="14" class="absolute left-2.5 top-1/2 -translate-y-1/2" style="color:var(--color-muted)"></svg>
         <input [(ngModel)]="searchRaw"
                (ngModelChange)="onSearch($event)"
                class="field pl-7 pr-3"
@@ -50,7 +126,7 @@ interface CategoryNode extends MenuCategory {
         @if (searchRaw) {
           <button (click)="clearSearch()"
                   class="absolute right-2 top-1/2 -translate-y-1/2 text-xs"
-                  style="color:var(--color-muted);background:none;border:none;cursor:pointer">✕</button>
+                  style="color:var(--color-muted);background:none;border:none;cursor:pointer"><svg lucideX [size]="12"></svg></button>
         }
       </div>
       <!-- Show hidden toggle -->
@@ -59,7 +135,7 @@ interface CategoryNode extends MenuCategory {
               [style]="showHidden()
                 ? 'background:var(--color-gold-light);color:var(--color-gold-hover);border:1px solid var(--color-gold-mid)'
                 : 'background:var(--color-bg);color:var(--color-muted);border:1px solid var(--color-border)'">
-        {{ showHidden() ? '👁 Все' : '👁 Скрытые' }}
+        <svg lucideEye [size]="14" class="mr-1 inline-block"></svg>{{ showHidden() ? 'Все' : 'Скрытые' }}
       </button>
       <!-- Add section -->
       <button (click)="toggleAddSection()" class="btn btn-primary btn-sm">
@@ -81,7 +157,7 @@ interface CategoryNode extends MenuCategory {
           <label class="section-title block mb-1">Станция (принтер)</label>
           <select [(ngModel)]="newSection.station_type" class="field">
             @for (s of stations; track s.value) {
-              <option [value]="s.value">{{ s.icon }} {{ s.label }}</option>
+              <option [value]="s.value">{{ s.label }}</option>
             }
           </select>
         </div>
@@ -97,10 +173,17 @@ interface CategoryNode extends MenuCategory {
     </div>
   }
 
-  <!-- ── Tree ─────────────────────────────────────────────────────── -->
-  @if (tree().length === 0 && !loading()) {
+  <!-- ── Empty state ─────────────────────────────────────────────────── -->
+  @if (!selectedMenuId()) {
     <div class="card text-center py-12" style="color:var(--color-muted)">
-      <span class="text-4xl block mb-3">🍽</span>
+      <svg lucideUtensilsCrossed [size]="48" class="mb-3 mx-auto" style="color:var(--color-muted)"></svg>
+      <p>Создайте первое меню с помощью кнопки «+ Меню».</p>
+    </div>
+  }
+
+  @if (selectedMenuId() && tree().length === 0 && !loading()) {
+    <div class="card text-center py-12" style="color:var(--color-muted)">
+      <svg lucideUtensilsCrossed [size]="48" class="mb-3 mx-auto" style="color:var(--color-muted)"></svg>
       <p>Разделы меню не созданы. Начните с кнопки «+ Раздел».</p>
     </div>
   }
@@ -111,6 +194,7 @@ interface CategoryNode extends MenuCategory {
     </div>
   }
 
+  <!-- ── Tree ─────────────────────────────────────────────────────── -->
   @for (sec of tree(); track sec.id) {
     @if (!searchRaw || sec.categories.length > 0) {
       <div class="rounded-xl overflow-hidden"
@@ -128,7 +212,7 @@ interface CategoryNode extends MenuCategory {
                 <label class="section-title block mb-1 text-xs">Станция</label>
                 <select [(ngModel)]="editSectionForm.station_type" class="field" style="height:30px">
                   @for (s of stations; track s.value) {
-                    <option [value]="s.value">{{ s.icon }} {{ s.label }}</option>
+                    <option [value]="s.value">{{ s.label }}</option>
                   }
                 </select>
               </div>
@@ -144,12 +228,12 @@ interface CategoryNode extends MenuCategory {
               </div>
             </div>
             <div class="flex gap-2 items-center">
-              <button (click)="saveSectionEdit(sec)" class="btn btn-primary btn-sm">✓ Сохранить</button>
+              <button (click)="saveSectionEdit(sec)" class="btn btn-primary btn-sm flex items-center gap-1"><svg lucideCheck [size]="12"></svg> Сохранить</button>
               <button (click)="editSectionId.set(null)" class="btn btn-ghost btn-sm">Отмена</button>
               <button (click)="deleteSection(sec)"
-                      class="btn btn-sm ml-auto"
+                      class="btn btn-sm ml-auto flex items-center gap-1"
                       style="background:#fee2e2;color:#dc2626;font-size:11px">
-                🗑 Удалить раздел
+                <svg lucideTrash2 [size]="12"></svg> Удалить раздел
               </button>
             </div>
           </div>
@@ -158,7 +242,11 @@ interface CategoryNode extends MenuCategory {
           <div class="flex items-center gap-2 px-4 py-3 cursor-pointer select-none"
                style="background:#fafaf9"
                (click)="toggleSection(sec.id)">
-            <span class="text-lg">{{ sec.icon || stationIcon(sec.station_type) }}</span>
+            @if (sec.icon) {
+              <span class="text-lg">{{ sec.icon }}</span>
+            } @else {
+              <svg  [lucideIcon]="stationLucideIcon(sec.station_type)" [size]="18"></svg>
+            }
             <span class="font-bold text-sm tracking-wide uppercase"
                   [style.color]="sec.is_active ? 'var(--color-text)' : 'var(--color-muted)'">
               {{ sec.name }}
@@ -179,7 +267,7 @@ interface CategoryNode extends MenuCategory {
                 + Категорию
               </button>
               <button (click)="startEditSection(sec)"
-                      class="btn btn-ghost btn-sm" style="font-size:11px">✏</button>
+                      class="btn btn-ghost btn-sm"><svg lucidePencil [size]="12"></svg></button>
               <span class="text-sm ml-1 transition-transform"
                     [style.transform]="isSectionOpen(sec.id) ? 'rotate(90deg)' : ''"
                     style="color:var(--color-muted)">›</span>
@@ -220,11 +308,11 @@ interface CategoryNode extends MenuCategory {
                       <input type="checkbox" [(ngModel)]="editCategoryForm.is_active" class="w-3.5 h-3.5"/>
                       Активна
                     </label>
-                    <button (click)="saveCategoryEdit(cat)" class="btn btn-primary btn-sm">✓</button>
-                    <button (click)="editCategoryId.set(null)" class="btn btn-ghost btn-sm">✕</button>
+                    <button (click)="saveCategoryEdit(cat)" class="btn btn-primary btn-sm"><svg lucideCheck [size]="12"></svg></button>
+                    <button (click)="editCategoryId.set(null)" class="btn btn-ghost btn-sm"><svg lucideX [size]="12"></svg></button>
                     <button (click)="deleteCategory(cat)"
                             class="btn btn-sm"
-                            style="background:#fee2e2;color:#dc2626;font-size:11px">🗑</button>
+                            style="background:#fee2e2;color:#dc2626;font-size:11px"><svg lucideTrash2 [size]="12"></svg></button>
                   </div>
 
                 } @else {
@@ -243,7 +331,7 @@ interface CategoryNode extends MenuCategory {
                       <button (click)="startAddItem(cat.id)"
                               class="btn btn-ghost btn-sm" style="font-size:11px">+ Позицию</button>
                       <button (click)="startEditCategory(cat)"
-                              class="btn btn-ghost btn-sm" style="font-size:11px">✏</button>
+                              class="btn btn-ghost btn-sm"><svg lucidePencil [size]="12"></svg></button>
                       <span class="text-xs ml-1 transition-transform"
                             [style.transform]="isCategoryOpen(cat.id) ? 'rotate(90deg)' : ''"
                             style="color:var(--color-muted)">›</span>
@@ -282,14 +370,14 @@ interface CategoryNode extends MenuCategory {
                           <div>
                             <label class="section-title block mb-0.5 text-xs">Категория</label>
                             <select [(ngModel)]="editItemForm.category" class="field" style="height:30px">
-                              @for (c of categories(); track c.id) {
+                              @for (c of menuCategories(); track c.id) {
                                 <option [value]="c.id">{{ c.name }}</option>
                               }
                             </select>
                           </div>
                         </div>
                         <div class="flex items-center gap-3 flex-wrap">
-                          <button (click)="saveItemEdit(item)" class="btn btn-primary btn-sm">✓ Сохранить</button>
+                          <button (click)="saveItemEdit(item)" class="btn btn-primary btn-sm flex items-center gap-1"><svg lucideCheck [size]="12"></svg> Сохранить</button>
                           <button (click)="editItemId.set(null)" class="btn btn-ghost btn-sm">Отмена</button>
                           <label class="flex items-center gap-1.5 text-xs cursor-pointer">
                             <input type="checkbox" [(ngModel)]="editItemForm.is_active" class="w-3.5 h-3.5"/>
@@ -301,8 +389,8 @@ interface CategoryNode extends MenuCategory {
                             Нет в наличии
                           </label>
                           <button (click)="deleteItem(item)"
-                                  class="btn btn-sm ml-auto"
-                                  style="background:#fee2e2;color:#dc2626;font-size:11px">🗑 Удалить</button>
+                                  class="btn btn-sm ml-auto flex items-center gap-1"
+                                  style="background:#fee2e2;color:#dc2626;font-size:11px"><svg lucideTrash2 [size]="12"></svg> Удалить</button>
                         </div>
                       </div>
 
@@ -348,7 +436,7 @@ interface CategoryNode extends MenuCategory {
                         <!-- Actions (visible on hover) -->
                         <div class="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button (click)="startEditItem(item)"
-                                  class="btn btn-ghost btn-sm" style="font-size:11px">✏</button>
+                                  class="btn btn-ghost btn-sm"><svg lucidePencil [size]="12"></svg></button>
                           <button (click)="quickToggle(item)"
                                   class="btn btn-sm"
                                   [style]="item.is_active
@@ -425,10 +513,29 @@ interface CategoryNode extends MenuCategory {
   `,
 })
 export class MenuManagementComponent implements OnInit {
+  // ── Raw data (all menus) ──────────────────────────────────────────
+  menus      = signal<Menu[]>([]);
   sections   = signal<MenuSection[]>([]);
   categories = signal<MenuCategory[]>([]);
   items      = signal<MenuItem[]>([]);
   loading    = signal(true);
+
+  // ── Menu selection ────────────────────────────────────────────────
+  selectedMenuId = signal<number | null>(null);
+  selectedMenu   = computed(() => this.menus().find(m => m.id === this.selectedMenuId()) ?? null);
+
+  // ── Filtered data for current menu ───────────────────────────────
+  menuSections = computed(() =>
+    this.sections().filter(s => s.menu === this.selectedMenuId())
+  );
+  menuCategories = computed(() => {
+    const sids = new Set(this.menuSections().map(s => s.id));
+    return this.categories().filter(c => sids.has(c.section));
+  });
+  menuItems = computed(() => {
+    const cids = new Set(this.menuCategories().map(c => c.id));
+    return this.items().filter(i => cids.has(i.category));
+  });
 
   showHidden = signal(false);
   searchRaw  = '';
@@ -437,6 +544,10 @@ export class MenuManagementComponent implements OnInit {
   stations = STATIONS;
   stationIcon  = stationIcon;
   stationLabel = stationLabel;
+
+  stationLucideIcon(type: string): LucideIconInput {
+    return stationIcon(type);
+  }
 
   // ── Expand state ─────────────────────────────────────────────────
   expandedSections   = signal<Set<number>>(new Set());
@@ -458,18 +569,16 @@ export class MenuManagementComponent implements OnInit {
 
   // ── Tree ──────────────────────────────────────────────────────────
   tree = computed<SectionNode[]>(() => {
-    const term = this.search().toLowerCase();
+    const term    = this.search().toLowerCase();
     const showAll = this.showHidden();
-    const allCats = this.categories();
-    const allItems = this.items();
 
-    return this.sections()
+    return this.menuSections()
       .filter(s => showAll || s.is_active)
       .map(sec => {
-        const cats = allCats
+        const cats = this.menuCategories()
           .filter(c => c.section === sec.id && (showAll || c.is_active))
           .map(cat => {
-            let its = allItems.filter(i => i.category === cat.id && (showAll || i.is_active));
+            let its = this.menuItems().filter(i => i.category === cat.id && (showAll || i.is_active));
             if (term) its = its.filter(i =>
               i.name.toLowerCase().includes(term) ||
               (i.description ?? '').toLowerCase().includes(term) ||
@@ -482,9 +591,7 @@ export class MenuManagementComponent implements OnInit {
       });
   });
 
-  hiddenCount = computed(() =>
-    this.items().filter(i => !i.is_active).length
-  );
+  hiddenCount = computed(() => this.menuItems().filter(i => !i.is_active).length);
 
   filteredTotal = computed(() =>
     this.tree().reduce((s, sec) => s + sec.categories.reduce((cs, c) => cs + c.items.length, 0), 0)
@@ -494,7 +601,13 @@ export class MenuManagementComponent implements OnInit {
     return sec.categories.reduce((s, cat) => s + cat.items.length, 0);
   }
 
-  // ── Form state ────────────────────────────────────────────────────
+  // ── Menu management form state ────────────────────────────────────
+  creatingMenu  = signal(false);
+  renamingMenu  = signal(false);
+  newMenuName   = '';
+  renameValue   = '';
+
+  // ── Section/category/item form state ─────────────────────────────
   addingSection      = signal(false);
   editSectionId      = signal<number | null>(null);
   addingCategoryFor  = signal<number | null>(null);
@@ -511,14 +624,17 @@ export class MenuManagementComponent implements OnInit {
   editItemForm: Partial<MenuItem> & { is_active: boolean; is_out_of_stock: boolean } =
                { name: '', price: 0, volume: '', description: '', cost_price: 0, category: 0, is_active: true, is_out_of_stock: false };
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private toast: ToastService) {}
 
-  ngOnInit() {
-    this.loadAll();
-  }
+  ngOnInit() { this.loadAll(); }
 
   loadAll() {
     this.loading.set(true);
+    this.api.getMenus().subscribe(menus => {
+      this.menus.set(menus);
+      const active = menus.find(m => m.is_active) ?? menus[0];
+      if (active) this.selectedMenuId.set(active.id);
+    });
     this.api.getMenuSections().subscribe(s => {
       this.sections.set(s);
       if (s.length) {
@@ -533,13 +649,81 @@ export class MenuManagementComponent implements OnInit {
   }
 
   // ── Search ────────────────────────────────────────────────────────
-  onSearch(val: string) {
-    this.search.set(val.trim());
+  onSearch(val: string) { this.search.set(val.trim()); }
+  clearSearch() { this.searchRaw = ''; this.search.set(''); }
+
+  // ── Menu management ───────────────────────────────────────────────
+  selectMenu(id: number) {
+    this.selectedMenuId.set(id);
+    this.editSectionId.set(null);
+    this.editCategoryId.set(null);
+    this.editItemId.set(null);
+    this.addingSection.set(false);
+    this.expandedSections.set(new Set());
+    const firstSec = this.menuSections()[0];
+    if (firstSec) this.expandedSections.set(new Set([firstSec.id]));
   }
 
-  clearSearch() {
-    this.searchRaw = '';
-    this.search.set('');
+  createMenu() {
+    if (!this.newMenuName.trim()) return;
+    this.api.createMenu({ name: this.newMenuName.trim() }).subscribe(m => {
+      this.menus.update(list => [...list, m]);
+      this.selectedMenuId.set(m.id);
+      this.newMenuName = '';
+      this.creatingMenu.set(false);
+      this.toast.success(`Меню «${m.name}» создано`);
+    });
+  }
+
+  activateSelectedMenu() {
+    const id = this.selectedMenuId();
+    if (!id) return;
+    this.api.activateMenu(id).subscribe(updated => {
+      this.menus.update(list => list.map(m => ({ ...m, is_active: m.id === updated.id })));
+      this.toast.success(`Меню «${updated.name}» теперь активное`);
+    });
+  }
+
+  duplicateSelectedMenu() {
+    const id = this.selectedMenuId();
+    if (!id) return;
+    const src = this.selectedMenu();
+    const name = src ? `Копия: ${src.name}` : 'Новое меню';
+    this.api.duplicateMenu(id, name).subscribe(m => {
+      this.menus.update(list => [...list, m]);
+      this.toast.success(`Меню скопировано как «${m.name}»`);
+      this.loadAll();
+    });
+  }
+
+  startRename() {
+    this.renameValue = this.selectedMenu()?.name ?? '';
+    this.renamingMenu.set(true);
+  }
+
+  saveRename() {
+    const id = this.selectedMenuId();
+    if (!id || !this.renameValue.trim()) return;
+    this.api.updateMenu(id, { name: this.renameValue.trim() }).subscribe(updated => {
+      this.menus.update(list => list.map(m => m.id === id ? updated : m));
+      this.renamingMenu.set(false);
+      this.toast.success('Название обновлено');
+    });
+  }
+
+  deleteSelectedMenu() {
+    const menu = this.selectedMenu();
+    if (!menu) return;
+    if (!confirm(`Удалить меню «${menu.name}»? Это действие необратимо.`)) return;
+    this.api.deleteMenu(menu.id).subscribe({
+      next: () => {
+        this.menus.update(list => list.filter(m => m.id !== menu.id));
+        const next = this.menus()[0];
+        this.selectedMenuId.set(next?.id ?? null);
+        this.toast.success(`Меню «${menu.name}» удалено`);
+      },
+      error: (err) => this.toast.apiError(err, 'Не удалось удалить меню'),
+    });
   }
 
   // ── Section CRUD ──────────────────────────────────────────────────
@@ -549,8 +733,8 @@ export class MenuManagementComponent implements OnInit {
   }
 
   saveSection() {
-    if (!this.newSection.name) return;
-    this.api.createMenuSection(this.newSection).subscribe(s => {
+    if (!this.newSection.name || !this.selectedMenuId()) return;
+    this.api.createMenuSection({ ...this.newSection, menu: this.selectedMenuId()! }).subscribe(s => {
       this.sections.update(list => [...list, s]);
       const ex = new Set(this.expandedSections());
       ex.add(s.id);
@@ -575,12 +759,15 @@ export class MenuManagementComponent implements OnInit {
   deleteSection(sec: MenuSection) {
     const catCount = this.categories().filter(c => c.section === sec.id).length;
     if (!confirm(`Удалить раздел «${sec.name}»?${catCount ? ` В нём ${catCount} категорий — они тоже будут удалены.` : ''}`)) return;
-    this.api.deleteMenuSection(sec.id).subscribe(() => {
-      this.sections.update(list => list.filter(s => s.id !== sec.id));
-      const deletedCatIds = this.categories().filter(c => c.section === sec.id).map(c => c.id);
-      this.categories.update(list => list.filter(c => c.section !== sec.id));
-      this.items.update(list => list.filter(i => !deletedCatIds.includes(i.category)));
-      this.editSectionId.set(null);
+    this.api.deleteMenuSection(sec.id).subscribe({
+      next: () => {
+        const deletedCatIds = this.categories().filter(c => c.section === sec.id).map(c => c.id);
+        this.sections.update(list => list.filter(s => s.id !== sec.id));
+        this.categories.update(list => list.filter(c => c.section !== sec.id));
+        this.items.update(list => list.filter(i => !deletedCatIds.includes(i.category)));
+        this.editSectionId.set(null);
+      },
+      error: (err) => this.toast.apiError(err, 'Ошибка при удалении раздела'),
     });
   }
 
@@ -620,10 +807,13 @@ export class MenuManagementComponent implements OnInit {
   deleteCategory(cat: MenuCategory) {
     const count = this.items().filter(i => i.category === cat.id).length;
     if (!confirm(`Удалить категорию «${cat.name}»?${count ? ` В ней ${count} позиций.` : ''}`)) return;
-    this.api.deleteMenuCategory(cat.id).subscribe(() => {
-      this.categories.update(list => list.filter(c => c.id !== cat.id));
-      this.items.update(list => list.filter(i => i.category !== cat.id));
-      this.editCategoryId.set(null);
+    this.api.deleteMenuCategory(cat.id).subscribe({
+      next: () => {
+        this.categories.update(list => list.filter(c => c.id !== cat.id));
+        this.items.update(list => list.filter(i => i.category !== cat.id));
+        this.editCategoryId.set(null);
+      },
+      error: (err) => this.toast.apiError(err, 'Ошибка при удалении категории'),
     });
   }
 
@@ -671,9 +861,12 @@ export class MenuManagementComponent implements OnInit {
 
   deleteItem(item: MenuItem) {
     if (!confirm(`Удалить «${item.name}»?`)) return;
-    this.api.deleteMenuItem(item.id).subscribe(() => {
-      this.items.update(list => list.filter(i => i.id !== item.id));
-      this.editItemId.set(null);
+    this.api.deleteMenuItem(item.id).subscribe({
+      next: () => {
+        this.items.update(list => list.filter(i => i.id !== item.id));
+        this.editItemId.set(null);
+      },
+      error: (err) => this.toast.apiError(err, 'Нельзя удалить: позиция используется в заказах. Деактивируйте её.'),
     });
   }
 

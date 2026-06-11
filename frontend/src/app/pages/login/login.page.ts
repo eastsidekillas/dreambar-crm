@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../../core/services/auth.service';
+import { LucideGlassWater, LucideTriangleAlert } from '@lucide/angular';
 
 @Component({
   selector: 'app-login-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideGlassWater, LucideTriangleAlert],
   template: `
     <div class="min-h-screen flex items-center justify-center px-4" style="background:var(--color-bg)">
       <div class="w-full max-w-sm">
@@ -16,7 +17,7 @@ import { AuthService } from '../../core/services/auth.service';
         <div class="text-center mb-8">
           <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
                style="background:var(--color-gold)">
-            <span class="text-3xl">🍸</span>
+            <svg lucideGlassWater [size]="32" style="color:white"></svg>
           </div>
           <h1 class="text-2xl font-bold" style="color:var(--color-text)">BAR DREAM</h1>
           <p class="text-sm mt-1" style="color:var(--color-muted)">Система учёта заказов</p>
@@ -47,8 +48,8 @@ import { AuthService } from '../../core/services/auth.service';
             </div>
 
             @if (error()) {
-              <div class="mb-4 px-3 py-2.5 rounded-lg text-sm" style="background:var(--color-red-bg);color:var(--color-red)">
-                ⚠ {{ error() }}
+              <div class="mb-4 px-3 py-2.5 rounded-lg text-sm flex items-center gap-1.5" style="background:var(--color-red-bg);color:var(--color-red)">
+                <svg lucideTriangleAlert [size]="14"></svg> {{ error() }}
               </div>
             }
 

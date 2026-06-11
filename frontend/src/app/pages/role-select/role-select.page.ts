@@ -1,21 +1,26 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { Role } from '../../core/models';
+import {
+  LucideDynamicIcon,
+  LucideUser, LucideGlassWater, LucideChefHat, LucideShirt, LucideCrown,
+} from '@lucide/angular';
 
-const ROLE_META: Record<string, { label: string; icon: string; desc: string }> = {
-  admin:     { label: 'Администратор', icon: '👤', desc: 'Управление сменами, меню, персоналом' },
-  waiter:    { label: 'Официант',      icon: '🧑‍🍳', desc: 'Приём заказов за столами' },
-  bartender: { label: 'Бармен',        icon: '🍸', desc: 'Работа за барной стойкой' },
-  kitchen:   { label: 'Кухня',         icon: '🍳', desc: 'Экран повара — статус блюд' },
-  wardrobe:  { label: 'Гардероб',      icon: '🧥', desc: 'Продажа входных билетов' },
+const ROLE_META: Record<string, { label: string; icon: LucideIconInput; desc: string }> = {
+  admin:     { label: 'Администратор', icon: LucideCrown,      desc: 'Управление сменами, меню, персоналом' },
+  waiter:    { label: 'Официант',      icon: LucideUser,        desc: 'Приём заказов за столами' },
+  bartender: { label: 'Бармен',        icon: LucideGlassWater,  desc: 'Работа за барной стойкой' },
+  kitchen:   { label: 'Кухня',         icon: LucideChefHat,     desc: 'Экран повара — статус блюд' },
+  wardrobe:  { label: 'Гардероб',      icon: LucideShirt,       desc: 'Продажа входных билетов' },
 };
 
 @Component({
   selector: 'app-role-select',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LucideDynamicIcon, LucideGlassWater],
   template: `
     <div class="min-h-screen flex items-center justify-center px-4" style="background:var(--color-bg)">
       <div class="w-full max-w-md">
@@ -23,7 +28,7 @@ const ROLE_META: Record<string, { label: string; icon: string; desc: string }> =
         <div class="text-center mb-8">
           <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
                style="background:var(--color-gold)">
-            <span class="text-3xl">🍸</span>
+            <svg lucideGlassWater [size]="32" style="color:white"></svg>
           </div>
           <h1 class="text-2xl font-bold" style="color:var(--color-text)">Кем работаешь сегодня?</h1>
           <p class="text-sm mt-1" style="color:var(--color-muted)">{{ userName }}</p>
@@ -37,7 +42,7 @@ const ROLE_META: Record<string, { label: string; icon: string; desc: string }> =
               (mouseenter)="hovered = role" (mouseleave)="hovered = null"
               [style.border-color]="hovered === role ? 'var(--color-gold)' : 'var(--color-border)'">
               <div class="flex items-center gap-4">
-                <span class="text-3xl">{{ meta(role).icon }}</span>
+                <svg [lucideIcon]="meta(role).icon" [size]="28"></svg>
                 <div>
                   <div class="font-semibold" style="color:var(--color-text)">{{ meta(role).label }}</div>
                   <div class="text-sm" style="color:var(--color-muted)">{{ meta(role).desc }}</div>
@@ -80,7 +85,7 @@ export class RoleSelectPage implements OnInit {
     this.router.navigateByUrl(this.auth.landingRoute(role));
   }
 
-  meta(role: string) {
-    return ROLE_META[role] ?? { label: role, icon: '👤', desc: '' };
+  meta(role: string): { label: string; icon: LucideIconInput; desc: string } {
+    return ROLE_META[role] ?? { label: role, icon: LucideUser, desc: '' };
   }
 }

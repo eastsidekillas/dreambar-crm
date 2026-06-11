@@ -3,37 +3,43 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ForecastDay } from '../../../core/models';
+import {
+  LucideDynamicIcon,
+  LucideTrendingUp, LucideRefreshCw, LucideClock, LucidePencil, LucideX,
+  LucideGlassWater, LucideUtensilsCrossed, LucideWind, LucideTicket,
+} from '@lucide/angular';
 
 const MONTHS = ['', 'янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
 const CATS = [
-  { key: 'bar'     as const, icon: '🍹', label: 'Бар',    color: 'var(--color-bar,#3b82f6)'     },
-  { key: 'kitchen' as const, icon: '🍽', label: 'Кухня',  color: 'var(--color-kitchen,#f59e0b)' },
-  { key: 'hookah'  as const, icon: '💨', label: 'Кальян', color: 'var(--color-hookah,#8b5cf6)'  },
-  { key: 'tickets' as const, icon: '🎫', label: 'Билеты', color: 'var(--color-gold,#d4a017)'    },
+  { key: 'bar'     as const, icon: LucideGlassWater,     label: 'Бар',    color: 'var(--color-bar,#3b82f6)'     },
+  { key: 'kitchen' as const, icon: LucideUtensilsCrossed, label: 'Кухня',  color: 'var(--color-kitchen,#f59e0b)' },
+  { key: 'hookah'  as const, icon: LucideWind,            label: 'Кальян', color: 'var(--color-hookah,#8b5cf6)'  },
+  { key: 'tickets' as const, icon: LucideTicket,          label: 'Билеты', color: 'var(--color-gold,#d4a017)'    },
 ];
 
 @Component({
   selector: 'app-forecast',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideDynamicIcon,
+    LucideTrendingUp, LucideRefreshCw, LucideClock, LucidePencil, LucideX],
   template: `
     <div class="space-y-5">
 
       <!-- Header -->
       <div class="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h1 class="text-xl font-bold">🔮 Прогноз на неделю</h1>
+          <h1 class="text-xl font-bold flex items-center gap-2"><svg lucideTrendingUp [size]="20"></svg> Прогноз на неделю</h1>
           <p class="text-sm" style="color:var(--color-muted)">{{ weekLabel() }} · на основе прошлых смен</p>
         </div>
-        <button (click)="load()" class="btn btn-outline btn-sm" [disabled]="loading()">
-          🔄 Обновить
+        <button (click)="load()" class="btn btn-outline btn-sm flex items-center gap-1" [disabled]="loading()">
+          <svg lucideRefreshCw [size]="14"></svg> Обновить
         </button>
       </div>
 
       @if (loading()) {
         <div class="text-center py-16" style="color:var(--color-muted)">
-          <span class="text-3xl block mb-2">⏳</span>
+          <svg lucideClock [size]="40" class="mb-2 mx-auto" style="color:var(--color-muted)"></svg>
           Загрузка прогноза...
         </div>
       } @else {
@@ -86,7 +92,7 @@ const CATS = [
               @if (getAdj(day.date)) {
                 <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
                      style="background:var(--color-green-bg,#dcfce7);color:#166534">
-                  ✏ {{ getAdj(day.date)! | number:'1.0-0' }} ₽
+                  <svg lucidePencil [size]="12"></svg> {{ getAdj(day.date)! | number:'1.0-0' }} ₽
                 </div>
               }
             </div>
@@ -117,7 +123,7 @@ const CATS = [
               <p class="section-title">По типам заказа</p>
               @for (cat of catRows(day); track cat.key) {
                 <div class="flex items-center gap-2">
-                  <span class="text-sm w-5 shrink-0">{{ cat.icon }}</span>
+                  <svg [lucideIcon]="cat.icon" [size]="14" class="shrink-0"></svg>
                   <span class="text-xs w-14 shrink-0" style="color:var(--color-muted)">{{ cat.label }}</span>
                   <div class="flex-1 h-2.5 rounded-full overflow-hidden" style="background:var(--color-border)">
                     <div class="h-full rounded-full transition-all duration-500"
@@ -147,14 +153,14 @@ const CATS = [
                        style="width:120px;height:30px"/>
                 @if (getAdj(day.date)) {
                   <button (click)="setAdj(day.date, null)"
-                          class="text-xs shrink-0" style="color:var(--color-muted)">✕ Сбросить</button>
+                          class="text-xs shrink-0 flex items-center gap-1" style="color:var(--color-muted)"><svg lucideX [size]="12"></svg> Сбросить</button>
                 }
               </div>
               <button (click)="toggleHours(i)" class="btn btn-sm shrink-0"
                       [style]="hoursOpen(i)
                         ? 'background:var(--color-gold);color:#fff;border:none'
                         : 'background:var(--color-bg);color:var(--color-muted);border:1px solid var(--color-border)'">
-                🕐 По часам {{ hoursOpen(i) ? '▲' : '▼' }}
+                <svg lucideClock [size]="14"></svg> По часам {{ hoursOpen(i) ? '▲' : '▼' }}
               </button>
             </div>
 

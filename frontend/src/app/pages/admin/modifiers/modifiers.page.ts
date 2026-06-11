@@ -3,17 +3,18 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ModifierGroup, Modifier } from '../../../core/models';
+import { LucideWrench, LucidePencil, LucideTrash2, LucideEye, LucideEyeOff } from '@lucide/angular';
 
 @Component({
   selector: 'app-modifiers',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideWrench, LucidePencil, LucideTrash2, LucideEye, LucideEyeOff],
   template: `
 <div class="space-y-4">
 
   <div class="flex items-center justify-between flex-wrap gap-3">
     <div>
-      <h1 class="text-xl font-bold">🔧 Модификаторы</h1>
+      <h1 class="text-xl font-bold flex items-center gap-2"><svg lucideWrench [size]="20"></svg> Модификаторы</h1>
       <p class="text-xs mt-0.5" style="color:var(--color-muted)">
         Группы опций для позиций меню: лёд, сиропы, соусы, специи
       </p>
@@ -53,7 +54,7 @@ import { ModifierGroup, Modifier } from '../../../core/models';
   <!-- Groups list -->
   @if (!groups().length && !loading()) {
     <div class="card text-center py-12">
-      <span class="text-3xl block mb-2">🔧</span>
+      <svg lucideWrench [size]="48" class="mb-2 mx-auto" style="color:var(--color-muted)"></svg>
       <p style="color:var(--color-muted)">Групп модификаторов пока нет.</p>
       <p class="text-xs mt-1" style="color:var(--color-muted)">
         Пример: «Объём льда» (мало / стандарт / много), «Сироп» (ванильный, карамельный, …)
@@ -89,10 +90,14 @@ import { ModifierGroup, Modifier } from '../../../core/models';
           </div>
 
           <div class="flex items-center gap-1.5">
-            <button (click)="startEditGroup(group)" class="btn btn-ghost btn-sm">✏️</button>
+            <button (click)="startEditGroup(group)" class="btn btn-ghost btn-sm"><svg lucidePencil [size]="14"></svg></button>
             <button (click)="toggleGroup(group)" class="btn btn-ghost btn-sm"
                     [title]="group.is_active ? 'Скрыть' : 'Показать'">
-              {{ group.is_active ? '👁' : '🙈' }}
+              @if (group.is_active) {
+                <svg lucideEye [size]="14"></svg>
+              } @else {
+                <svg lucideEyeOff [size]="14"></svg>
+              }
             </button>
             <button (click)="expandGroup(group.id)" class="btn btn-ghost btn-sm">
               {{ expandedGroupId() === group.id ? '▲' : '▼' }}
@@ -120,9 +125,9 @@ import { ModifierGroup, Modifier } from '../../../core/models';
                       <span class="text-xs" style="color:var(--color-muted)">(скрыт)</span>
                     }
                     <button (click)="startEditModifier(group, mod)" class="btn btn-ghost btn-sm"
-                            style="padding:2px 6px">✏️</button>
+                            style="padding:2px 6px"><svg lucidePencil [size]="12"></svg></button>
                     <button (click)="deleteModifier(group, mod)" class="btn btn-ghost btn-sm"
-                            style="padding:2px 6px;color:#dc2626">🗑</button>
+                            style="padding:2px 6px;color:#dc2626"><svg lucideTrash2 [size]="12"></svg></button>
                   </div>
                 }
               </div>

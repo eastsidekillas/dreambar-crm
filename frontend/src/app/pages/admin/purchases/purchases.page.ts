@@ -3,17 +3,22 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { PurchaseOrder, PurchaseOrderItem, Product } from '../../../core/models';
+import {
+  LucideShoppingCart, LucideTriangleAlert, LucideClipboardList,
+  LucideMail, LucidePackage, LucideTrash2, LucideX, LucideCircleCheck,
+} from '@lucide/angular';
 
 @Component({
   selector: 'app-purchases',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideShoppingCart, LucideTriangleAlert, LucideClipboardList,
+    LucideMail, LucidePackage, LucideTrash2, LucideX, LucideCircleCheck],
   template: `
 <div class="space-y-4">
 
   <div class="flex items-center justify-between flex-wrap gap-3">
     <div>
-      <h1 class="text-xl font-bold">🛒 Закупки</h1>
+      <h1 class="text-xl font-bold flex items-center gap-2"><svg lucideShoppingCart [size]="20"></svg> Закупки</h1>
       <p class="text-xs mt-0.5" style="color:var(--color-muted)">
         Управление заказами поставщикам и оприходованием
       </p>
@@ -28,7 +33,7 @@ import { PurchaseOrder, PurchaseOrderItem, Product } from '../../../core/models'
   @if (lowStockProducts().length) {
     <div class="rounded-xl p-3 flex items-start gap-3"
          style="background:#fef3c7;border:1px solid #fbbf24">
-      <span class="text-lg flex-shrink-0">⚠️</span>
+      <svg lucideTriangleAlert [size]="18" class="flex-shrink-0" style="color:#92400e"></svg>
       <div>
         <p class="text-sm font-semibold" style="color:#92400e">
           {{ lowStockProducts().length }} позиций ниже минимального остатка
@@ -44,7 +49,7 @@ import { PurchaseOrder, PurchaseOrderItem, Product } from '../../../core/models'
   <!-- Orders list -->
   @if (!orders().length && !loading()) {
     <div class="card text-center py-12">
-      <span class="text-3xl block mb-2">📋</span>
+      <svg lucideClipboardList [size]="48" class="mb-2 mx-auto" style="color:var(--color-muted)"></svg>
       <p style="color:var(--color-muted)">Заказов на закупку пока нет.</p>
       <p class="text-xs mt-1" style="color:var(--color-muted)">
         Нажмите «Создать заявку из остатков» — система автоматически соберёт что заканчивается.
@@ -91,18 +96,18 @@ import { PurchaseOrder, PurchaseOrderItem, Product } from '../../../core/models'
 
           <div class="flex items-center gap-1.5">
             @if (order.status === 'draft') {
-              <button (click)="markOrdered(order)" class="btn btn-ghost btn-sm">
-                ✉️ Заказано
+              <button (click)="markOrdered(order)" class="btn btn-ghost btn-sm flex items-center gap-1">
+                <svg lucideMail [size]="14"></svg> Заказано
               </button>
-              <button (click)="openReceive(order)" class="btn btn-primary btn-sm">
-                📦 Оприходовать
+              <button (click)="openReceive(order)" class="btn btn-primary btn-sm flex items-center gap-1">
+                <svg lucidePackage [size]="14"></svg> Оприходовать
               </button>
               <button (click)="deleteOrder(order)" class="btn btn-ghost btn-sm"
-                      style="color:#dc2626">🗑</button>
+                      style="color:#dc2626"><svg lucideTrash2 [size]="14"></svg></button>
             }
             @if (order.status === 'ordered') {
-              <button (click)="openReceive(order)" class="btn btn-primary btn-sm">
-                📦 Оприходовать
+              <button (click)="openReceive(order)" class="btn btn-primary btn-sm flex items-center gap-1">
+                <svg lucidePackage [size]="14"></svg> Оприходовать
               </button>
             }
             <button (click)="toggle(order.id)" class="btn btn-ghost btn-sm">
@@ -167,8 +172,8 @@ import { PurchaseOrder, PurchaseOrderItem, Product } from '../../../core/models'
     <div class="card w-full max-w-2xl max-h-[90vh] overflow-y-auto" style="background:var(--color-surface)">
 
       <div class="flex items-center justify-between mb-4">
-        <h2 class="font-bold text-lg">📦 Оприходование — Заявка #{{ receivingOrder()!.id }}</h2>
-        <button (click)="receivingOrder.set(null)" class="btn btn-ghost btn-sm">✕</button>
+        <h2 class="font-bold text-lg flex items-center gap-2"><svg lucidePackage [size]="18"></svg> Оприходование — Заявка #{{ receivingOrder()!.id }}</h2>
+        <button (click)="receivingOrder.set(null)" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
       </div>
 
       <p class="text-sm mb-4" style="color:var(--color-muted)">
@@ -209,7 +214,10 @@ import { PurchaseOrder, PurchaseOrderItem, Product } from '../../../core/models'
         <div class="flex gap-2">
           <button (click)="receivingOrder.set(null)" class="btn btn-ghost">Отмена</button>
           <button (click)="confirmReceive()" class="btn btn-primary" [disabled]="receiving()">
-            {{ receiving() ? 'Оприходование...' : '✅ Подтвердить' }}
+            @if (!receiving()) {
+              <svg lucideCircleCheck [size]="16" class="mr-1 inline-block"></svg>
+            }
+            {{ receiving() ? 'Оприходование...' : 'Подтвердить' }}
           </button>
         </div>
       </div>

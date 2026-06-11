@@ -1,25 +1,32 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ToastService, ToastType } from './toast.service';
+import {
+  LucideDynamicIcon,
+  LucideCheck, LucideX, LucideTriangleAlert, LucideInfo,
+} from '@lucide/angular';
 
-const ICONS: Record<ToastType, string> = {
-  success: '✓',
-  error:   '✕',
-  warn:    '⚠',
-  info:    'ℹ',
+const ICONS: Record<ToastType, LucideIconInput> = {
+  success: LucideCheck,
+  error:   LucideX,
+  warn:    LucideTriangleAlert,
+  info:    LucideInfo,
 };
 
 @Component({
   selector: 'bd-toast',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LucideDynamicIcon, LucideX],
   template: `
     <div class="bd-toast-container">
       @for (t of svc.toasts(); track t.id) {
         <div class="bd-toast bd-toast-{{ t.type }}" (click)="svc.dismiss(t.id)">
-          <span class="bd-toast-icon">{{ icon(t.type) }}</span>
+          <span class="bd-toast-icon"><svg [lucideIcon]="icon(t.type)" [size]="15"></svg></span>
           <span class="bd-toast-msg">{{ t.message }}</span>
-          <button class="bd-toast-close" (click)="svc.dismiss(t.id); $event.stopPropagation()">✕</button>
+          <button class="bd-toast-close" (click)="svc.dismiss(t.id); $event.stopPropagation()">
+            <svg lucideX [size]="11"></svg>
+          </button>
         </div>
       }
     </div>
@@ -102,5 +109,5 @@ const ICONS: Record<ToastType, string> = {
 })
 export class BdToastComponent {
   svc = inject(ToastService);
-  icon(type: ToastType) { return ICONS[type] ?? 'ℹ'; }
+  icon(type: ToastType): LucideIconInput { return ICONS[type] ?? LucideInfo; }
 }

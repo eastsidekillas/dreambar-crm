@@ -4,6 +4,7 @@ import { RouterModule } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { DashboardData, ShiftAnalytics, TopItem, Shift } from '../../../core/models';
 import { Chart, registerables, ChartConfiguration } from 'chart.js';
+import { LucideClock } from '@lucide/angular';
 
 Chart.register(...registerables);
 
@@ -41,7 +42,7 @@ const donutCenter = {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, LucideClock],
   template: `
     <div class="space-y-5">
 
@@ -188,7 +189,7 @@ const donutCenter = {
 
       } @else {
         <div class="card text-center py-16">
-          <span class="text-4xl block mb-3">⏳</span>
+          <svg lucideClock [size]="40" class="mx-auto mb-3" style="color:var(--color-muted)"></svg>
           <p style="color:var(--color-muted)">Загрузка данных...</p>
         </div>
       }

@@ -1,11 +1,15 @@
+from django.db.models import ProtectedError
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.permissions import IsAdminUser
+from rest_framework.response import Response
+from rest_framework.routers import DefaultRouter
 
-from .views import MenuSectionViewSet, MenuCategoryViewSet, MenuItemViewSet
+from .views import MenuViewSet, MenuSectionViewSet, MenuCategoryViewSet, MenuItemViewSet
 from .models import ModifierGroup, Modifier, MenuItemModifierGroup
 from .serializers import ModifierGroupSerializer, ModifierSerializer, MenuItemModifierGroupSerializer
+
+_PROTECTED_MSG = 'Нельзя удалить: модификатор используется в заказах. Деактивируйте его.'
 
 
 class ModifierGroupViewSet(viewsets.ModelViewSet):
@@ -20,6 +24,12 @@ class ModifierViewSet(viewsets.ModelViewSet):
     serializer_class   = ModifierSerializer
     filterset_fields   = ['group', 'is_active']
 
+    def destroy(self, request, *args, **kwargs):
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response({'detail': _PROTECTED_MSG}, status=status.HTTP_409_CONFLICT)
+
 
 class MenuItemModifierGroupViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]
@@ -33,12 +43,15 @@ class MenuItemModifierGroupViewSet(viewsets.ModelViewSet):
 
 
 router = DefaultRouter()
-router.register('menu/sections',          MenuSectionViewSet)
-router.register('menu/categories',        MenuCategoryViewSet)
-router.register('menu/items',             MenuItemViewSet)
+# ВАЖНО: более специфичные пути (menu/X) должны стоять ДО короткого (menu),
+# иначе ^menu/(?P<pk>[^/.]+)/$ перехватывает /menu/sections/, /menu/items/ и т.д.
+router.register('menu/sections',          MenuSectionViewSet,           basename='menusection')
+router.register('menu/categories',        MenuCategoryViewSet,          basename='menucategory')
+router.register('menu/items',             MenuItemViewSet,              basename='menuitem')
 router.register('menu/modifier-groups',   ModifierGroupViewSet,         basename='modifier-group')
 router.register('menu/modifiers',         ModifierViewSet,              basename='modifier')
 router.register('menu/item-modifiers',    MenuItemModifierGroupViewSet, basename='item-modifier')
+router.register('menu',                   MenuViewSet,                  basename='menu')
 
 urlpatterns = [
     path('', include(router.urls)),

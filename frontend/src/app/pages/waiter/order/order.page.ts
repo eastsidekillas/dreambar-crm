@@ -1,26 +1,32 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { CartService } from '../../../features/cart/cart.service';
 import { MenuByCategory, MenuItem } from '../../../core/models';
+import {
+  LucideDynamicIcon,
+  LucideGlassWater, LucideUtensilsCrossed, LucideWind,
+  LucideSearch, LucideSearchSlash, LucideX, LucideClock, LucideUsers,
+} from '@lucide/angular';
 
-const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }> = {
-  bar:     { color: 'var(--color-bar)',     bg: 'var(--color-bar-bg)',     icon: '🍹' },
-  kitchen: { color: 'var(--color-kitchen)', bg: 'var(--color-kitchen-bg)', icon: '🍽' },
-  hookah:  { color: 'var(--color-hookah)',  bg: 'var(--color-hookah-bg)',  icon: '💨' },
+const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: LucideIconInput }> = {
+  bar:     { color: 'var(--color-bar)',     bg: 'var(--color-bar-bg)',     icon: LucideGlassWater },
+  kitchen: { color: 'var(--color-kitchen)', bg: 'var(--color-kitchen-bg)', icon: LucideUtensilsCrossed },
+  hookah:  { color: 'var(--color-hookah)',  bg: 'var(--color-hookah-bg)',  icon: LucideWind },
 };
 
 @Component({
   selector: 'app-order-page',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LucideDynamicIcon, LucideSearch, LucideSearchSlash, LucideX, LucideClock, LucideUsers, LucideUtensilsCrossed],
   template: `
     <div>
       @if (cart.target(); as t) {
         <div class="flex items-center justify-between px-3 py-2 mb-3 rounded-xl"
              style="background:var(--color-gold-light);border:1px solid var(--color-gold-mid)">
-          <span class="text-xs font-medium" style="color:var(--color-gold-hover)">
-            🍽 Стол «{{ t.table_number || 'Стол' }}»@if (t.guests) { · 👥 {{ t.guests }} }
+          <span class="text-xs font-medium flex items-center gap-1" style="color:var(--color-gold-hover)">
+            <svg lucideUtensilsCrossed [size]="12"></svg> Стол «{{ t.table_number || 'Стол' }}»@if (t.guests) { · <svg lucideUsers [size]="12"></svg> {{ t.guests }} }
           </span>
           <button (click)="cart.setTarget(null)" class="text-xs font-semibold"
                   style="color:var(--color-gold-hover)">Закрыть меню</button>
@@ -32,11 +38,11 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
         <p class="section-title mb-1.5">Гость</p>
         <div class="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4" style="scrollbar-width:none">
           <button (click)="activeGuest.set(0)"
-                  class="flex-shrink-0 px-4 rounded-xl text-sm font-semibold"
+                  class="flex-shrink-0 px-4 rounded-xl text-sm font-semibold flex items-center gap-1"
                   style="min-height:44px"
                   [style.background]="activeGuest() === 0 ? 'var(--color-gold)' : 'var(--color-bg)'"
                   [style.color]="activeGuest() === 0 ? 'white' : 'var(--color-muted)'"
-                  [style.border]="'1.5px solid var(--color-border)'">👥 Общий</button>
+                  [style.border]="'1.5px solid var(--color-border)'"><svg lucideUsers [size]="14"></svg> Общий</button>
           @for (g of guestList(); track g) {
             <button (click)="activeGuest.set(g)"
                     class="flex-shrink-0 rounded-xl text-sm font-bold"
@@ -55,8 +61,8 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
 
       <!-- ── Search bar ─────────────────────────────────── -->
       <div class="relative mb-3">
-        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
-              style="color:var(--color-muted)">🔍</span>
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center"
+              style="color:var(--color-muted)"><svg lucideSearch [size]="16"></svg></span>
         <input [value]="searchQuery()"
                (input)="onSearch($event)"
                placeholder="Поиск по меню..."
@@ -66,7 +72,7 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
           <button (click)="searchQuery.set('')"
                   class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-lg"
                   style="color:var(--color-muted);min-width:36px;min-height:36px;background:var(--color-surface2)">
-            ✕
+            <svg lucideX [size]="14"></svg>
           </button>
         }
       </div>
@@ -76,8 +82,8 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
         @if (searchResults().length) {
           @for (group of searchResults(); track group.cat.id) {
             <div class="mb-5">
-              <div class="section-title mb-2">
-                {{ meta(group.cat.station_type).icon }} {{ group.cat.name }}
+              <div class="section-title mb-2 flex items-center gap-1">
+                <svg [lucideIcon]="meta(group.cat.station_type).icon" [size]="14"></svg> {{ group.cat.name }}
               </div>
               <div class="grid grid-cols-2 gap-2.5">
                 @for (item of group.items; track item.id) {
@@ -96,7 +102,7 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
                     <span class="inline-flex items-center gap-1 text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded-full"
                           [style.color]="meta(group.cat.station_type).color"
                           [style.background]="meta(group.cat.station_type).bg">
-                      {{ meta(group.cat.station_type).icon }}
+                      <svg [lucideIcon]="meta(group.cat.station_type).icon" [size]="12"></svg>
                     </span>
                     <p class="font-semibold text-sm leading-tight mb-0.5" style="color:var(--color-text)">
                       {{ item.name }}
@@ -114,7 +120,7 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
           }
         } @else {
           <div class="text-center py-12">
-            <span class="text-3xl block mb-2">🤔</span>
+            <svg lucideSearchSlash [size]="40" class="mx-auto mb-2" style="color:var(--color-muted)"></svg>
             <p style="color:var(--color-muted)">Ничего не найдено по «{{ searchQuery() }}»</p>
             <button (click)="searchQuery.set('')" class="btn btn-ghost btn-sm mt-3">Сбросить</button>
           </div>
@@ -128,10 +134,10 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
         <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-4" style="scrollbar-width:none">
           @for (cat of categories(); track cat.id) {
             <button (click)="selectCat(cat.id)"
-                    class="cat-chip flex-shrink-0"
+                    class="cat-chip flex-shrink-0 flex items-center gap-1"
                     style="min-height:44px;padding:0 16px;font-size:0.875rem"
                     [class]="catChipClass(cat)">
-              {{ meta(cat.station_type).icon }} {{ cat.name }}
+              <svg [lucideIcon]="meta(cat.station_type).icon" [size]="14"></svg> {{ cat.name }}
             </button>
           }
         </div>
@@ -158,7 +164,7 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
                 <span class="inline-flex items-center gap-1 text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded-full"
                       [style.color]="meta(current()!.station_type).color"
                       [style.background]="meta(current()!.station_type).bg">
-                  {{ meta(current()!.station_type).icon }}
+                  <svg [lucideIcon]="meta(current()!.station_type).icon" [size]="12"></svg>
                 </span>
 
                 <p class="font-semibold text-sm leading-tight mb-0.5" style="color:var(--color-text)">
@@ -185,7 +191,7 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: string }>
 
         @if (!categories().length) {
           <div class="text-center py-16">
-            <span class="text-4xl block mb-3">⏳</span>
+            <svg lucideClock [size]="40" class="mx-auto mb-3" style="color:var(--color-muted)"></svg>
             <p style="color:var(--color-muted)">Загрузка меню...</p>
           </div>
         }
@@ -252,8 +258,8 @@ export class OrderPage implements OnInit {
     this.activeGuest.set(next);
   }
 
-  meta(type: string) {
-    return CAT_TYPE_META[type] ?? { color: 'var(--color-muted)', bg: 'var(--color-bg)', icon: '•' };
+  meta(type: string): { color: string; bg: string; icon: LucideIconInput } {
+    return CAT_TYPE_META[type] ?? { color: 'var(--color-muted)', bg: 'var(--color-bg)', icon: LucideGlassWater };
   }
 
   catChipClass(cat: MenuByCategory): string {

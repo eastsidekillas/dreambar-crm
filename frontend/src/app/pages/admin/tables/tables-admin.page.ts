@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Zone, VenueTable } from '../../../core/models';
+import { LucideMap, LucidePencil, LucideTrash2, LucideUsers, LucideX } from '@lucide/angular';
 
 const ZONE_COLORS = [
   { hex: '#6b7280', label: 'Серый' },
@@ -17,13 +18,13 @@ const ZONE_COLORS = [
 @Component({
   selector: 'app-tables-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideMap, LucidePencil, LucideTrash2, LucideUsers, LucideX],
   template: `
 <div class="space-y-4">
 
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-xl font-bold">🗺 Столы и зоны</h1>
+      <h1 class="text-xl font-bold flex items-center gap-2"><svg lucideMap [size]="20"></svg> Столы и зоны</h1>
       <p class="text-xs mt-0.5" style="color:var(--color-muted)">Настройка зон и столов заведения</p>
     </div>
     <button (click)="openZoneForm()" class="btn btn-primary btn-sm">+ Зона</button>
@@ -43,9 +44,9 @@ const ZONE_COLORS = [
         </div>
         <div class="flex gap-2">
           <button (click)="openTableForm(zone)" class="btn btn-ghost btn-sm" style="font-size:12px">+ Стол</button>
-          <button (click)="openZoneForm(zone)" class="btn btn-ghost btn-sm" style="font-size:12px">✏️</button>
+          <button (click)="openZoneForm(zone)" class="btn btn-ghost btn-sm"><svg lucidePencil [size]="14"></svg></button>
           <button (click)="confirmDeleteZone(zone)" class="btn btn-ghost btn-sm"
-                  style="font-size:12px;color:#dc2626">🗑</button>
+                  style="color:#dc2626"><svg lucideTrash2 [size]="14"></svg></button>
         </div>
       </div>
 
@@ -58,15 +59,15 @@ const ZONE_COLORS = [
                    ? 'border:1px solid ' + zone.color + ';background:' + zone.color + '18'
                    : 'border:1px solid var(--color-border);background:var(--color-surface2);opacity:0.5'">
               <p class="font-bold text-sm">{{ t.number }}</p>
-              <p class="text-xs" style="color:var(--color-muted)">👥 {{ t.seats }}</p>
+              <p class="text-xs flex items-center justify-center gap-1" style="color:var(--color-muted)"><svg lucideUsers [size]="12"></svg> {{ t.seats }}</p>
               @if (t.note) {
                 <p class="text-xs truncate mt-0.5" style="color:var(--color-muted)" [title]="t.note">{{ t.note }}</p>
               }
               <div class="flex justify-center gap-1 mt-1.5">
-                <button (click)="openTableForm(zone, t)" class="text-xs px-1.5 py-0.5 rounded"
-                        style="background:var(--color-bg);border:1px solid var(--color-border)">✏️</button>
-                <button (click)="confirmDeleteTable(t)" class="text-xs px-1.5 py-0.5 rounded"
-                        style="background:var(--color-bg);border:1px solid var(--color-border);color:#dc2626">✕</button>
+                <button (click)="openTableForm(zone, t)" class="flex items-center justify-center px-1.5 py-0.5 rounded"
+                        style="background:var(--color-bg);border:1px solid var(--color-border)"><svg lucidePencil [size]="12"></svg></button>
+                <button (click)="confirmDeleteTable(t)" class="flex items-center justify-center px-1.5 py-0.5 rounded"
+                        style="background:var(--color-bg);border:1px solid var(--color-border);color:#dc2626"><svg lucideX [size]="12"></svg></button>
               </div>
             </div>
           }
@@ -79,7 +80,7 @@ const ZONE_COLORS = [
 
   @if (!zones().length && !loading()) {
     <div class="card text-center py-10">
-      <p class="text-3xl mb-2">🗺</p>
+      <svg lucideMap [size]="48" class="mb-2 mx-auto" style="color:var(--color-muted)"></svg>
       <p class="font-medium mb-1">Зоны ещё не добавлены</p>
       <p class="text-sm mb-4" style="color:var(--color-muted)">Создайте зоны и добавьте столы</p>
       <button (click)="openZoneForm()" class="btn btn-primary btn-sm">+ Создать первую зону</button>
@@ -98,7 +99,7 @@ const ZONE_COLORS = [
     </div>
     <div class="flex items-center justify-between px-4 py-3" style="border-bottom:1px solid var(--color-border)">
       <h2 class="font-bold text-base">{{ editingZone()?.id ? 'Редактировать зону' : 'Новая зона' }}</h2>
-      <button (click)="closeZoneForm()" class="btn btn-ghost btn-sm">✕</button>
+      <button (click)="closeZoneForm()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
     </div>
     <div class="px-4 py-4 space-y-3">
       <div>
@@ -123,7 +124,7 @@ const ZONE_COLORS = [
       </div>
       <button (click)="saveZone()" [disabled]="zoneSaving() || !zfName.trim()"
               class="btn btn-primary btn-full" style="height:48px">
-        {{ zoneSaving() ? '⏳ ...' : (editingZone()?.id ? 'Сохранить' : 'Создать зону') }}
+        {{ zoneSaving() ? '...' : (editingZone()?.id ? 'Сохранить' : 'Создать зону') }}
       </button>
     </div>
   </div>
@@ -139,7 +140,7 @@ const ZONE_COLORS = [
     </div>
     <div class="flex items-center justify-between px-4 py-3" style="border-bottom:1px solid var(--color-border)">
       <h2 class="font-bold text-base">{{ editingTable()?.id ? 'Редактировать стол' : 'Новый стол' }}</h2>
-      <button (click)="closeTableForm()" class="btn btn-ghost btn-sm">✕</button>
+      <button (click)="closeTableForm()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
     </div>
     <div class="px-4 py-4 space-y-3">
       <div>
@@ -164,7 +165,7 @@ const ZONE_COLORS = [
       </div>
       <button (click)="saveTable()" [disabled]="tableSaving() || !tfNumber.trim()"
               class="btn btn-primary btn-full" style="height:48px">
-        {{ tableSaving() ? '⏳ ...' : (editingTable()?.id ? 'Сохранить' : 'Добавить стол') }}
+        {{ tableSaving() ? '...' : (editingTable()?.id ? 'Сохранить' : 'Добавить стол') }}
       </button>
     </div>
   </div>
@@ -181,7 +182,7 @@ const ZONE_COLORS = [
       <button (click)="deleteTarget.set(null)" class="btn btn-outline flex-1">Отмена</button>
       <button (click)="executeDelete()" [disabled]="deleteSaving()"
               class="btn flex-1" style="background:#dc2626;color:white">
-        {{ deleteSaving() ? '⏳' : 'Удалить' }}
+        {{ deleteSaving() ? '...' : 'Удалить' }}
       </button>
     </div>
   </div>

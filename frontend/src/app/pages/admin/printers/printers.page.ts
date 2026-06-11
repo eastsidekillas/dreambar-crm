@@ -3,6 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { Printer, PrinterConnection } from '../../../core/models';
+import {
+  LucidePrinter, LucideGlobe, LucideUsb, LucidePencil, LucideTrash2,
+  LucideX, LucideCheck,
+} from '@lucide/angular';
 
 interface PrinterForm {
   name: string;
@@ -23,14 +27,14 @@ const BLANK_FORM = (): PrinterForm => ({
 @Component({
   selector: 'app-printers-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucidePrinter, LucideGlobe, LucideUsb, LucidePencil, LucideTrash2, LucideX, LucideCheck],
   template: `
     <div class="max-w-2xl mx-auto space-y-6">
 
       <!-- Page header -->
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-xl font-bold">🖨 Принтеры</h1>
+          <h1 class="text-xl font-bold flex items-center gap-2"><svg lucidePrinter [size]="20"></svg> Принтеры</h1>
           <p class="text-sm mt-0.5" style="color:var(--color-muted)">
             Термопринтеры для печати предчеков
           </p>
@@ -59,9 +63,9 @@ const BLANK_FORM = (): PrinterForm => ({
                   </div>
                   <p class="text-xs mt-0.5" style="color:var(--color-muted)">
                     @if (p.connection === 'network') {
-                      🌐 Ethernet · {{ p.host }}:{{ p.port }} · {{ p.width }} симв.
+                      <svg lucideGlobe [size]="12" class="inline-block mr-1"></svg>Ethernet · {{ p.host }}:{{ p.port }} · {{ p.width }} симв.
                     } @else {
-                      🔌 USB-агент · ключ: {{ p.agent_key || '—' }} · {{ p.width }} симв.
+                      <svg lucideUsb [size]="12" class="inline-block mr-1"></svg>USB-агент · ключ: {{ p.agent_key || '—' }} · {{ p.width }} симв.
                     }
                   </p>
                 </div>
@@ -72,11 +76,11 @@ const BLANK_FORM = (): PrinterForm => ({
                           [disabled]="testing() === p.id"
                           class="btn btn-ghost btn-sm"
                           title="Тестовая печать">
-                    {{ testing() === p.id ? '⏳' : '🖨' }}
+                    <svg lucidePrinter [size]="14"></svg>
                   </button>
-                  <button (click)="openEdit(p)" class="btn btn-ghost btn-sm">✏️</button>
+                  <button (click)="openEdit(p)" class="btn btn-ghost btn-sm"><svg lucidePencil [size]="14"></svg></button>
                   <button (click)="confirmDelete(p)" class="btn btn-ghost btn-sm"
-                          style="color:var(--color-red)">🗑</button>
+                          style="color:var(--color-red)"><svg lucideTrash2 [size]="14"></svg></button>
                 </div>
               </div>
 
@@ -86,7 +90,11 @@ const BLANK_FORM = (): PrinterForm => ({
                      [style]="testResult()[p.id]!.ok
                        ? 'background:var(--color-green-bg);color:var(--color-green)'
                        : 'background:var(--color-red-bg);color:var(--color-red)'">
-                  {{ testResult()[p.id]!.ok ? '✓ Принтер ответил' : '✗ ' + testResult()[p.id]!.error }}
+                  @if (testResult()[p.id]!.ok) {
+                    <svg lucideCheck [size]="12" class="inline-block mr-1"></svg>Принтер ответил
+                  } @else {
+                    <svg lucideX [size]="12" class="inline-block mr-1"></svg> {{ testResult()[p.id]!.error }}
+                  }
                 </div>
               }
             </div>
@@ -94,7 +102,7 @@ const BLANK_FORM = (): PrinterForm => ({
         </div>
       } @else if (!loading()) {
         <div class="card text-center py-12">
-          <span class="text-4xl block mb-3">🖨</span>
+          <svg lucidePrinter [size]="48" class="mb-3 mx-auto" style="color:var(--color-muted)"></svg>
           <p style="color:var(--color-muted)">Принтеры не настроены</p>
           <button (click)="openCreate()" class="btn btn-primary btn-sm mt-3">
             Добавить принтер
@@ -127,7 +135,7 @@ const BLANK_FORM = (): PrinterForm => ({
           <h2 class="font-bold text-base">
             {{ editId() ? 'Редактировать принтер' : 'Добавить принтер' }}
           </h2>
-          <button (click)="closeForm()" class="btn btn-ghost btn-sm">✕</button>
+          <button (click)="closeForm()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
         </div>
 
         <!-- Form body -->
@@ -144,14 +152,14 @@ const BLANK_FORM = (): PrinterForm => ({
             <label class="section-title block mb-1.5">Подключение</label>
             <div class="flex gap-2">
               <button (click)="form.connection = 'network'"
-                      class="btn btn-sm" style="flex:1"
+                      class="btn btn-sm flex items-center gap-1" style="flex:1"
                       [class]="form.connection === 'network' ? 'btn-primary' : 'btn-outline'">
-                🌐 Ethernet
+                <svg lucideGlobe [size]="14"></svg> Ethernet
               </button>
               <button (click)="form.connection = 'agent'"
-                      class="btn btn-sm" style="flex:1"
+                      class="btn btn-sm flex items-center gap-1" style="flex:1"
                       [class]="form.connection === 'agent' ? 'btn-primary' : 'btn-outline'">
-                🔌 USB-агент
+                <svg lucideUsb [size]="14"></svg> USB-агент
               </button>
             </div>
           </div>
@@ -216,7 +224,7 @@ const BLANK_FORM = (): PrinterForm => ({
         <div class="flex-shrink-0 px-5 py-4" style="border-top:1px solid var(--color-border)">
           <button (click)="saveForm()" [disabled]="saving() || !form.name.trim()"
                   class="btn btn-primary btn-full" style="height:48px">
-            {{ saving() ? '⏳ Сохранение...' : (editId() ? 'Сохранить' : 'Добавить принтер') }}
+            {{ saving() ? 'Сохранение...' : (editId() ? 'Сохранить' : 'Добавить принтер') }}
           </button>
         </div>
       </div>
@@ -239,7 +247,7 @@ const BLANK_FORM = (): PrinterForm => ({
           </button>
           <button (click)="doDelete()" [disabled]="saving()"
                   class="btn btn-sm" style="flex:1;background:var(--color-red);color:white">
-            {{ saving() ? '⏳' : 'Удалить' }}
+            {{ saving() ? '...' : 'Удалить' }}
           </button>
         </div>
       </div>

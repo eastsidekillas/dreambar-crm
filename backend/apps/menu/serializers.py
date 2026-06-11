@@ -1,11 +1,29 @@
 from rest_framework import serializers
-from .models import MenuSection, MenuCategory, MenuItem, ModifierGroup, Modifier, MenuItemModifierGroup
+from .models import Menu, MenuSection, MenuCategory, MenuItem, ModifierGroup, Modifier, MenuItemModifierGroup
+
+
+class MenuSerializer(serializers.ModelSerializer):
+    sections_count = serializers.SerializerMethodField()
+    items_count    = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = Menu
+        fields = ['id', 'name', 'is_active', 'created_at', 'sections_count', 'items_count']
+        read_only_fields = ['created_at']
+
+    def get_sections_count(self, obj):
+        return obj.sections.count()
+
+    def get_items_count(self, obj):
+        return MenuItem.objects.filter(category__section__menu=obj).count()
 
 
 class MenuSectionSerializer(serializers.ModelSerializer):
+    menu_name = serializers.CharField(source='menu.name', read_only=True)
+
     class Meta:
-        model = MenuSection
-        fields = ['id', 'name', 'station_type', 'icon', 'sort_order', 'is_active']
+        model  = MenuSection
+        fields = ['id', 'menu', 'menu_name', 'name', 'station_type', 'icon', 'sort_order', 'is_active']
 
 
 class MenuCategorySerializer(serializers.ModelSerializer):

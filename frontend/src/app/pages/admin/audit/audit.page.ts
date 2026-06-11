@@ -3,15 +3,16 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { DeletedOrderItem, Shift, Employee } from '../../../core/models';
+import { LucideTrash2 } from '@lucide/angular';
 
 @Component({
   selector: 'app-audit',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideTrash2],
   template: `
     <div class="space-y-5">
       <div class="flex items-center justify-between flex-wrap gap-3">
-        <h1 class="text-xl font-bold">🗑 Удалённые позиции</h1>
+        <h1 class="text-xl font-bold flex items-center gap-2"><svg lucideTrash2 [size]="20"></svg> Удалённые позиции</h1>
         <span class="text-sm" style="color:var(--color-muted)">
           {{ items().length }} записей
           @if (totalAmount() > 0) {

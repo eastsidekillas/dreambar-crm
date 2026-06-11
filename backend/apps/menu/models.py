@@ -8,10 +8,30 @@ STATION_CHOICES = [
 ]
 
 
+class Menu(models.Model):
+    name       = models.CharField(max_length=100, verbose_name='Название')
+    is_active  = models.BooleanField(default=False, verbose_name='Активное')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Меню'
+        verbose_name_plural = 'Меню'
+
+    def __str__(self):
+        return self.name
+
+    def activate(self):
+        Menu.objects.exclude(pk=self.pk).update(is_active=False)
+        self.is_active = True
+        self.save(update_fields=['is_active'])
+
+
 class MenuSection(models.Model):
     """Верхний уровень: Крепкий алкоголь, Горячее, Кальяны…
     station_type определяет, на какой принтер уходит заказ по умолчанию.
     """
+    menu         = models.ForeignKey(Menu, on_delete=models.CASCADE, related_name='sections', verbose_name='Меню')
     name         = models.CharField(max_length=100, verbose_name='Название')
     station_type = models.CharField(max_length=20, choices=STATION_CHOICES, verbose_name='Станция')
     icon         = models.CharField(max_length=10, blank=True, verbose_name='Иконка')

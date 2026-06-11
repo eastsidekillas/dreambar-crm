@@ -1,23 +1,29 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { Shift, Receipt } from '../../../core/models';
+import {
+  LucideDynamicIcon,
+  LucideBanknote, LucideCreditCard, LucideSmartphone, LucideShuffle,
+  LucideReceipt,
+} from '@lucide/angular';
 
-const PAY_ICON: Record<string, string> = {
-  cash: '💵', card: '💳', transfer: '📲', mixed: '🔀',
+const PAY_ICON: Record<string, LucideIconInput> = {
+  cash: LucideBanknote, card: LucideCreditCard, transfer: LucideSmartphone, mixed: LucideShuffle,
 };
 
 @Component({
   selector: 'app-shifts-receipts',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideDynamicIcon, LucideReceipt],
   template: `
 <div class="space-y-4">
 
   <div>
-    <h1 class="text-xl font-bold">🧾 Детали по чекам</h1>
+    <h1 class="text-xl font-bold flex items-center gap-2"><svg lucideReceipt [size]="20"></svg> Детали по чекам</h1>
     <p class="text-xs mt-0.5" style="color:var(--color-muted)">
       Список чеков с детализацией по позициям
     </p>
@@ -71,7 +77,7 @@ const PAY_ICON: Record<string, string> = {
                 <td class="px-3 py-2.5">{{ r.waiter_name }}</td>
                 <td class="px-3 py-2.5">
                   <span class="flex items-center gap-1.5">
-                    {{ payIcon(r.payment_method) }} {{ r.payment_label }}
+                    <svg [lucideIcon]="payIcon(r.payment_method)" [size]="14"></svg> {{ r.payment_label }}
                   </span>
                 </td>
                 <td class="px-3 py-2.5 text-right font-semibold" style="color:var(--color-gold-hover)">
@@ -136,7 +142,7 @@ const PAY_ICON: Record<string, string> = {
       <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
         @for (ps of receiptsByPayment(); track ps.method) {
           <div class="rounded-xl p-3 text-center" style="background:var(--color-surface2)">
-            <p class="text-xs section-title mb-1">{{ payIcon(ps.method) }} {{ ps.label }}</p>
+            <p class="text-xs section-title mb-1 flex items-center justify-center gap-1"><svg [lucideIcon]="payIcon(ps.method)" [size]="12"></svg> {{ ps.label }}</p>
             <p class="font-bold" style="color:var(--color-gold-hover)">
               {{ ps.total | number:'1.0-0' }} ₽
             </p>
@@ -200,7 +206,7 @@ export class ShiftsReceiptsPage implements OnInit {
     this.openedId.set(this.openedId() === id ? null : id);
   }
 
-  payIcon(method: string) { return PAY_ICON[method] ?? '💰'; }
+  payIcon(method: string): LucideIconInput { return PAY_ICON[method] ?? LucideBanknote; }
 
   formatDate(d: string) {
     return new Date(d).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });

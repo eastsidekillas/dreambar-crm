@@ -1,3 +1,4 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, RouterOutlet, Router } from '@angular/router';
@@ -8,13 +9,19 @@ import { CartService } from '../../features/cart/cart.service';
 import { CartDrawerComponent, CartSubmit } from '../../widgets/cart-drawer/cart-drawer.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { Shift } from '../../core/models';
+import {
+  LucideDynamicIcon,
+  LucideClipboardList, LucideUtensilsCrossed, LucideTicket, LucideReceipt,
+  LucideSettings, LucideShoppingCart,
+} from '@lucide/angular';
 
-interface Tab { path: string; label: string; icon: string; }
+interface Tab { path: string; label: string; icon: LucideIconInput; }
 
 @Component({
   selector: 'app-waiter-shell',
   standalone: true,
-  imports: [CommonModule, RouterModule, RouterOutlet, CartDrawerComponent],
+  imports: [CommonModule, RouterModule, RouterOutlet, CartDrawerComponent, LucideDynamicIcon,
+    LucideShoppingCart],
   template: `
     <div class="flex flex-col" style="height:100dvh;background:var(--color-bg)">
 
@@ -62,7 +69,7 @@ interface Tab { path: string; label: string; icon: string; }
                   class="w-full flex items-center justify-between px-4 py-3 rounded-xl"
                   style="background:var(--color-gold);box-shadow:0 4px 16px rgba(184,146,42,0.4);color:white">
             <div class="flex items-center gap-2">
-              <span class="text-lg">🛒</span>
+              <svg lucideShoppingCart [size]="18" style="color:white"></svg>
               <span class="font-semibold text-sm">
                 {{ cart.target() ? 'Дозаказ · ' + (cart.target()!.table_number || 'Стол') : 'Корзина' }}
               </span>
@@ -87,7 +94,7 @@ interface Tab { path: string; label: string; icon: string; }
              [style.color]="rla.isActive ? 'var(--color-gold)' : 'var(--color-muted)'"
              [style.border-top]="rla.isActive ? '2px solid var(--color-gold)' : '2px solid transparent'"
              style="text-decoration:none">
-            <span class="text-xl leading-none">{{ tab.icon }}</span>
+            <svg [lucideIcon]="tab.icon" [size]="20"></svg>
             <span class="text-xs font-medium">{{ tab.label }}</span>
           </a>
         }
@@ -125,11 +132,11 @@ export class WaiterShell implements OnInit {
 
   /** Tabs depend on role. */
   tabs = computed<Tab[]>(() => {
-    const order   = { path: '/waiter/order',   label: 'Меню',    icon: '📋' };
-    const tables  = { path: '/waiter/tables',  label: 'Столы',   icon: '🍽' };
-    const tickets = { path: '/waiter/tickets', label: 'Билеты',  icon: '🎟' };
-    const history = { path: '/waiter/history', label: 'Чеки',    icon: '🧾' };
-    const admin   = { path: '/admin',          label: 'Управление', icon: '⚙️' };
+    const order   = { path: '/waiter/order',   label: 'Меню',       icon: LucideClipboardList };
+    const tables  = { path: '/waiter/tables',  label: 'Столы',      icon: LucideUtensilsCrossed };
+    const tickets = { path: '/waiter/tickets', label: 'Билеты',     icon: LucideTicket };
+    const history = { path: '/waiter/history', label: 'Чеки',       icon: LucideReceipt };
+    const admin   = { path: '/admin',          label: 'Управление', icon: LucideSettings };
 
     switch (this.auth.role()) {
       case 'wardrobe':  return [tickets, history];

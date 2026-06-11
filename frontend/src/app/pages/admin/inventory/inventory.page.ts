@@ -1,3 +1,4 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -6,6 +7,13 @@ import {
   Product, MenuItemComponent, ConsumptionRow, MenuByCategory,
   InventoryMovement, MovementReason, PRODUCT_UNITS,
 } from '../../../core/models';
+import {
+  LucideDynamicIcon,
+  LucidePackage, LucideFlaskConical, LucideBarChart2, LucideList,
+  LucideTriangleAlert, LucidePencil, LucideTrash2, LucideCheck, LucideX,
+  LucideGlassWater, LucideUtensilsCrossed, LucideWind, LucideClock,
+  LucideClipboardList,
+} from '@lucide/angular';
 
 type Tab = 'stock' | 'recipes' | 'consumption' | 'movements';
 
@@ -19,7 +27,10 @@ const REASON_LABELS: Record<MovementReason, string> = {
 @Component({
   selector: 'app-inventory',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideDynamicIcon,
+    LucidePackage, LucideBarChart2,
+    LucideTriangleAlert, LucidePencil, LucideTrash2, LucideCheck, LucideX,
+    LucideClock, LucideClipboardList],
   template: `
 <div class="space-y-4">
 
@@ -28,8 +39,8 @@ const REASON_LABELS: Record<MovementReason, string> = {
     <div>
       <h1 class="text-xl font-bold">Склад</h1>
       @if (lowCount() > 0) {
-        <p class="text-xs mt-0.5" style="color:#dc2626">
-          ⚠️ {{ lowCount() }} позиц{{ lowCount() === 1 ? 'ия' : 'ии' }} ниже минимума
+        <p class="text-xs mt-0.5 flex items-center gap-1" style="color:#dc2626">
+          <svg lucideTriangleAlert [size]="12"></svg> {{ lowCount() }} позиц{{ lowCount() === 1 ? 'ия' : 'ии' }} ниже минимума
         </p>
       }
     </div>
@@ -43,7 +54,7 @@ const REASON_LABELS: Record<MovementReason, string> = {
               [style]="tab() === t.key
                 ? 'background:white;color:var(--color-text);box-shadow:0 1px 3px rgba(0,0,0,.1)'
                 : 'background:transparent;color:var(--color-muted)'">
-        {{ t.icon }} <span class="hidden sm:inline">{{ t.label }}</span>
+        <svg [lucideIcon]="t.icon" [size]="16"></svg> <span class="hidden sm:inline">{{ t.label }}</span>
         @if (t.key === 'stock' && lowCount() > 0) {
           <span class="w-4 h-4 rounded-full text-white flex items-center justify-center"
                 style="background:#dc2626;font-size:9px;font-weight:700">{{ lowCount() }}</span>
@@ -63,11 +74,11 @@ const REASON_LABELS: Record<MovementReason, string> = {
           + Товар
         </button>
         <button (click)="stockFilter.set(stockFilter() === 'low' ? 'all' : 'low')"
-                class="btn btn-sm"
+                class="btn btn-sm flex items-center gap-1"
                 [style]="stockFilter() === 'low'
                   ? 'background:#fee2e2;color:#dc2626;border:1px solid #fca5a5'
                   : 'background:var(--color-bg);color:var(--color-muted);border:1px solid var(--color-border)'">
-          ⚠️ Только нехватка
+          <svg lucideTriangleAlert [size]="12"></svg> Только нехватка
         </button>
         <span class="ml-auto text-xs" style="color:var(--color-muted)">
           {{ filteredProducts().length }} / {{ products().length }}
@@ -155,8 +166,8 @@ const REASON_LABELS: Record<MovementReason, string> = {
                     </td>
                     <td class="px-3 py-2">
                       <div class="flex gap-1">
-                        <button (click)="saveEditProduct(p)" class="btn btn-primary btn-sm">✓</button>
-                        <button (click)="editProductId.set(null)" class="btn btn-ghost btn-sm">✕</button>
+                        <button (click)="saveEditProduct(p)" class="btn btn-primary btn-sm"><svg lucideCheck [size]="14"></svg></button>
+                        <button (click)="editProductId.set(null)" class="btn btn-ghost btn-sm"><svg lucideX [size]="14"></svg></button>
                       </div>
                     </td>
                   </tr>
@@ -190,7 +201,7 @@ const REASON_LABELS: Record<MovementReason, string> = {
                                 style="background:var(--color-gold-light);color:var(--color-gold-hover);font-size:11px">
                           ± Корректировать
                         </button>
-                        <button (click)="startEditProduct(p)" class="btn btn-ghost btn-sm">✏</button>
+                        <button (click)="startEditProduct(p)" class="btn btn-ghost btn-sm"><svg lucidePencil [size]="14"></svg></button>
                       </div>
                     </td>
                   </tr>
@@ -258,7 +269,7 @@ const REASON_LABELS: Record<MovementReason, string> = {
         </div>
       } @else {
         <div class="text-center py-10" style="color:var(--color-muted)">
-          <span class="text-3xl block mb-2">📦</span>
+          <svg lucidePackage [size]="48" class="mb-2 mx-auto"></svg>
           {{ products().length ? 'Нет позиций с нехваткой' : 'Товары ещё не добавлены' }}
         </div>
       }
@@ -281,7 +292,7 @@ const REASON_LABELS: Record<MovementReason, string> = {
           <div class="card p-0 overflow-hidden">
             <div class="px-4 py-2.5 flex items-center gap-2"
                  style="background:var(--color-bg);border-bottom:1px solid var(--color-border)">
-              <span>{{ catIcon(cat.station_type) }}</span>
+              <svg [lucideIcon]="catIcon(cat.station_type)" [size]="16"></svg>
               <span class="font-semibold text-sm">{{ cat.name }}</span>
               <span class="badge badge-gray">{{ cat.items.length }}</span>
               <span class="ml-auto text-xs" style="color:var(--color-muted)">
@@ -314,13 +325,13 @@ const REASON_LABELS: Record<MovementReason, string> = {
                           <input [(ngModel)]="editCompQty" type="number" min="0.001" step="any"
                                  class="field text-sm text-right" style="width:80px;height:28px"/>
                           <span class="text-xs" style="color:var(--color-muted)">{{ comp.product_unit }}</span>
-                          <button (click)="saveEditComp(comp)" class="btn btn-primary btn-sm" style="height:28px">✓</button>
-                          <button (click)="editCompId.set(null)" class="btn btn-ghost btn-sm" style="height:28px">✕</button>
+                          <button (click)="saveEditComp(comp)" class="btn btn-primary btn-sm" style="height:28px"><svg lucideCheck [size]="12"></svg></button>
+                          <button (click)="editCompId.set(null)" class="btn btn-ghost btn-sm" style="height:28px"><svg lucideX [size]="12"></svg></button>
                         } @else {
                           <span class="text-sm font-medium">{{ comp.quantity | number:'1.0-3' }} {{ comp.product_unit }}</span>
-                          <button (click)="startEditComp(comp)" class="btn btn-ghost btn-sm" style="height:26px;font-size:11px">✏</button>
+                          <button (click)="startEditComp(comp)" class="btn btn-ghost btn-sm" style="height:26px"><svg lucidePencil [size]="12"></svg></button>
                           <button (click)="deleteComp(comp)" class="btn btn-sm"
-                                  style="height:26px;font-size:11px;background:#fee2e2;color:#dc2626">🗑</button>
+                                  style="height:26px;background:#fee2e2;color:#dc2626"><svg lucideTrash2 [size]="12"></svg></button>
                         }
                       </div>
                     }
@@ -337,8 +348,8 @@ const REASON_LABELS: Record<MovementReason, string> = {
                         <span class="text-xs shrink-0" style="color:var(--color-muted)">
                           {{ unitForProduct(newComp.product) }}
                         </span>
-                        <button (click)="saveNewComp(item.id)" class="btn btn-primary btn-sm">✓</button>
-                        <button (click)="addingCompFor.set(null)" class="btn btn-ghost btn-sm">✕</button>
+                        <button (click)="saveNewComp(item.id)" class="btn btn-primary btn-sm"><svg lucideCheck [size]="14"></svg></button>
+                        <button (click)="addingCompFor.set(null)" class="btn btn-ghost btn-sm"><svg lucideX [size]="14"></svg></button>
                       </div>
                     } @else {
                       <button (click)="startAddComp(item.id)"
@@ -390,7 +401,7 @@ const REASON_LABELS: Record<MovementReason, string> = {
 
       @if (consumptionLoading()) {
         <div class="text-center py-8" style="color:var(--color-muted)">
-          <span class="text-2xl block mb-2">⏳</span>Расчёт...
+          <svg lucideClock [size]="32" class="mb-2 mx-auto"></svg>Расчёт...
         </div>
       } @else if (consumption().length) {
         <div class="card" style="background:var(--color-gold-light);border-color:var(--color-gold-mid)">
@@ -452,7 +463,7 @@ const REASON_LABELS: Record<MovementReason, string> = {
         </div>
       } @else if (consumptionQueried()) {
         <div class="text-center py-10" style="color:var(--color-muted)">
-          <span class="text-3xl block mb-2">🤔</span>
+          <svg lucideBarChart2 [size]="40" class="mb-2 mx-auto"></svg>
           Нет данных — возможно, не заполнены рецептуры или нет продаж за период
         </div>
       }
@@ -492,7 +503,7 @@ const REASON_LABELS: Record<MovementReason, string> = {
       </div>
 
       @if (movementsLoading()) {
-        <div class="text-center py-8" style="color:var(--color-muted)">⏳ Загрузка...</div>
+        <div class="text-center py-8 flex items-center justify-center gap-2" style="color:var(--color-muted)"><svg lucideClock [size]="16"></svg> Загрузка...</div>
       } @else if (filteredMovements().length) {
         <div class="card p-0 overflow-hidden">
           <table class="w-full text-sm">
@@ -536,7 +547,7 @@ const REASON_LABELS: Record<MovementReason, string> = {
         </div>
       } @else {
         <div class="text-center py-10" style="color:var(--color-muted)">
-          <span class="text-3xl block mb-2">📋</span>
+          <svg lucideClipboardList [size]="40" class="mb-2 mx-auto"></svg>
           Движений не найдено
         </div>
       }
@@ -550,11 +561,11 @@ const REASON_LABELS: Record<MovementReason, string> = {
 export class InventoryPage implements OnInit {
   tab = signal<Tab>('stock');
 
-  tabs = [
-    { key: 'stock'       as Tab, icon: '📦', label: 'Остатки'   },
-    { key: 'recipes'     as Tab, icon: '🧪', label: 'Рецептуры' },
-    { key: 'consumption' as Tab, icon: '📊', label: 'Расход'    },
-    { key: 'movements'   as Tab, icon: '📋', label: 'Движения'  },
+  tabs: { key: Tab; icon: LucideIconInput; label: string }[] = [
+    { key: 'stock'       as Tab, icon: LucidePackage,    label: 'Остатки'   },
+    { key: 'recipes'     as Tab, icon: LucideFlaskConical,     label: 'Рецептуры' },
+    { key: 'consumption' as Tab, icon: LucideBarChart2,  label: 'Расход'    },
+    { key: 'movements'   as Tab, icon: LucideList,       label: 'Движения'  },
   ];
 
   units = PRODUCT_UNITS;
@@ -794,7 +805,7 @@ export class InventoryPage implements OnInit {
     });
   }
 
-  catIcon(t: string) { return t === 'bar' ? '🍹' : t === 'kitchen' ? '🍽' : '💨'; }
+  catIcon(t: string): LucideIconInput { return t === 'bar' ? LucideGlassWater : t === 'kitchen' ? LucideUtensilsCrossed : LucideWind; }
 
   // ── Consumption ───────────────────────────────────────────────────
   applyPreset(preset: { label: string; days: number }) {

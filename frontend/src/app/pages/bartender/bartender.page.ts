@@ -1,3 +1,4 @@
+import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, OnDestroy, signal, computed, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -7,19 +8,30 @@ import { CartService } from '../../features/cart/cart.service';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { ReceiptPrintService } from '../../features/receipt/receipt-print.service';
 import { KitchenTicket, KitchenItem, KitchenStatus, MenuByCategory, MenuItem, PaymentMethod, Product, MenuItemComponent } from '../../core/models';
+import {
+  LucideDynamicIcon,
+  LucideGlassWater, LucideUtensilsCrossed, LucidePackage, LucideClipboardList,
+  LucideBell, LucideBellOff, LucideCheck, LucideCheckCheck, LucideX, LucideReceipt,
+  LucideWine, LucideFolder, LucideBanknote, LucideCreditCard, LucideSmartphone,
+  LucideCircleCheck, LucideClock,
+} from '@lucide/angular';
 
 const REFRESH_MS = 6000;
 
-const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
-  { value: 'cash',     label: 'Наличные', icon: '💵' },
-  { value: 'card',     label: 'Карта',    icon: '💳' },
-  { value: 'transfer', label: 'Перевод',  icon: '📲' },
+const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: LucideIconInput }[] = [
+  { value: 'cash',     label: 'Наличные', icon: LucideBanknote },
+  { value: 'card',     label: 'Карта',    icon: LucideCreditCard },
+  { value: 'transfer', label: 'Перевод',  icon: LucideSmartphone },
 ];
 
 @Component({
   selector: 'app-bartender',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideDynamicIcon,
+    LucideGlassWater, LucideUtensilsCrossed, LucidePackage, LucideClipboardList,
+    LucideBell, LucideBellOff, LucideCheck, LucideCheckCheck, LucideX, LucideReceipt,
+    LucideWine, LucideFolder,
+    LucideCircleCheck, LucideClock],
   template: `
     <div class="flex flex-col" style="height:100dvh;background:#0f172a;color:#f1f5f9">
 
@@ -27,7 +39,7 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
       <header class="sticky top-0 z-30 px-4 py-3 flex items-center justify-between"
               style="background:#0a0f1e;border-bottom:1px solid #1e293b">
         <div class="flex items-center gap-3">
-          <span class="text-2xl">🍸</span>
+          <svg lucideGlassWater [size]="24" style="color:#f1f5f9"></svg>
           <div class="leading-tight">
             <p class="font-bold">Бар</p>
             <p class="text-xs" style="color:#94a3b8">{{ auth.user()?.display_name }}</p>
@@ -51,7 +63,7 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
               class="relative flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
               style="min-height:52px;min-width:72px;font-size:0.82rem;border-left:1px solid #334155"
               [style]="tab() === 'kitchen' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
-              <span>🍽 Кухня</span>
+              <span class="flex items-center gap-1"><svg lucideUtensilsCrossed [size]="14"></svg> Кухня</span>
               @if (kitchenUnseenCount()) {
                 <span class="absolute top-1 right-1 w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold"
                       style="background:#22c55e;color:white">{{ kitchenUnseenCount() }}</span>
@@ -67,20 +79,24 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
               class="flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
               style="min-height:52px;min-width:72px;font-size:0.82rem;border-left:1px solid #334155"
               [style]="tab() === 'stock' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
-              <span>📦 Склад</span>
+              <span class="flex items-center gap-1"><svg lucidePackage [size]="14"></svg> Склад</span>
             </button>
             <button (click)="tab.set('recipes')"
               class="flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
               style="min-height:52px;min-width:80px;font-size:0.82rem;border-left:1px solid #334155"
               [style]="tab() === 'recipes' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
-              <span>📋 Рецепты</span>
+              <span class="flex items-center gap-1"><svg lucideClipboardList [size]="14"></svg> Рецепты</span>
             </button>
           </div>
 
           <button (click)="toggleSound()"
                   class="flex items-center justify-center rounded-xl"
-                  style="background:#1e293b;min-width:48px;min-height:48px;font-size:1.25rem">
-            {{ soundOn() ? '🔔' : '🔕' }}
+                  style="background:#1e293b;min-width:48px;min-height:48px">
+            @if (soundOn()) {
+              <svg lucideBell [size]="20" style="color:#f1f5f9"></svg>
+            } @else {
+              <svg lucideBellOff [size]="20" style="color:#64748b"></svg>
+            }
           </button>
 
           <div class="hidden sm:flex items-center gap-1.5 text-xs" style="color:#64748b">
@@ -106,7 +122,7 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
           </div>
         } @else if (!active().length) {
           <div class="flex-1 flex flex-col items-center justify-center text-center px-4">
-            <span class="text-5xl mb-3">✅</span>
+            <svg lucideCircleCheck [size]="48" class="mb-3" style="color:#22c55e"></svg>
             <p class="text-lg font-bold mb-1">Нет напитков в работе</p>
             <p style="color:#64748b">Новые заказы появятся здесь автоматически</p>
           </div>
@@ -130,7 +146,7 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
                     <span class="text-xs" style="color:#94a3b8">{{ t.waiter_name }}</span>
                   </div>
                   <span class="text-sm font-bold" [style.color]="urgencyColor(t.elapsed_min)">
-                    ⏱ {{ t.elapsed_min }} мин
+                    <svg lucideClock [size]="12" class="inline-block mr-0.5"></svg> {{ t.elapsed_min }} мин
                   </span>
                 </div>
 
@@ -158,14 +174,14 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
                           </button>
                         } @else if (it.kitchen_status === 'cooking') {
                           <button (click)="setStatus(it, 'ready')"
-                                  class="rounded-xl font-bold"
+                                  class="rounded-xl font-bold flex items-center gap-1"
                                   style="background:#22c55e;color:#0f172a;min-height:48px;padding:0 18px;font-size:0.9rem">
-                            ✓ Готово
+                            <svg lucideCheck [size]="16"></svg> Готово
                           </button>
                         } @else {
-                          <span class="rounded-xl font-bold flex items-center"
+                          <span class="rounded-xl font-bold flex items-center gap-1"
                                 style="background:#15803d;color:white;min-height:40px;padding:0 14px;font-size:0.85rem">
-                            ✓ Готов
+                            <svg lucideCheck [size]="14"></svg> Готов
                           </span>
                         }
                         @if (barConfirmDelete() === it.id) {
@@ -182,8 +198,8 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
                         } @else {
                           <button (click)="barConfirmDelete.set(it.id)"
                                   class="rounded-lg flex items-center justify-center"
-                                  style="background:#334155;color:#94a3b8;min-width:44px;min-height:44px;font-size:1rem"
-                                  title="Удалить">✕</button>
+                                  style="background:#334155;color:#94a3b8;min-width:44px;min-height:44px"
+                                  title="Удалить"><svg lucideX [size]="16"></svg></button>
                         }
                       </div>
                     </div>
@@ -192,9 +208,9 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
 
                 <!-- Mark all ready -->
                 <button (click)="markAllReady(t)"
-                        class="font-bold"
+                        class="font-bold flex items-center justify-center gap-2"
                         style="background:#15803d;color:white;min-height:56px;font-size:1rem;border:none;width:100%">
-                  ✓✓ Все напитки готовы
+                  <svg lucideCheckCheck [size]="18"></svg> Все напитки готовы
                 </button>
               </div>
             }
@@ -207,7 +223,7 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
             <button (click)="showReady.set(!showReady())"
                     class="flex items-center gap-2 mb-2 text-sm font-semibold"
                     style="color:#64748b">
-              {{ showReady() ? '▾' : '▸' }} ✅ Готово к выдаче ({{ ready().length }})
+              {{ showReady() ? '▾' : '▸' }} Готово к выдаче ({{ ready().length }})
             </button>
             @if (showReady()) {
               <div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
@@ -238,7 +254,7 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
           </div>
         } @else if (!kitchenActive().length && !kitchenReady().length) {
           <div class="flex-1 flex flex-col items-center justify-center text-center px-4">
-            <span class="text-5xl mb-3">✅</span>
+            <svg lucideCircleCheck [size]="48" class="mb-3" style="color:#4ADE80"></svg>
             <p class="text-lg font-bold mb-1">Кухня свободна</p>
             <p style="color:#64748b">Активных заказов нет</p>
           </div>
@@ -247,8 +263,8 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
           <!-- Готовые блюда — наверху, выделено зелёным -->
           @if (kitchenReady().length) {
             <section class="px-3 pt-3">
-              <p class="text-xs font-bold mb-2 uppercase tracking-wider" style="color:#22c55e">
-                ✅ Готово к выдаче ({{ kitchenReady().length }})
+              <p class="text-xs font-bold mb-2 uppercase tracking-wider flex items-center gap-1" style="color:#22c55e">
+                <svg lucideCircleCheck [size]="14"></svg> Готово к выдаче ({{ kitchenReady().length }})
               </p>
               <div class="grid gap-2 mb-3"
                    style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
@@ -274,8 +290,8 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
           <!-- В работе -->
           @if (kitchenActive().length) {
             <section class="px-3 pt-1 pb-4">
-              <p class="text-xs font-bold mb-2 uppercase tracking-wider" style="color:#f59e0b">
-                ⏳ Готовится ({{ kitchenActive().length }})
+              <p class="text-xs font-bold mb-2 uppercase tracking-wider flex items-center gap-1" style="color:#f59e0b">
+                <svg lucideClock [size]="14"></svg> Готовится ({{ kitchenActive().length }})
               </p>
               <div class="grid gap-2"
                    style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
@@ -290,7 +306,7 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
                               style="background:#334155;color:#f1f5f9">{{ t.table_number }}</span>
                       }
                       <span class="text-xs font-bold ml-auto" [style.color]="kitchenUrgency(t.elapsed_min)">
-                        ⏱ {{ t.elapsed_min }} мин
+                        <svg lucideClock [size]="12" class="inline-block mr-0.5"></svg> {{ t.elapsed_min }} мин
                       </span>
                     </div>
                     @for (it of t.items; track it.id) {
@@ -394,7 +410,7 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
                         <button (click)="deleteComponent(comp.id)"
                                 class="rounded-lg flex items-center justify-center flex-shrink-0"
                                 style="background:#ef444422;color:#ef4444;min-width:36px;min-height:36px;border:none;cursor:pointer">
-                          ✕
+                          <svg lucideX [size]="14"></svg>
                         </button>
                       </div>
                     }
@@ -466,7 +482,11 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
                     <button (click)="activeCat.set(cat.id)"
                             class="flex flex-col items-center justify-center gap-2 rounded-2xl p-4 transition-all active:scale-95"
                             style="background:#1e293b;border:1px solid #334155;min-height:110px">
-                      <span style="font-size:2.5rem;line-height:1">{{ cat.type === 'kitchen' ? '🍽' : '🍸' }}</span>
+                      @if (cat.type === 'kitchen') {
+                        <svg lucideUtensilsCrossed [size]="40" style="color:#f59e0b"></svg>
+                      } @else {
+                        <svg lucideGlassWater [size]="40" style="color:#f59e0b"></svg>
+                      }
                       <span class="font-bold text-sm text-center leading-tight uppercase tracking-wide"
                             style="color:#f1f5f9">{{ cat.name }}</span>
                       <span class="text-xs" style="color:#64748b">{{ cat.items.length }} поз.</span>
@@ -485,7 +505,11 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
                     <button (click)="selectDrinkGroup(group)"
                             class="flex flex-col items-center justify-center gap-2 rounded-2xl p-4 transition-all active:scale-95"
                             style="background:#1e293b;border:1px solid #334155;min-height:110px">
-                      <span style="font-size:2.5rem;line-height:1">{{ group.items.length > 1 ? '📁' : '✚' }}</span>
+                      @if (group.items.length > 1) {
+                        <svg lucideFolder [size]="40" style="color:#f59e0b"></svg>
+                      } @else {
+                        <span style="font-size:2.5rem;line-height:1;color:#f59e0b">✚</span>
+                      }
                       <span class="font-bold text-sm text-center leading-tight uppercase tracking-wide"
                             style="color:#f1f5f9">{{ group.name }}</span>
                       @if (group.items.length > 1) {
@@ -512,7 +536,7 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
                               class="flex flex-col items-center justify-center gap-2 p-5 flex-1 transition-all active:scale-95"
                               [style.opacity]="item.is_out_of_stock ? '0.4' : '1'"
                               [style.cursor]="item.is_out_of_stock ? 'not-allowed' : 'pointer'">
-                        <span style="font-size:2rem;line-height:1">🥃</span>
+                        <svg lucideWine [size]="32" style="color:#f59e0b"></svg>
                         <span class="font-bold text-base" style="color:#f1f5f9">
                           {{ item.volume || 'Порция' }}
                         </span>
@@ -535,8 +559,8 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
           <!-- Cart panel -->
           <div class="flex-shrink-0 max-h-64 md:max-h-none w-full md:w-72 flex flex-col overflow-hidden"
                style="background:#0a0f1e;border-top:1px solid #1e293b;border-left:1px solid #1e293b">
-            <div class="flex-shrink-0 px-4 py-3 font-bold" style="border-bottom:1px solid #1e293b">
-              🧾 Заказ
+            <div class="flex-shrink-0 px-4 py-3 font-bold flex items-center gap-2" style="border-bottom:1px solid #1e293b">
+              <svg lucideReceipt [size]="16"></svg> Заказ
             </div>
 
             <div class="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-2">
@@ -654,7 +678,7 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
                         [style]="selectedPay === p.value
                           ? 'background:#f59e0b;color:#0f172a'
                           : 'background:#0f172a;color:#94a3b8;border:1px solid #334155'">
-                  <span class="text-xl">{{ p.icon }}</span>
+                  <svg [lucideIcon]="p.icon" [size]="20"></svg>
                   {{ p.label }}
                 </button>
               }
