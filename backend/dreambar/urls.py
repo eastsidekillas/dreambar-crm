@@ -22,6 +22,7 @@ def me(request):
         'is_staff': u.is_staff,
         'role': role,
         'allowed_roles': allowed if len(allowed) > 1 else [],
+        'has_pin': bool(profile.pin_hash) if profile else False,
     })
 
 

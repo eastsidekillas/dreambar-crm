@@ -12,7 +12,7 @@ import { Shift } from '../../core/models';
 import {
   LucideDynamicIcon,
   LucideClipboardList, LucideUtensilsCrossed, LucideTicket, LucideReceipt,
-  LucideSettings, LucideShoppingCart,
+  LucideSettings, LucideShoppingCart, LucideCircleUserRound,
 } from '@lucide/angular';
 
 interface Tab { path: string; label: string; icon: LucideIconInput; }
@@ -45,16 +45,18 @@ interface Tab { path: string; label: string; icon: LucideIconInput; }
           }
         </div>
 
-        <!-- Right: name + logout -->
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-medium truncate max-w-32" style="color:var(--color-text)">
-            {{ auth.user()?.display_name }}
+        <!-- Right: profile chip -->
+        <a routerLink="/waiter/profile" title="Профиль: мои показатели, PIN, выход"
+           class="flex items-center gap-2 px-2 py-1 rounded-xl"
+           style="text-decoration:none;border:1px solid var(--color-border);background:var(--color-bg)">
+          <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                style="background:linear-gradient(135deg,var(--color-gold),var(--color-gold-hover));color:white">
+            {{ (auth.user()?.display_name || auth.user()?.username || '?')[0].toUpperCase() }}
           </span>
-          <button (click)="logout()" class="text-xs px-2.5 py-1.5 rounded-lg"
-                  style="background:var(--color-bg);color:var(--color-muted);border:1px solid var(--color-border)">
-            Выйти
-          </button>
-        </div>
+          <span class="text-sm font-medium truncate max-w-28" style="color:var(--color-text)">
+            {{ auth.user()?.display_name || auth.user()?.username }}
+          </span>
+        </a>
       </header>
 
       <!-- ── Content ─────────────────────────────────── -->
@@ -136,12 +138,13 @@ export class WaiterShell implements OnInit {
     const tables  = { path: '/waiter/tables',  label: 'Столы',      icon: LucideUtensilsCrossed };
     const tickets = { path: '/waiter/tickets', label: 'Билеты',     icon: LucideTicket };
     const history = { path: '/waiter/history', label: 'Чеки',       icon: LucideReceipt };
+    const profile = { path: '/waiter/profile', label: 'Профиль',    icon: LucideCircleUserRound };
     const admin   = { path: '/admin',          label: 'Управление', icon: LucideSettings };
 
     switch (this.auth.role()) {
-      case 'wardrobe':  return [tickets, history];
+      case 'wardrobe':  return [tickets, history, profile];
       case 'admin':     return [tables, order, tickets, history, admin];
-      default:          return [tables, order, history]; // waiter, bartender
+      default:          return [tables, order, history, profile]; // waiter, bartender
     }
   });
 
@@ -206,6 +209,4 @@ export class WaiterShell implements OnInit {
   formatDate(d: string): string {
     return new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
   }
-
-  logout() { this.auth.logout(); }
 }

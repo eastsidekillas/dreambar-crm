@@ -24,4 +24,4 @@ USER app
 EXPOSE 8000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["gunicorn", "dreambar.wsgi:application", "--bind=0.0.0.0:8000", "--workers=3", "--timeout=120"]
+CMD ["gunicorn", "dreambar.wsgi:application", "--bind=0.0.0.0:8000", "--workers=4", "--worker-class=gthread", "--threads=4", "--timeout=120"]

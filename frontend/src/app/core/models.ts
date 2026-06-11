@@ -55,6 +55,7 @@ export interface User {
   is_staff?: boolean;
   role?: Role;
   allowed_roles?: Role[];
+  has_pin?: boolean;
 }
 
 export interface Employee {

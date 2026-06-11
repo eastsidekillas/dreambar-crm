@@ -217,6 +217,27 @@ class StaffListView(APIView):
         return Response(result)
 
 
+class MyPinView(APIView):
+    """POST {pin, current_pin?} — смена собственного PIN.
+    Если PIN уже установлен, требуется текущий PIN."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        pin = str(request.data.get('pin', '')).strip()
+        if not pin.isdigit() or len(pin) != 4:
+            return Response({'detail': 'PIN должен состоять из 4 цифр.'}, status=400)
+
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        if profile.pin_hash:
+            current = str(request.data.get('current_pin', '')).strip()
+            if not check_password(current, profile.pin_hash):
+                return Response({'detail': 'Текущий PIN неверный.'}, status=400)
+
+        profile.pin_hash = make_password(pin)
+        profile.save(update_fields=['pin_hash'])
+        return Response({'detail': 'PIN обновлён.', 'has_pin': True})
+
+
 class PinLoginThrottle(AnonRateThrottle):
     scope = 'pin_login'
 

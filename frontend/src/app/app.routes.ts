@@ -43,6 +43,10 @@ export const routes: Routes = [
         path: 'history',
         loadComponent: () => import('./pages/waiter/history/history.page').then(m => m.HistoryPage)
       },
+      {
+        path: 'profile',
+        loadComponent: () => import('./pages/waiter/profile/profile.page').then(m => m.WaiterProfilePage)
+      },
     ]
   },
 

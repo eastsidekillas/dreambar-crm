@@ -104,7 +104,7 @@ def render_receipt_two_copies(receipt, width: int = 48) -> bytes:
     )
 
 
-def send_network(host: str, port: int, payload: bytes, timeout: float = 5.0) -> None:
+def send_network(host: str, port: int, payload: bytes, timeout: float = 2.0) -> None:
     with socket.create_connection((host, port), timeout=timeout) as sock:
         sock.sendall(payload)
 

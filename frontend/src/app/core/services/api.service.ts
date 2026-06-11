@@ -196,6 +196,11 @@ export class ApiService {
   setEmployeePin(userId: number, pin: string): Observable<any> {
     return this.http.patch(`${BASE}/employees/${userId}/`, { pin });
   }
+  setMyPin(pin: string, currentPin?: string): Observable<{ detail: string; has_pin: boolean }> {
+    const body: any = { pin };
+    if (currentPin) body.current_pin = currentPin;
+    return this.http.post<{ detail: string; has_pin: boolean }>(`${BASE}/auth/me/pin/`, body);
+  }
 
   // ── Employees ────────────────────────────────────────────────────
   getEmployees(): Observable<Employee[]> {
