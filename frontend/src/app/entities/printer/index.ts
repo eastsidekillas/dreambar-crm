@@ -1,0 +1,1 @@
+export { PrinterApi } from './printer.api';

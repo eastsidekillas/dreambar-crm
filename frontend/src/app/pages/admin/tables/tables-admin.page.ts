@@ -1,7 +1,7 @@
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
+import { TableApi } from '../../../entities/table';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Zone, VenueTable } from '../../../core/models';
 import { LucideMap, LucidePencil, LucideTrash2, LucideUsers, LucideX } from '@lucide/angular';
@@ -217,13 +217,13 @@ export class TablesAdminPage implements OnInit {
   deleteTarget  = signal<{ label: string; fn: () => void } | null>(null);
   deleteSaving  = signal(false);
 
-  constructor(private api: ApiService, private toast: ToastService) {}
+  constructor(private tableApi: TableApi, private toast: ToastService) {}
 
   ngOnInit() { this.load(); }
 
   load() {
     this.loading.set(true);
-    this.api.getZones().subscribe({
+    this.tableApi.getZones().subscribe({
       next: z => { this.zones.set(z); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
@@ -245,8 +245,8 @@ export class TablesAdminPage implements OnInit {
     const data = { name: this.zfName.trim(), color: this.zfColor, sort: this.zfSort };
     const z = this.editingZone();
     const req = z?.id
-      ? this.api.updateZone(z.id, data)
-      : this.api.createZone(data);
+      ? this.tableApi.updateZone(z.id, data)
+      : this.tableApi.createZone(data);
     req.subscribe({
       next: () => { this.zoneSaving.set(false); this.closeZoneForm(); this.load(); },
       error: err => { this.zoneSaving.set(false); this.toast.apiError(err, 'Ошибка сохранения зоны'); },
@@ -256,7 +256,7 @@ export class TablesAdminPage implements OnInit {
   confirmDeleteZone(z: Zone) {
     this.deleteTarget.set({
       label: `Зона «${z.name}» и все её столы (${z.tables.length} шт.)`,
-      fn: () => this.api.deleteZone(z.id).subscribe({
+      fn: () => this.tableApi.deleteZone(z.id).subscribe({
         next: () => { this.deleteSaving.set(false); this.deleteTarget.set(null); this.load(); },
         error: err => { this.deleteSaving.set(false); this.toast.apiError(err, 'Ошибка удаления'); },
       }),
@@ -288,8 +288,8 @@ export class TablesAdminPage implements OnInit {
     };
     const t = this.editingTable();
     const req = t?.id
-      ? this.api.updateTable(t.id, data)
-      : this.api.createTable(data);
+      ? this.tableApi.updateTable(t.id, data)
+      : this.tableApi.createTable(data);
     req.subscribe({
       next: () => { this.tableSaving.set(false); this.closeTableForm(); this.load(); },
       error: err => { this.tableSaving.set(false); this.toast.apiError(err, 'Ошибка сохранения стола'); },
@@ -299,7 +299,7 @@ export class TablesAdminPage implements OnInit {
   confirmDeleteTable(t: VenueTable) {
     this.deleteTarget.set({
       label: `Стол «${t.number}» (зона ${t.zone_name})`,
-      fn: () => this.api.deleteTable(t.id).subscribe({
+      fn: () => this.tableApi.deleteTable(t.id).subscribe({
         next: () => { this.deleteSaving.set(false); this.deleteTarget.set(null); this.load(); },
         error: err => { this.deleteSaving.set(false); this.toast.apiError(err, 'Ошибка удаления'); },
       }),

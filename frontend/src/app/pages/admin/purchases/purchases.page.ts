@@ -1,7 +1,8 @@
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
+import { InventoryApi } from '../../../entities/inventory';
+import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { PurchaseOrder, PurchaseOrderItem, Product } from '../../../core/models';
 import {
   LucideShoppingCart, LucideTriangleAlert, LucideClipboardList,
@@ -75,6 +76,19 @@ import {
               </p>
             </div>
           </div>
+
+          <!-- Store -->
+          @if (order.status === 'received') {
+            @if (order.store) {
+              <span class="text-xs px-2 py-0.5 rounded-full"
+                    style="background:var(--color-bg);color:var(--color-muted)">{{ order.store }}</span>
+            }
+          } @else {
+            <input [ngModel]="order.store" (ngModelChange)="order.store = $event"
+                   (blur)="saveStore(order)"
+                   class="field" style="height:28px;width:130px;font-size:12px"
+                   placeholder="Магазин..."/>
+          }
 
           <div class="flex items-center gap-4 flex-1 ml-2">
             <div>
@@ -242,26 +256,32 @@ export class PurchasesPage implements OnInit {
     this.receiveItems().reduce((s, i) => s + i.qty_received * i.unit_price, 0)
   );
 
-  constructor(private api: ApiService) {}
+  constructor(private inventoryApi: InventoryApi, private toast: ToastService) {}
 
   ngOnInit() { this.load(); }
 
   load() {
     this.loading.set(true);
-    this.api.getPurchaseOrders().subscribe(o => { this.orders.set(o); this.loading.set(false); });
-    this.api.getLowStock().subscribe(p => this.lowStockProducts.set(p));
+    this.inventoryApi.getPurchaseOrders().subscribe(o => { this.orders.set(o); this.loading.set(false); });
+    this.inventoryApi.getLowStock().subscribe(p => this.lowStockProducts.set(p));
   }
 
   createFromLowStock() {
     this.creating.set(true);
-    this.api.createPurchaseFromLowStock().subscribe({
+    this.inventoryApi.createPurchaseFromLowStock().subscribe({
       next:  order => { this.orders.update(o => [order, ...o]); this.creating.set(false); },
       error: (e)   => { alert(e.error?.detail ?? 'Ошибка'); this.creating.set(false); },
     });
   }
 
+  saveStore(order: PurchaseOrder) {
+    this.inventoryApi.updatePurchaseOrder(order.id, { store: order.store }).subscribe({
+      error: () => this.toast.error('Не удалось сохранить магазин'),
+    });
+  }
+
   markOrdered(order: PurchaseOrder) {
-    this.api.updatePurchaseStatus(order.id, 'ordered').subscribe(updated =>
+    this.inventoryApi.updatePurchaseStatus(order.id, 'ordered').subscribe(updated =>
       this.orders.update(os => os.map(o => o.id === updated.id ? updated : o))
     );
   }
@@ -282,12 +302,12 @@ export class PurchasesPage implements OnInit {
     const items = this.receiveItems().map(i => ({
       id: i.id, qty_received: i.qty_received, unit_price: i.unit_price,
     }));
-    this.api.receivePurchaseOrder(order.id, items).subscribe({
+    this.inventoryApi.receivePurchaseOrder(order.id, items).subscribe({
       next: updated => {
         this.orders.update(os => os.map(o => o.id === updated.id ? updated : o));
         this.receivingOrder.set(null);
         this.receiving.set(false);
-        this.api.getLowStock().subscribe(p => this.lowStockProducts.set(p));
+        this.inventoryApi.getLowStock().subscribe(p => this.lowStockProducts.set(p));
       },
       error: () => this.receiving.set(false),
     });
@@ -295,7 +315,7 @@ export class PurchasesPage implements OnInit {
 
   deleteOrder(order: PurchaseOrder) {
     if (!confirm(`Удалить заявку #${order.id}?`)) return;
-    this.api.deletePurchaseOrder(order.id).subscribe(() =>
+    this.inventoryApi.deletePurchaseOrder(order.id).subscribe(() =>
       this.orders.update(os => os.filter(o => o.id !== order.id))
     );
   }

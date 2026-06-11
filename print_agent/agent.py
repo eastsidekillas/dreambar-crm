@@ -126,13 +126,33 @@ def make_writer(c):
 
 
 def ack(c, job_id, ok, error=''):
+    """Подтвердить задание. До 3 попыток: потерянный ack означает, что сервер
+    через 5 минут вернёт задание в очередь и чек напечатается второй раз."""
     url = f"{c['backend_url']}/print/agent/jobs/{job_id}/ack/"
-    try:
-        requests.post(url, headers={'X-Agent-Key': c['agent_key']},
-                      json={'printer': c['printer_id'], 'ok': ok, 'error': error},
-                      timeout=10)
-    except requests.RequestException as exc:
-        _log(f'[ack-fail] job {job_id}: {exc}')
+    for attempt in range(3):
+        try:
+            requests.post(url, headers={'X-Agent-Key': c['agent_key']},
+                          json={'printer': c['printer_id'], 'ok': ok, 'error': error},
+                          timeout=10)
+            return True
+        except requests.RequestException as exc:
+            _log(f'[ack-fail] job {job_id} (попытка {attempt + 1}/3): {exc}')
+            time.sleep(2)
+    return False
+
+
+# id уже напечатанных заданий → время печати. Если ack так и не дошёл и сервер
+# выдал задание повторно — не печатаем дубль, а заново подтверждаем.
+_printed = {}
+_PRINTED_TTL = 3600
+
+
+def _remember_printed(job_id):
+    now = time.monotonic()
+    _printed[job_id] = now
+    for jid, ts in list(_printed.items()):
+        if now - ts > _PRINTED_TTL:
+            del _printed[jid]
 
 
 def poll_once(c, write):
@@ -143,9 +163,14 @@ def poll_once(c, write):
         sys.exit('403: неверный agent_key/printer_id или принтер не в режиме «agent».')
     resp.raise_for_status()
     for job in resp.json():
+        if job['id'] in _printed:
+            _log(f"[dup] job {job['id']} уже напечатан, повторяю подтверждение")
+            ack(c, job['id'], True)
+            continue
         data = base64.b64decode(job['payload_b64'])
         try:
             write(data)
+            _remember_printed(job['id'])
             ack(c, job['id'], True)
             _log(f"[ok] job {job['id']} ({len(data)} bytes)")
         except Exception as exc:

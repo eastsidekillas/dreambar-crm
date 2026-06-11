@@ -1,7 +1,8 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.response import Response
 from .models import Zone, Table
-from .serializers import ZoneSerializer, TableSerializer
+from .serializers import ZoneSerializer, TableSerializer, natural_key
 
 
 def _cascade_table_rename(old_number: str, new_number: str):
@@ -38,6 +39,16 @@ class TableViewSet(viewsets.ModelViewSet):
         if self.request.query_params.get('all'):
             return qs.all()
         return qs.filter(is_active=True)
+
+    def list(self, request, *args, **kwargs):
+        tables = sorted(
+            self.filter_queryset(self.get_queryset()),
+            key=lambda t: (t.zone.sort, t.zone.name, natural_key(t.number)),
+        )
+        page = self.paginate_queryset(tables)
+        if page is not None:
+            return self.get_paginated_response(self.get_serializer(page, many=True).data)
+        return Response(self.get_serializer(tables, many=True).data)
 
     def perform_update(self, serializer):
         old_number = serializer.instance.number

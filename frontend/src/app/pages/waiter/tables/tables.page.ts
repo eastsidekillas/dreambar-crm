@@ -1,9 +1,13 @@
 import type { LucideIconInput } from '@lucide/angular';
+import { PAY_OPTIONS } from '../../../shared/lib/payments';
 import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ApiService } from '../../../core/services/api.service';
+import { OrderApi } from '../../../entities/order';
+import { ReservationApi } from '../../../entities/reservation';
+import { ShiftApi } from '../../../entities/shift';
+import { TableApi } from '../../../entities/table';
 import { AuthService } from '../../../core/services/auth.service';
 import { CartService } from '../../../features/cart/cart.service';
 import { ReceiptPrintService } from '../../../features/receipt/receipt-print.service';
@@ -17,12 +21,6 @@ import {
   LucidePlus, LucideArrowLeftRight,
   LucideUtensilsCrossed, LucideTriangleAlert,
 } from '@lucide/angular';
-
-const PAYMENTS: { value: PaymentMethod; label: string; icon: LucideIconInput }[] = [
-  { value: 'cash',     label: 'Наличные', icon: LucideBanknote },
-  { value: 'card',     label: 'Карта',    icon: LucideCreditCard },
-  { value: 'transfer', label: 'Перевод',  icon: LucideSmartphone },
-];
 
 const POLL_MS = 10_000;
 
@@ -712,14 +710,17 @@ const POLL_MS = 10_000;
   `
 })
 export class TablesPage implements OnInit, OnDestroy {
-  private api     = inject(ApiService);
+  private orderApi = inject(OrderApi);
+  private reservationApi = inject(ReservationApi);
+  private shiftApi = inject(ShiftApi);
+  private tableApi = inject(TableApi);
   private auth    = inject(AuthService);
   private cart    = inject(CartService);
   private printer = inject(ReceiptPrintService);
   private toast   = inject(ToastService);
   private router  = inject(Router);
 
-  payments = PAYMENTS;
+  payments = PAY_OPTIONS;
   orders   = signal<Order[]>([]);
   zones    = signal<Zone[]>([]);
   todayReservations = signal<Reservation[]>([]);
@@ -833,19 +834,19 @@ export class TablesPage implements OnInit, OnDestroy {
   // ── Lifecycle ────────────────────────────────────────────────────
   ngOnInit() {
     this.load();
-    this.api.getCurrentShift().subscribe({ next: s => this.shiftId = s?.id ?? null, error: () => {} });
+    this.shiftApi.getCurrentShift().subscribe({ next: s => this.shiftId = s?.id ?? null, error: () => {} });
     this.pollTimer = setInterval(() => this.load(), POLL_MS);
 
-    this.api.getZones().subscribe({ next: z => this.zones.set(z), error: () => {} });
+    this.tableApi.getZones().subscribe({ next: z => this.zones.set(z), error: () => {} });
     const today = new Date().toISOString().split('T')[0];
-    this.api.getReservations({ date: today }).subscribe({
+    this.reservationApi.getReservations({ date: today }).subscribe({
       next: r => this.todayReservations.set(r.filter(x => ['pending', 'confirmed', 'arrived'].includes(x.status))),
       error: () => {},
     });
   }
   ngOnDestroy() { if (this.pollTimer) clearInterval(this.pollTimer); }
 
-  load() { this.api.getActiveOrders().subscribe(o => this.orders.set(o)); }
+  load() { this.orderApi.getActiveOrders().subscribe(o => this.orders.set(o)); }
 
   // ── Table helpers ─────────────────────────────────────────────────
   /** Parse order table_number which may be "5+6" for merged tables. */
@@ -945,7 +946,7 @@ export class TablesPage implements OnInit, OnDestroy {
     if (this.creating() || !tableNumber) return;
     if (!this.shiftId) { this.toast.error('Нет открытой смены'); return; }
     this.creating.set(true);
-    this.api.createOrder({
+    this.orderApi.createOrder({
       shift: this.shiftId, table_number: tableNumber,
       guests: this.ntGuests || 0, notes: this.ntNotes.trim(), items: [],
     }).subscribe({
@@ -971,7 +972,7 @@ export class TablesPage implements OnInit, OnDestroy {
     const o = this.editOrder();
     if (!o || this.saving()) return;
     this.saving.set(true);
-    this.api.updateOrder(o.id, {
+    this.orderApi.updateOrder(o.id, {
       table_number: o.table_number,
       guests: this.editGuests || 0,
       notes: this.editNotes.trim(),
@@ -1010,7 +1011,7 @@ export class TablesPage implements OnInit, OnDestroy {
     const newTableNumber = this.moveSelectedTables.join('+');
     if (newTableNumber === o.table_number) { this.closeMoveSheet(); return; }
     this.moveSaving.set(true);
-    this.api.moveOrderTable(o.id, newTableNumber).subscribe({
+    this.orderApi.moveOrderTable(o.id, newTableNumber).subscribe({
       next: updated => {
         this.replaceOrder(updated);
         this.moveSaving.set(false);
@@ -1061,7 +1062,7 @@ export class TablesPage implements OnInit, OnDestroy {
       ? this.splitBills().map(b => ({ item_ids: b.items.map(i => i.id), payment_method: this.billPayOf(b.billNo) }))
       : [{ item_ids: this.coItems().map(i => i.id), payment_method: this.singlePay() }];
     const d = this.split() ? null : this.depositInfo();
-    this.api.checkoutOrder(
+    this.orderApi.checkoutOrder(
       o.id, billsPayload,
       d ? +d.deposit_amount : undefined,
       d ? (d.deposit_method || undefined) : undefined,
@@ -1081,14 +1082,14 @@ export class TablesPage implements OnInit, OnDestroy {
   askDeleteItem(item: OrderItem) { this.confirmDeleteItem.set(item.id); }
   removeItem(o: Order, item: OrderItem) {
     this.confirmDeleteItem.set(null);
-    this.api.removeItemFromOrder(o.id, item.id).subscribe({
+    this.orderApi.removeItemFromOrder(o.id, item.id).subscribe({
       next: updated => this.replaceOrder(updated),
       error: () => this.toast.error('Не удалось удалить позицию'),
     });
   }
   moveItem(o: Order, item: OrderItem, guest: number) {
     if (item.guest_no === guest) return;
-    this.api.setItemGuest(o.id, item.id, guest).subscribe({
+    this.orderApi.setItemGuest(o.id, item.id, guest).subscribe({
       next: updated => this.replaceOrder(updated),
       error: () => this.toast.error('Не удалось перенести позицию'),
     });

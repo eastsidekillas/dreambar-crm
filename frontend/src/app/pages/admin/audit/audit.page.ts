@@ -1,7 +1,9 @@
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
+import { AnalyticsApi } from '../../../entities/analytics';
+import { EmployeeApi } from '../../../entities/employee';
+import { ShiftApi } from '../../../entities/shift';
 import { DeletedOrderItem, Shift, Employee } from '../../../core/models';
 import { LucideTrash2 } from '@lucide/angular';
 
@@ -120,17 +122,17 @@ export class AuditPage implements OnInit {
 
   totalAmount = computed(() => this.items().reduce((s, i) => s + Number(i.subtotal), 0));
 
-  constructor(private api: ApiService) {}
+  constructor(private analyticsApi: AnalyticsApi, private employeeApi: EmployeeApi, private shiftApi: ShiftApi) {}
 
   ngOnInit() {
-    this.api.getShifts().subscribe(s => this.shifts.set(s));
-    this.api.getEmployees().subscribe(e => this.employees.set(e));
+    this.shiftApi.getShifts().subscribe(s => this.shifts.set(s));
+    this.employeeApi.getEmployees().subscribe(e => this.employees.set(e));
     this.load();
   }
 
   load() {
     this.loading.set(true);
-    this.api.getDeletedItems({
+    this.analyticsApi.getDeletedItems({
       shift:      this.filterShift ?? undefined,
       deleted_by: this.filterUser  ?? undefined,
       date_from:  this.filterFrom  || undefined,

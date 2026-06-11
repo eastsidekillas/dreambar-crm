@@ -252,6 +252,9 @@ class ReceiptViewSet(viewsets.ReadOnlyModelViewSet):
             printer = Printer.objects.filter(pk=printer_id, is_active=True).first()
             if printer is None:
                 return Response({'detail': 'Принтер не найден или отключён.'}, status=404)
+        else:
+            # Маршрутизация по роли: бармен → принтер «Бар», официант → «Официанты»
+            printer = printing.get_printer_for_user(request.user)
         try:
             job = printing.print_receipt(receipt, printer=printer)
         except RuntimeError as exc:

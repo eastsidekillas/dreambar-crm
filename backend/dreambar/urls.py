@@ -23,6 +23,7 @@ def me(request):
         'role': role,
         'allowed_roles': allowed if len(allowed) > 1 else [],
         'has_pin': bool(profile.pin_hash) if profile else False,
+        'must_change_password': profile.must_change_password if profile else False,
     })
 
 

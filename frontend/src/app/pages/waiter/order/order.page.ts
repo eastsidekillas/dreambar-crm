@@ -1,7 +1,7 @@
 import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ApiService } from '../../../core/services/api.service';
+import { MenuApi } from '../../../entities/menu';
 import { CartService } from '../../../features/cart/cart.service';
 import { MenuByCategory, MenuItem } from '../../../core/models';
 import {
@@ -235,10 +235,10 @@ export class OrderPage implements OnInit {
     return Array.from({ length: n }, (_, i) => i + 1);
   });
 
-  constructor(private api: ApiService) {}
+  constructor(private menuApi: MenuApi) {}
 
   ngOnInit() {
-    this.api.getMenuByCategory().subscribe(data => {
+    this.menuApi.getMenuByCategory().subscribe(data => {
       this.menuByCategory.set(data);
       if (data.length) this.selectedCatId.set(data[0].id);
     });

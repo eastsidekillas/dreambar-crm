@@ -1,15 +1,17 @@
 import { Component, OnInit, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
-import { Printer, PrinterConnection } from '../../../core/models';
+import { PrinterApi } from '../../../entities/printer';
+import { ToastService } from '../../../shared/ui';
+import { Printer, PrinterConnection, ReceiptSettings } from '../../../core/models';
 import {
   LucidePrinter, LucideGlobe, LucideUsb, LucidePencil, LucideTrash2,
-  LucideX, LucideCheck,
+  LucideX, LucideCheck, LucideReceiptText,
 } from '@lucide/angular';
 
 interface PrinterForm {
   name: string;
+  station: '' | 'bar' | 'waiter';
   connection: PrinterConnection;
   host: string;
   port: number;
@@ -20,14 +22,18 @@ interface PrinterForm {
 }
 
 const BLANK_FORM = (): PrinterForm => ({
-  name: '', connection: 'network', host: '', port: 9100,
+  name: '', station: '', connection: 'network', host: '', port: 9100,
   agent_key: '', width: 48, is_default: false, is_active: true,
 });
+
+const STATION_LABEL: Record<string, string> = {
+  '': 'Любые чеки', bar: 'Бар', waiter: 'Официанты',
+};
 
 @Component({
   selector: 'app-printers-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucidePrinter, LucideGlobe, LucideUsb, LucidePencil, LucideTrash2, LucideX, LucideCheck],
+  imports: [CommonModule, FormsModule, LucidePrinter, LucideGlobe, LucideUsb, LucidePencil, LucideTrash2, LucideX, LucideCheck, LucideReceiptText],
   template: `
     <div class="max-w-2xl mx-auto space-y-6">
 
@@ -54,6 +60,11 @@ const BLANK_FORM = (): PrinterForm => ({
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="font-bold text-sm">{{ p.name }}</span>
+                    @if (p.station) {
+                      <span class="badge" [class]="p.station === 'bar' ? 'badge-amber' : 'badge-blue'">
+                        {{ stationLabel(p.station) }}
+                      </span>
+                    }
                     @if (p.is_default) {
                       <span class="badge badge-gold">По умолчанию</span>
                     }
@@ -113,6 +124,82 @@ const BLANK_FORM = (): PrinterForm => ({
       @if (loading()) {
         <div class="text-center py-8" style="color:var(--color-muted)">Загрузка...</div>
       }
+
+      <!-- ── Receipt settings ──────────────────────────────────────── -->
+      @if (receipt(); as rs) {
+        <div class="card">
+          <h2 class="font-bold text-sm mb-1 flex items-center gap-2">
+            <svg lucideReceiptText [size]="16"></svg> Настройка чека
+          </h2>
+          <p class="text-xs mb-4" style="color:var(--color-muted)">
+            Шапка и подвал печатаются на всех чеках
+          </p>
+
+          <div class="grid md:grid-cols-2 gap-5">
+            <div class="space-y-3">
+              <div>
+                <label class="section-title block mb-1.5">Заголовок *</label>
+                <input [(ngModel)]="rs.title" class="field" maxlength="50" placeholder="BAR DREAM"/>
+              </div>
+              <div>
+                <label class="section-title block mb-1.5">Подзаголовок</label>
+                <input [(ngModel)]="rs.subtitle" class="field" maxlength="100"
+                       placeholder="Адрес, телефон или соцсети"/>
+              </div>
+              <div>
+                <label class="section-title block mb-1.5">Текст внизу чека</label>
+                <input [(ngModel)]="rs.footer" class="field" maxlength="100" placeholder="Спасибо за визит!"/>
+              </div>
+              <div>
+                <label class="section-title block mb-1.5">QR-код (ссылка)</label>
+                <input [(ngModel)]="rs.qr_data" class="field" maxlength="200"
+                       placeholder="https://vk.com/mydreambar — пусто = без QR"/>
+              </div>
+              @if (rs.qr_data) {
+                <div>
+                  <label class="section-title block mb-1.5">Подпись под QR-кодом</label>
+                  <input [(ngModel)]="rs.qr_label" class="field" maxlength="100"
+                         placeholder="Подпишись на нас!"/>
+                </div>
+              }
+              <label class="flex items-center gap-2 cursor-pointer select-none pt-1">
+                <input type="checkbox" [(ngModel)]="rs.print_second_copy"
+                       class="w-4 h-4 rounded accent-amber-500"/>
+                <span class="text-sm font-medium">Печатать вторую копию «для сверки»</span>
+              </label>
+              <button (click)="saveReceiptSettings()" [disabled]="receiptSaving() || !rs.title.trim()"
+                      class="btn btn-primary btn-sm mt-2">
+                {{ receiptSaving() ? 'Сохранение...' : 'Сохранить' }}
+              </button>
+            </div>
+
+            <!-- Preview -->
+            <div class="rounded-xl p-4 text-center"
+                 style="background:var(--color-bg);font-family:'Courier New',monospace;font-size:12px;line-height:1.5">
+              <p class="font-bold" style="font-size:15px;letter-spacing:1px">{{ rs.title || 'BAR DREAM' }}</p>
+              @if (rs.subtitle) { <p>{{ rs.subtitle }}</p> }
+              <p>------------------------------</p>
+              <p class="text-left">Чек №<span class="float-right">12-001</span></p>
+              <p class="text-left">Стол<span class="float-right">Стол 5</span></p>
+              <p>------------------------------</p>
+              <p class="text-left">Пиво светлое (500 мл)</p>
+              <p class="text-left">  2 x 250<span class="float-right">500</span></p>
+              <p>------------------------------</p>
+              <p class="text-left font-bold">ИТОГО<span class="float-right">500 руб</span></p>
+              <p>------------------------------</p>
+              @if (rs.footer) { <p>{{ rs.footer }}</p> }
+              @if (rs.qr_data) {
+                <p class="mt-1" style="font-size:26px;line-height:1">▣</p>
+                @if (rs.qr_label) { <p>{{ rs.qr_label }}</p> }
+              }
+              @if (rs.print_second_copy) {
+                <p class="mt-2 font-bold">--- ДЛЯ СВЕРКИ ---</p>
+                <p class="text-xs" style="color:var(--color-muted)">(вторая копия)</p>
+              }
+            </div>
+          </div>
+        </div>
+      }
     </div>
 
     <!-- ── Printer form modal ────────────────────────────────────── -->
@@ -145,6 +232,24 @@ const BLANK_FORM = (): PrinterForm => ({
           <div>
             <label class="section-title block mb-1.5">Название</label>
             <input [(ngModel)]="form.name" class="field" placeholder="Касса, Бар, Кухня..." />
+          </div>
+
+          <!-- Station -->
+          <div>
+            <label class="section-title block mb-1.5">Назначение</label>
+            <div class="flex gap-2">
+              @for (s of stations; track s.value) {
+                <button (click)="form.station = s.value"
+                        class="btn btn-sm" style="flex:1"
+                        [class]="form.station === s.value ? 'btn-primary' : 'btn-outline'">
+                  {{ s.label }}
+                </button>
+              }
+            </div>
+            <p class="text-xs mt-1" style="color:var(--color-muted)">
+              Чеки бармена идут на принтер «Бар», чеки официантов — на «Официанты».
+              Если подходящего нет — печать на принтер по умолчанию.
+            </p>
           </div>
 
           <!-- Connection type -->
@@ -255,7 +360,8 @@ const BLANK_FORM = (): PrinterForm => ({
   `
 })
 export class PrintersPage implements OnInit {
-  private api = inject(ApiService);
+  private printerApi = inject(PrinterApi);
+  private toast = inject(ToastService);
 
   printers     = signal<Printer[]>([]);
   loading      = signal(true);
@@ -269,15 +375,47 @@ export class PrintersPage implements OnInit {
 
   form: PrinterForm = BLANK_FORM();
 
-  ngOnInit() { this.load(); }
+  // ── Receipt settings ──────────────────────────────────────────────
+  receipt       = signal<ReceiptSettings | null>(null);
+  receiptSaving = signal(false);
+
+  ngOnInit() {
+    this.load();
+    this.printerApi.getReceiptSettings().subscribe(rs => this.receipt.set(rs));
+  }
+
+  saveReceiptSettings() {
+    const rs = this.receipt();
+    if (!rs || this.receiptSaving()) return;
+    this.receiptSaving.set(true);
+    this.printerApi.updateReceiptSettings(rs).subscribe({
+      next: updated => {
+        this.receipt.set(updated);
+        this.receiptSaving.set(false);
+        this.toast.success('Настройки чека сохранены');
+      },
+      error: err => {
+        this.receiptSaving.set(false);
+        this.toast.apiError(err, 'Не удалось сохранить настройки чека');
+      },
+    });
+  }
 
   load() {
     this.loading.set(true);
-    this.api.getPrinters().subscribe({
+    this.printerApi.getPrinters().subscribe({
       next: list => { this.printers.set(list); this.loading.set(false); },
       error: ()   => this.loading.set(false),
     });
   }
+
+  stations: { value: '' | 'bar' | 'waiter'; label: string }[] = [
+    { value: '',       label: 'Любые чеки' },
+    { value: 'bar',    label: 'Бар' },
+    { value: 'waiter', label: 'Официанты' },
+  ];
+
+  stationLabel(s: string): string { return STATION_LABEL[s] ?? s; }
 
   openCreate() {
     this.editId.set(null);
@@ -288,7 +426,7 @@ export class PrintersPage implements OnInit {
   openEdit(p: Printer) {
     this.editId.set(p.id);
     this.form = {
-      name: p.name, connection: p.connection, host: p.host,
+      name: p.name, station: p.station ?? '', connection: p.connection, host: p.host,
       port: p.port, agent_key: p.agent_key, width: p.width,
       is_default: p.is_default, is_active: p.is_active,
     };
@@ -302,8 +440,8 @@ export class PrintersPage implements OnInit {
     this.saving.set(true);
     const id = this.editId();
     const req = id
-      ? this.api.updatePrinter(id, this.form)
-      : this.api.createPrinter(this.form);
+      ? this.printerApi.updatePrinter(id, this.form)
+      : this.printerApi.createPrinter(this.form);
 
     req.subscribe({
       next: () => { this.saving.set(false); this.closeForm(); this.load(); },
@@ -317,7 +455,7 @@ export class PrintersPage implements OnInit {
     const p = this.deleteTarget();
     if (!p || this.saving()) return;
     this.saving.set(true);
-    this.api.deletePrinter(p.id).subscribe({
+    this.printerApi.deletePrinter(p.id).subscribe({
       next: () => { this.saving.set(false); this.deleteTarget.set(null); this.load(); },
       error: ()  => this.saving.set(false),
     });
@@ -327,7 +465,7 @@ export class PrintersPage implements OnInit {
     if (this.testing() !== null) return;
     this.testing.set(p.id);
     this.testResult.update(m => { const n = { ...m }; delete n[p.id]; return n; });
-    this.api.testPrinter(p.id).subscribe({
+    this.printerApi.testPrinter(p.id).subscribe({
       next: res => {
         this.testing.set(null);
         this.testResult.update(m => ({ ...m, [p.id]: res }));

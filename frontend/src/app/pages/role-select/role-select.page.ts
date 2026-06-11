@@ -1,4 +1,5 @@
 import type { LucideIconInput } from '@lucide/angular';
+import { ROLE_LABEL, ROLE_ICON } from '../../shared/lib/roles';
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
@@ -9,13 +10,16 @@ import {
   LucideUser, LucideGlassWater, LucideChefHat, LucideShirt, LucideCrown,
 } from '@lucide/angular';
 
-const ROLE_META: Record<string, { label: string; icon: LucideIconInput; desc: string }> = {
-  admin:     { label: 'Администратор', icon: LucideCrown,      desc: 'Управление сменами, меню, персоналом' },
-  waiter:    { label: 'Официант',      icon: LucideUser,        desc: 'Приём заказов за столами' },
-  bartender: { label: 'Бармен',        icon: LucideGlassWater,  desc: 'Работа за барной стойкой' },
-  kitchen:   { label: 'Кухня',         icon: LucideChefHat,     desc: 'Экран повара — статус блюд' },
-  wardrobe:  { label: 'Гардероб',      icon: LucideShirt,       desc: 'Продажа входных билетов' },
+const ROLE_DESC: Record<string, string> = {
+  admin:     'Управление сменами, меню, персоналом',
+  waiter:    'Приём заказов за столами',
+  bartender: 'Работа за барной стойкой',
+  kitchen:   'Экран повара — статус блюд',
+  wardrobe:  'Продажа входных билетов',
 };
+const ROLE_META: Record<string, { label: string; icon: LucideIconInput; desc: string }> =
+  Object.fromEntries(Object.entries(ROLE_DESC).map(([role, desc]) =>
+    [role, { label: ROLE_LABEL[role], icon: ROLE_ICON[role], desc }]));
 
 @Component({
   selector: 'app-role-select',
@@ -86,6 +90,6 @@ export class RoleSelectPage implements OnInit {
   }
 
   meta(role: string): { label: string; icon: LucideIconInput; desc: string } {
-    return ROLE_META[role] ?? { label: role, icon: LucideUser, desc: '' };
+    return ROLE_META[role] ?? { label: role, icon: ROLE_ICON['waiter'], desc: '' };
   }
 }

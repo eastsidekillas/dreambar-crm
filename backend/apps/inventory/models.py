@@ -85,6 +85,7 @@ class PurchaseOrder(models.Model):
         ('received', 'Получено'),
     ]
     status      = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', verbose_name='Статус')
+    store       = models.CharField(max_length=120, blank=True, default='', verbose_name='Магазин')
     created_by  = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='purchase_orders')
     created_at  = models.DateTimeField(auto_now_add=True)

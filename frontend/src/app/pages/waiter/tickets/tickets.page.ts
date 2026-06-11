@@ -1,7 +1,9 @@
 import { Component, OnInit, signal } from '@angular/core';
+import { formatTime as fmtTime } from '../../../shared/lib/formatters';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
+import { ShiftApi } from '../../../entities/shift';
+import { TicketApi } from '../../../entities/ticket';
 import { EntryTicket } from '../../../core/models';
 import { LucideTicket, LucidePackage } from '@lucide/angular';
 
@@ -126,25 +128,23 @@ export class TicketsPage implements OnInit {
 
   totalRevenue() { return this.tickets().reduce((s, t) => s + +t.price, 0); }
 
-  formatTime(dt: string) {
-    return new Date(dt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  }
+  formatTime(dt: string) { return fmtTime(dt); }
 
-  constructor(private api: ApiService) {}
+  constructor(private shiftApi: ShiftApi, private ticketApi: TicketApi) {}
 
   ngOnInit() {
-    this.api.getCurrentShift().subscribe({ next: s => { this.shiftId = s.id; this.load(); } });
+    this.shiftApi.getCurrentShift().subscribe({ next: s => { this.shiftId = s.id; this.load(); } });
   }
 
   load() {
     if (!this.shiftId) return;
-    this.api.getTickets(this.shiftId).subscribe(t => this.tickets.set(t));
+    this.ticketApi.getTickets(this.shiftId).subscribe(t => this.tickets.set(t));
   }
 
   addTicket() {
     if (!this.shiftId || !this.newBracelet) return;
     this.adding.set(true);
-    this.api.createTicket({ shift: this.shiftId, bracelet_number: this.newBracelet, price: this.ticketPrice })
+    this.ticketApi.createTicket({ shift: this.shiftId, bracelet_number: this.newBracelet, price: this.ticketPrice })
       .subscribe({
         next: t => { this.tickets.update(l => [t, ...l]); this.newBracelet = ''; this.adding.set(false); this.show('Билет добавлен', true); },
         error: () => { this.adding.set(false); this.show('Ошибка: такой браслет уже есть', false); }
@@ -154,7 +154,7 @@ export class TicketsPage implements OnInit {
   addRange() {
     if (!this.shiftId || !this.rangeStart || !this.rangeEnd) return;
     this.adding.set(true);
-    this.api.bulkCreateTickets({ shift: this.shiftId, start: this.rangeStart, end: this.rangeEnd, price: this.ticketPrice })
+    this.ticketApi.bulkCreateTickets({ shift: this.shiftId, start: this.rangeStart, end: this.rangeEnd, price: this.ticketPrice })
       .subscribe({
         next: r => { this.load(); this.rangeStart = null; this.rangeEnd = null; this.adding.set(false); this.show(`Добавлено ${r.created} билетов`, true); },
         error: () => { this.adding.set(false); this.show('Ошибка при добавлении', false); }

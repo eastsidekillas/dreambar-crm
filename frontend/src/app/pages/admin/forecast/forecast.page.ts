@@ -1,7 +1,7 @@
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
+import { AnalyticsApi } from '../../../entities/analytics';
 import { ForecastDay } from '../../../core/models';
 import {
   LucideDynamicIcon,
@@ -238,7 +238,7 @@ export class ForecastPage implements OnInit {
     return `${this.fmtDate(d[0].date)} – ${this.fmtDate(d[d.length - 1].date)}`;
   });
 
-  constructor(private api: ApiService) {
+  constructor(private analyticsApi: AnalyticsApi) {
     try {
       const stored = localStorage.getItem('forecast_adjustments');
       if (stored) this.adjustments.set(JSON.parse(stored));
@@ -249,7 +249,7 @@ export class ForecastPage implements OnInit {
 
   load() {
     this.loading.set(true);
-    this.api.getForecast().subscribe({
+    this.analyticsApi.getForecast().subscribe({
       next: data => { this.days.set(data); this.loading.set(false); },
       error: ()   => this.loading.set(false),
     });

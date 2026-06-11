@@ -1,8 +1,12 @@
 import type { LucideIconInput } from '@lucide/angular';
+import { PAY_ICON } from '../../../shared/lib/payments';
 import { Component, OnInit, signal, computed } from '@angular/core';
+import { formatDate as fmtDate, formatTime as fmtTime } from '../../../shared/lib/formatters';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
+import { AnalyticsApi } from '../../../entities/analytics';
+import { OrderApi } from '../../../entities/order';
+import { ShiftApi } from '../../../entities/shift';
 import { Shift, ShiftDetail, Receipt } from '../../../core/models';
 import {
   LucideDynamicIcon,
@@ -12,10 +16,6 @@ import {
 } from '@lucide/angular';
 
 type Tab = 'active' | 'day' | 'receipts';
-
-const PAY_ICON: Record<string, LucideIconInput> = {
-  cash: LucideBanknote, card: LucideCreditCard, transfer: LucideSmartphone, mixed: LucideShuffle,
-};
 
 @Component({
   selector: 'app-shifts',
@@ -571,27 +571,27 @@ export class ShiftsComponent implements OnInit {
     return [...map.values()].sort((a, b) => b.total - a.total);
   });
 
-  constructor(private api: ApiService) {}
+  constructor(private analyticsApi: AnalyticsApi, private orderApi: OrderApi, private shiftApi: ShiftApi) {}
 
   ngOnInit() { this.load(); }
 
   load() {
-    this.api.getShifts().subscribe(s => {
+    this.shiftApi.getShifts().subscribe(s => {
       this.shifts.set(s);
       if (s.length && !this.selectedDate) this.selectedDate = s[0].date;
     });
   }
 
-  createShift()         { this.api.createShift({}).subscribe(() => this.load()); }
-  closeShift(s: Shift)  { this.api.closeShift(s.id).subscribe(() => this.load()); }
-  reopenShift(s: Shift) { this.api.reopenShift(s.id).subscribe(() => this.load()); }
+  createShift()         { this.shiftApi.createShift({}).subscribe(() => this.load()); }
+  closeShift(s: Shift)  { this.shiftApi.closeShift(s.id).subscribe(() => this.load()); }
+  reopenShift(s: Shift) { this.shiftApi.reopenShift(s.id).subscribe(() => this.load()); }
 
   toggleDetail(shift: Shift) {
     if (this.openedId() === shift.id) { this.openedId.set(null); this.detail.set(null); return; }
     this.openedId.set(shift.id);
     this.detail.set(null);
     this.detailLoading.set(true);
-    this.api.getShiftDetail(shift.id).subscribe({
+    this.analyticsApi.getShiftDetail(shift.id).subscribe({
       next:  d => { this.detail.set(d); this.detailLoading.set(false); },
       error: () => this.detailLoading.set(false),
     });
@@ -609,7 +609,7 @@ export class ShiftsComponent implements OnInit {
     this.receiptsLoading.set(true);
     this.openedReceiptId.set(null);
     const id = this.receiptShiftId ? +this.receiptShiftId : undefined;
-    this.api.getReceipts(id).subscribe({
+    this.orderApi.getReceipts(id).subscribe({
       next:  r => { this.receipts.set(r); this.receiptsLoading.set(false); },
       error: () => this.receiptsLoading.set(false),
     });
@@ -620,7 +620,7 @@ export class ShiftsComponent implements OnInit {
   }
 
   exportShift(shift: Shift) {
-    this.api.downloadExport(this.api.exportShift(shift.id)).subscribe(blob => {
+    this.analyticsApi.downloadExport(this.analyticsApi.exportShift(shift.id)).subscribe(blob => {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `bardream_shift_${shift.date}.xlsx`;
@@ -650,12 +650,8 @@ export class ShiftsComponent implements OnInit {
 
   payIcon(method: string): LucideIconInput { return PAY_ICON[method] ?? LucideBanknote; }
 
-  formatDate(d: string) {
-    return new Date(d).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });
-  }
-  formatTime(dt: string) {
-    return new Date(dt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  }
+  formatDate(d: string) { return fmtDate(d, { weekday: 'short', day: 'numeric', month: 'long' }); }
+  formatTime(dt: string) { return fmtTime(dt); }
   formatDateTime(dt: string) {
     return new Date(dt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   }

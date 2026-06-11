@@ -66,7 +66,7 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = PurchaseOrder
-        fields = ['id', 'status', 'status_label', 'created_by', 'created_by_name',
+        fields = ['id', 'status', 'status_label', 'store', 'created_by', 'created_by_name',
                   'created_at', 'received_at', 'notes', 'total', 'items']
         read_only_fields = ['created_by', 'created_at', 'received_at']
 

@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, adminGuard } from './core/guards/auth.guard';
+import { authGuard, adminGuard, roleGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'pin', pathMatch: 'full' },
@@ -15,6 +15,11 @@ export const routes: Routes = [
   },
 
   {
+    path: 'welcome',
+    loadComponent: () => import('./pages/welcome/welcome.page').then(m => m.WelcomePage),
+  },
+
+  {
     path: 'role-select',
     loadComponent: () => import('./pages/role-select/role-select.page').then(m => m.RoleSelectPage),
     canActivate: [authGuard],
@@ -24,7 +29,7 @@ export const routes: Routes = [
   {
     path: 'waiter',
     loadComponent: () => import('./pages/waiter/waiter-shell').then(m => m.WaiterShell),
-    canActivate: [authGuard],
+    canActivate: [roleGuard('waiter', 'wardrobe')],
     children: [
       { path: '', redirectTo: 'tables', pathMatch: 'full' },
       {
@@ -54,14 +59,14 @@ export const routes: Routes = [
   {
     path: 'kitchen',
     loadComponent: () => import('./pages/kitchen/kitchen.page').then(m => m.KitchenScreen),
-    canActivate: [authGuard],
+    canActivate: [roleGuard('kitchen')],
   },
 
   // ── Bartender ────────────────────────────────────────────────────
   {
     path: 'bartender',
     loadComponent: () => import('./pages/bartender/bartender.page').then(m => m.BartenderPage),
-    canActivate: [authGuard],
+    canActivate: [roleGuard('bartender')],
   },
 
   // ── Admin ────────────────────────────────────────────────────────
@@ -117,6 +122,18 @@ export const routes: Routes = [
       {
         path: 'forecast',
         loadComponent: () => import('./pages/admin/forecast/forecast.page').then(m => m.ForecastPage)
+      },
+      {
+        path: 'inventory/stock',
+        loadComponent: () => import('./pages/admin/inventory/stock.page').then(m => m.StockPage)
+      },
+      {
+        path: 'inventory/stocktake',
+        loadComponent: () => import('./pages/admin/inventory/stocktake.page').then(m => m.StocktakePage)
+      },
+      {
+        path: 'inventory/report',
+        loadComponent: () => import('./pages/admin/inventory/stock-report.page').then(m => m.StockReportPage)
       },
       {
         path: 'inventory',

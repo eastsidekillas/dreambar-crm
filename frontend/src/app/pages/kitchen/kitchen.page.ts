@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, signal, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ApiService } from '../../core/services/api.service';
+import { OrderApi } from '../../entities/order';
 import { AuthService } from '../../core/services/auth.service';
 import { KitchenTicket, KitchenItem, KitchenStatus } from '../../core/models';
 import {
@@ -190,7 +190,7 @@ const REFRESH_MS = 8000;
   `
 })
 export class KitchenScreen implements OnInit, OnDestroy {
-  api  = inject(ApiService);
+  private orderApi = inject(OrderApi);
   auth = inject(AuthService);
 
   active     = signal<KitchenTicket[]>([]);
@@ -225,7 +225,7 @@ export class KitchenScreen implements OnInit, OnDestroy {
 
   load() {
     this.loading.set(true);
-    this.api.getKitchenOrders().subscribe({
+    this.orderApi.getKitchenOrders().subscribe({
       next: d => {
         this.noShift.set(d.shift === null);
         this.active.set(d.active);
@@ -286,7 +286,7 @@ export class KitchenScreen implements OnInit, OnDestroy {
 
   setStatus(item: KitchenItem, status: KitchenStatus) {
     item.kitchen_status = status;                  // optimistic
-    this.api.setKitchenItemStatus(item.id, status).subscribe({
+    this.orderApi.setKitchenItemStatus(item.id, status).subscribe({
       next: () => { if (status === 'ready') this.load(); },
       error: () => this.load()
     });
@@ -294,7 +294,7 @@ export class KitchenScreen implements OnInit, OnDestroy {
 
   markAllReady(t: KitchenTicket) {
     this.active.update(list => list.filter(x => x.order_id !== t.order_id)); // optimistic
-    this.api.markKitchenOrderReady(t.order_id, 'kitchen').subscribe({
+    this.orderApi.markKitchenOrderReady(t.order_id, 'kitchen').subscribe({
       next: () => this.load(),
       error: () => this.load()
     });
@@ -305,7 +305,7 @@ export class KitchenScreen implements OnInit, OnDestroy {
     this.ready.update(list => list.filter(x => x.order_id !== t.order_id)); // optimistic
     let pending = t.items.length;
     for (const it of t.items) {
-      this.api.setKitchenItemStatus(it.id, 'cooking').subscribe({
+      this.orderApi.setKitchenItemStatus(it.id, 'cooking').subscribe({
         next: () => { if (--pending === 0) this.load(); },
         error: () => this.load()
       });

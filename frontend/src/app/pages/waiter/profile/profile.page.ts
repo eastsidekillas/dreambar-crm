@@ -3,16 +3,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { ApiService } from '../../../core/services/api.service';
+import { EmployeeApi } from '../../../entities/employee';
+import { OrderApi } from '../../../entities/order';
+import { ShiftApi } from '../../../entities/shift';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Shift } from '../../../core/models';
 import { LucideLogOut, LucideKeyRound } from '@lucide/angular';
-
-const ROLE_LABEL: Record<string, string> = {
-  admin: 'Администратор', waiter: 'Официант', bartender: 'Бармен',
-  kitchen: 'Кухня', wardrobe: 'Гардероб',
-};
+import { ROLE_LABEL } from '../../../shared/lib/roles';
 
 @Component({
   selector: 'app-waiter-profile',
@@ -129,7 +127,7 @@ export class WaiterProfilePage implements OnInit {
   initial   = computed(() => (this.name()[0] || '?').toUpperCase());
   roleLabel = computed(() => ROLE_LABEL[this.auth.role() ?? ''] ?? '');
 
-  constructor(private api: ApiService, private toast: ToastService) {}
+  constructor(private employeeApi: EmployeeApi, private orderApi: OrderApi, private shiftApi: ShiftApi, private toast: ToastService) {}
 
   ngOnInit() {
     this.hasPin.set(!!this.auth.user()?.has_pin);
@@ -139,12 +137,12 @@ export class WaiterProfilePage implements OnInit {
   }
 
   private loadStats() {
-    this.api.getCurrentShift().pipe(catchError(() => of(null))).subscribe(shift => {
+    this.shiftApi.getCurrentShift().pipe(catchError(() => of(null))).subscribe(shift => {
       this.shift.set(shift);
       if (!shift) return;
       forkJoin({
-        orders:   this.api.getMyOrders().pipe(catchError(() => of([]))),
-        receipts: this.api.getReceipts(shift.id).pipe(catchError(() => of([]))),
+        orders:   this.orderApi.getMyOrders().pipe(catchError(() => of([]))),
+        receipts: this.orderApi.getReceipts(shift.id).pipe(catchError(() => of([]))),
       }).subscribe(({ orders, receipts }) => {
         const me = this.auth.user()?.id;
         const mine = receipts.filter(r => r.waiter === me);
@@ -162,7 +160,7 @@ export class WaiterProfilePage implements OnInit {
     if (this.hasPin() && !this.currentPin.trim()) { this.toast.error('Введите текущий PIN'); return; }
 
     this.saving.set(true);
-    this.api.setMyPin(pin, this.hasPin() ? this.currentPin.trim() : undefined).subscribe({
+    this.employeeApi.setMyPin(pin, this.hasPin() ? this.currentPin.trim() : undefined).subscribe({
       next: () => {
         this.saving.set(false);
         this.hasPin.set(true);

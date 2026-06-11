@@ -1,7 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
+import { MenuApi } from '../../../entities/menu';
 import { ModifierGroup, Modifier } from '../../../core/models';
 import { LucideWrench, LucidePencil, LucideTrash2, LucideEye, LucideEyeOff } from '@lucide/angular';
 
@@ -181,13 +181,13 @@ export class ModifiersPage implements OnInit {
     id?: number; groupId: number; name: string; price_delta: number; is_active: boolean;
   } | null>(null);
 
-  constructor(private api: ApiService) {}
+  constructor(private menuApi: MenuApi) {}
 
   ngOnInit() { this.load(); }
 
   load() {
     this.loading.set(true);
-    this.api.getModifierGroups().subscribe(g => { this.groups.set(g); this.loading.set(false); });
+    this.menuApi.getModifierGroups().subscribe(g => { this.groups.set(g); this.loading.set(false); });
   }
 
   // ── Groups ────────────────────────────────────────────────────────
@@ -204,13 +204,13 @@ export class ModifiersPage implements OnInit {
     if (!f || !f.name.trim()) return;
     const data = { name: f.name.trim(), is_required: f.is_required, max_selections: f.max_selections };
     const obs = f.id
-      ? this.api.updateModifierGroup(f.id, data)
-      : this.api.createModifierGroup(data);
+      ? this.menuApi.updateModifierGroup(f.id, data)
+      : this.menuApi.createModifierGroup(data);
     obs.subscribe(() => { this.groupForm.set(null); this.load(); });
   }
 
   toggleGroup(g: ModifierGroup) {
-    this.api.updateModifierGroup(g.id, { is_active: !g.is_active }).subscribe(() => this.load());
+    this.menuApi.updateModifierGroup(g.id, { is_active: !g.is_active }).subscribe(() => this.load());
   }
 
   expandGroup(id: number) {
@@ -231,12 +231,12 @@ export class ModifiersPage implements OnInit {
     const f = this.modifierForm();
     if (!f || !f.name.trim()) return;
     const data = { group: f.groupId, name: f.name.trim(), price_delta: f.price_delta, is_active: f.is_active };
-    const obs = f.id ? this.api.updateModifier(f.id, data) : this.api.createModifier(data);
+    const obs = f.id ? this.menuApi.updateModifier(f.id, data) : this.menuApi.createModifier(data);
     obs.subscribe(() => { this.modifierForm.set(null); this.load(); });
   }
 
   deleteModifier(g: ModifierGroup, m: Modifier) {
     if (!confirm(`Удалить «${m.name}»?`)) return;
-    this.api.deleteModifier(m.id).subscribe(() => this.load());
+    this.menuApi.deleteModifier(m.id).subscribe(() => this.load());
   }
 }

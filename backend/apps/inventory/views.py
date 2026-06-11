@@ -1,6 +1,7 @@
 import math
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models import Sum, F
 from django.utils import timezone
 from rest_framework import viewsets, status
@@ -91,6 +92,43 @@ class InventoryMovementViewSet(viewsets.ReadOnlyModelViewSet):
         product.refresh_from_db()
         return Response(ProductSerializer(product).data, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['post'])
+    @transaction.atomic
+    def stocktake(self, request):
+        """POST {items: [{product: id, actual_qty: число}]} — массовая инвентаризация.
+        Для каждого товара записывает adjustment на разницу факт − учёт."""
+        items = request.data.get('items')
+        if not isinstance(items, list) or not items:
+            return Response({'detail': 'items — непустой список.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        parsed = []
+        for it in items:
+            try:
+                pid    = int(it['product'])
+                actual = Decimal(str(it['actual_qty']))
+            except (KeyError, TypeError, ValueError, ArithmeticError):
+                return Response({'detail': f'Некорректная строка: {it}'}, status=status.HTTP_400_BAD_REQUEST)
+            if actual < 0:
+                return Response({'detail': 'actual_qty не может быть отрицательным.'}, status=status.HTTP_400_BAD_REQUEST)
+            parsed.append((pid, actual))
+
+        # Блокируем строки до конца транзакции: дельта факт−учёт должна считаться
+        # от остатка, который не изменит параллельная продажа/списание.
+        products = {p.pk: p for p in Product.objects.select_for_update().filter(pk__in=[pid for pid, _ in parsed])}
+        missing = [pid for pid, _ in parsed if pid not in products]
+        if missing:
+            return Response({'detail': f'Продукты не найдены: {missing}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = []
+        for pid, actual in parsed:
+            p = products[pid]
+            delta = actual - p.stock_quantity
+            if delta != 0:
+                adjust_stock(p, delta, reason='adjustment', user=request.user, note='Инвентаризация')
+                p.refresh_from_db()
+            updated.append(p)
+        return Response(ProductSerializer(updated, many=True).data)
+
 
 class ConsumptionView(APIView):
     permission_classes = [IsAdminUser]
@@ -151,6 +189,72 @@ class ConsumptionView(APIView):
             })
 
         return Response(result)
+
+
+class StockReportView(APIView):
+    """Сводка по складу за период: потрачено / себестоимость продаж / выручка /
+    заработано / расхождение по инвентаризации.
+
+    Суммы движений считаются по текущей цене за единицу товара
+    (purchase_price / pack_size) — историческая цена в движениях не хранится.
+    """
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        from apps.receipts.models import Receipt
+
+        date_from = request.query_params.get('date_from')
+        date_to   = request.query_params.get('date_to')
+
+        movements = InventoryMovement.objects.select_related('product')
+        receipts  = Receipt.objects.all()
+        if date_from:
+            movements = movements.filter(created_at__date__gte=date_from)
+            receipts  = receipts.filter(issued_at__date__gte=date_from)
+        if date_to:
+            movements = movements.filter(created_at__date__lte=date_to)
+            receipts  = receipts.filter(issued_at__date__lte=date_to)
+
+        def unit_cost(p):
+            return (p.purchase_price / p.pack_size) if p.pack_size else Decimal('0')
+
+        spent = cost_of_sales = writeoffs = discrepancy = Decimal('0')
+        disc_rows: dict[int, dict] = {}
+        for m in movements:
+            value = m.quantity * unit_cost(m.product)  # знак как у количества
+            if m.reason == 'manual_in':
+                spent += value
+            elif m.reason == 'sale':
+                cost_of_sales += -value
+            elif m.reason == 'manual_out':
+                writeoffs += -value
+            elif m.reason == 'adjustment':
+                discrepancy += value
+                row = disc_rows.setdefault(m.product_id, {
+                    'product_id': m.product_id,
+                    'product_name': m.product.name,
+                    'unit': m.product.unit,
+                    'quantity': Decimal('0'),
+                    'value': Decimal('0'),
+                })
+                row['quantity'] += m.quantity
+                row['value']    += value
+
+        revenue = receipts.aggregate(s=Sum('total'))['s'] or Decimal('0')
+        q2 = lambda v: v.quantize(Decimal('0.01'))
+
+        return Response({
+            'spent':         q2(spent),                    # потрачено (приходы)
+            'cost_of_sales': q2(cost_of_sales),            # прошло — себестоимость продаж
+            'writeoffs':     q2(writeoffs),                # ручные списания (бой, порча)
+            'revenue':       q2(revenue),                  # выручка по чекам
+            'profit':        q2(revenue - cost_of_sales),  # заработано
+            'discrepancy':   q2(discrepancy),              # минус = недостача
+            'discrepancy_rows': sorted(
+                ({**r, 'quantity': r['quantity'], 'value': q2(r['value'])} for r in disc_rows.values()),
+                key=lambda r: r['value'],
+            ),
+        })
 
 
 class PurchaseOrderViewSet(viewsets.ModelViewSet):

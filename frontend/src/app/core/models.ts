@@ -56,6 +56,7 @@ export interface User {
   role?: Role;
   allowed_roles?: Role[];
   has_pin?: boolean;
+  must_change_password?: boolean;
 }
 
 export interface Employee {
@@ -67,6 +68,7 @@ export interface Employee {
   allowed_roles: Role[];
   is_active: boolean;
   has_pin?: boolean;
+  must_change_password?: boolean;
 }
 
 export interface StaffMember {
@@ -401,6 +403,7 @@ export interface PurchaseOrder {
   id: number;
   status: 'draft' | 'ordered' | 'received';
   status_label: string;
+  store: string;
   created_by: number | null;
   created_by_name: string | null;
   created_at: string;
@@ -408,6 +411,24 @@ export interface PurchaseOrder {
   notes: string;
   total: number;
   items: PurchaseOrderItem[];
+}
+
+export interface StockReportDiscrepancyRow {
+  product_id: number;
+  product_name: string;
+  unit: string;
+  quantity: number;
+  value: number;
+}
+
+export interface StockReport {
+  spent: number;          // потрачено (приходы по закупочной цене)
+  cost_of_sales: number;  // прошло — себестоимость продаж
+  writeoffs: number;      // ручные списания
+  revenue: number;        // выручка по чекам
+  profit: number;         // заработано
+  discrepancy: number;    // расхождение по инвентаризации (минус = недостача)
+  discrepancy_rows: StockReportDiscrepancyRow[];
 }
 
 export interface Modifier {
@@ -525,9 +546,19 @@ export interface DeletedOrderItem {
 
 export type PrinterConnection = 'network' | 'agent';
 
+export interface ReceiptSettings {
+  title: string;
+  subtitle: string;
+  footer: string;
+  qr_data: string;
+  qr_label: string;
+  print_second_copy: boolean;
+}
+
 export interface Printer {
   id: number;
   name: string;
+  station: '' | 'bar' | 'waiter';
   connection: PrinterConnection;
   host: string;
   port: number;

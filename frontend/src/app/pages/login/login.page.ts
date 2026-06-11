@@ -81,7 +81,9 @@ export class LoginPage {
     this.auth.login(this.username, this.password).subscribe({
       next: user => {
         this.loading.set(false);
-        if ((user.allowed_roles ?? []).length > 1) {
+        if (user.must_change_password) {
+          this.router.navigateByUrl('/welcome');
+        } else if ((user.allowed_roles ?? []).length > 1) {
           this.router.navigateByUrl('/role-select');
         } else {
           this.router.navigateByUrl(this.auth.landingRoute(user.role));

@@ -1,37 +1,28 @@
-import type { LucideIconInput } from '@lucide/angular';
-import { Component, OnInit, OnDestroy, signal, computed, inject, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../core/services/api.service';
+import { OrderApi } from '../../entities/order';
+import { ShiftApi } from '../../entities/shift';
 import { AuthService } from '../../core/services/auth.service';
-import { CartService } from '../../features/cart/cart.service';
-import { ToastService } from '../../shared/ui/toast/toast.service';
-import { ReceiptPrintService } from '../../features/receipt/receipt-print.service';
-import { KitchenTicket, KitchenItem, KitchenStatus, MenuByCategory, MenuItem, PaymentMethod, Product, MenuItemComponent } from '../../core/models';
+import { ToastService, TouchKeyboardComponent } from '../../shared/ui';
+import { KitchenTicket } from '../../core/models';
 import {
-  LucideDynamicIcon,
-  LucideGlassWater, LucideUtensilsCrossed, LucidePackage, LucideClipboardList,
-  LucideBell, LucideBellOff, LucideCheck, LucideCheckCheck, LucideX, LucideReceipt,
-  LucideWine, LucideFolder, LucideBanknote, LucideCreditCard, LucideSmartphone,
-  LucideCircleCheck, LucideClock,
+  LucideGlassWater, LucideUtensilsCrossed, LucideBell, LucideBellOff, LucideCalendar,
 } from '@lucide/angular';
+import { BarOrdersTab } from './tabs/orders.tab';
+import { BarKitchenMonitorTab } from './tabs/kitchen-monitor.tab';
+import { BarNewOrderTab } from './tabs/new-order.tab';
+import { BarReservationsTab } from './tabs/reservations.tab';
 
 const REFRESH_MS = 6000;
 
-const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: LucideIconInput }[] = [
-  { value: 'cash',     label: 'Наличные', icon: LucideBanknote },
-  { value: 'card',     label: 'Карта',    icon: LucideCreditCard },
-  { value: 'transfer', label: 'Перевод',  icon: LucideSmartphone },
-];
+type Tab = 'orders' | 'kitchen' | 'new' | 'resv';
 
 @Component({
   selector: 'app-bartender',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideDynamicIcon,
-    LucideGlassWater, LucideUtensilsCrossed, LucidePackage, LucideClipboardList,
-    LucideBell, LucideBellOff, LucideCheck, LucideCheckCheck, LucideX, LucideReceipt,
-    LucideWine, LucideFolder,
-    LucideCircleCheck, LucideClock],
+  imports: [CommonModule, TouchKeyboardComponent,
+    BarOrdersTab, BarKitchenMonitorTab, BarNewOrderTab, BarReservationsTab,
+    LucideGlassWater, LucideUtensilsCrossed, LucideBell, LucideBellOff, LucideCalendar],
   template: `
     <div class="flex flex-col" style="height:100dvh;background:#0f172a;color:#f1f5f9">
 
@@ -75,17 +66,15 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: LucideIconInput 
               [style]="tab() === 'new' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
               <span>+ Новый</span>
             </button>
-            <button (click)="tab.set('stock')"
-              class="flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
+            <button (click)="tab.set('resv')"
+              class="relative flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
               style="min-height:52px;min-width:72px;font-size:0.82rem;border-left:1px solid #334155"
-              [style]="tab() === 'stock' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
-              <span class="flex items-center gap-1"><svg lucidePackage [size]="14"></svg> Склад</span>
-            </button>
-            <button (click)="tab.set('recipes')"
-              class="flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
-              style="min-height:52px;min-width:80px;font-size:0.82rem;border-left:1px solid #334155"
-              [style]="tab() === 'recipes' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
-              <span class="flex items-center gap-1"><svg lucideClipboardList [size]="14"></svg> Рецепты</span>
+              [style]="tab() === 'resv' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
+              <span class="flex items-center gap-1"><svg lucideCalendar [size]="14"></svg> Брони</span>
+              @if (resvTodayCount()) {
+                <span class="absolute top-1 right-1 w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold"
+                      style="background:#8b5cf6;color:white">{{ resvTodayCount() }}</span>
+              }
             </button>
           </div>
 
@@ -112,706 +101,47 @@ const PAY_OPTIONS: { value: PaymentMethod; label: string; icon: LucideIconInput 
         </div>
       </header>
 
-      <!-- ── ЗАКАЗЫ (KDS) ────────────────────────────────────────────── -->
+      <!-- ── Вкладки ────────────────────────────────────────────────── -->
       @if (tab() === 'orders') {
-        @if (noShift()) {
-          <div class="flex-1 flex flex-col items-center justify-center text-center px-4">
-            <span class="text-6xl mb-4">😴</span>
-            <p class="text-xl font-bold mb-1">Смена не открыта</p>
-            <p style="color:#64748b">Заказы появятся, когда откроют смену</p>
-          </div>
-        } @else if (!active().length) {
-          <div class="flex-1 flex flex-col items-center justify-center text-center px-4">
-            <svg lucideCircleCheck [size]="48" class="mb-3" style="color:#22c55e"></svg>
-            <p class="text-lg font-bold mb-1">Нет напитков в работе</p>
-            <p style="color:#64748b">Новые заказы появятся здесь автоматически</p>
-          </div>
-        } @else {
-          <main class="p-3 grid gap-3"
-                style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));align-content:start">
-            @for (t of active(); track t.order_id) {
-              <div class="rounded-xl overflow-hidden flex flex-col"
-                   style="background:#1e293b;border:2px solid"
-                   [style.border-color]="urgencyColor(t.elapsed_min)">
-
-                <!-- Ticket header -->
-                <div class="px-3 py-2.5 flex items-center justify-between"
-                     [style.background]="urgencyColor(t.elapsed_min) + '22'">
-                  <div class="flex items-center gap-2">
-                    <span class="font-bold text-lg" style="color:#f59e0b">#{{ t.order_id }}</span>
-                    @if (t.table_number) {
-                      <span class="text-sm font-bold px-2 py-0.5 rounded"
-                            style="background:#334155;color:#f1f5f9">{{ t.table_number }}</span>
-                    }
-                    <span class="text-xs" style="color:#94a3b8">{{ t.waiter_name }}</span>
-                  </div>
-                  <span class="text-sm font-bold" [style.color]="urgencyColor(t.elapsed_min)">
-                    <svg lucideClock [size]="12" class="inline-block mr-0.5"></svg> {{ t.elapsed_min }} мин
-                  </span>
-                </div>
-
-                <!-- Drinks -->
-                <div class="p-3 flex-1 space-y-2">
-                  @for (it of t.items; track it.id) {
-                    <div class="rounded-lg p-3 flex items-center justify-between gap-3"
-                         [style.background]="itemBg(it.kitchen_status)"
-                         [style.opacity]="it.kitchen_status === 'ready' ? '0.5' : '1'">
-                      <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                          <span class="text-xl font-bold" style="color:#f59e0b">{{ it.quantity }}×</span>
-                          <span class="font-semibold truncate">{{ it.name }}</span>
-                        </div>
-                        @if (it.volume) {
-                          <p class="text-xs mt-0.5" style="color:#94a3b8">{{ it.volume }}</p>
-                        }
-                      </div>
-                      <div class="flex-shrink-0 flex items-center gap-2">
-                        @if (it.kitchen_status === 'new') {
-                          <button (click)="setStatus(it, 'cooking')"
-                                  class="rounded-xl font-bold"
-                                  style="background:#f59e0b;color:#0f172a;min-height:48px;padding:0 18px;font-size:0.9rem">
-                            ▶ Начать
-                          </button>
-                        } @else if (it.kitchen_status === 'cooking') {
-                          <button (click)="setStatus(it, 'ready')"
-                                  class="rounded-xl font-bold flex items-center gap-1"
-                                  style="background:#22c55e;color:#0f172a;min-height:48px;padding:0 18px;font-size:0.9rem">
-                            <svg lucideCheck [size]="16"></svg> Готово
-                          </button>
-                        } @else {
-                          <span class="rounded-xl font-bold flex items-center gap-1"
-                                style="background:#15803d;color:white;min-height:40px;padding:0 14px;font-size:0.85rem">
-                            <svg lucideCheck [size]="14"></svg> Готов
-                          </span>
-                        }
-                        @if (barConfirmDelete() === it.id) {
-                          <button (click)="barRemoveItem(t.order_id, it)"
-                                  class="rounded-lg font-bold"
-                                  style="background:#ef4444;color:white;min-height:44px;padding:0 12px;font-size:0.85rem">
-                            Да
-                          </button>
-                          <button (click)="barConfirmDelete.set(null)"
-                                  class="rounded-lg"
-                                  style="background:#334155;color:#94a3b8;min-height:44px;padding:0 12px;font-size:0.85rem">
-                            Нет
-                          </button>
-                        } @else {
-                          <button (click)="barConfirmDelete.set(it.id)"
-                                  class="rounded-lg flex items-center justify-center"
-                                  style="background:#334155;color:#94a3b8;min-width:44px;min-height:44px"
-                                  title="Удалить"><svg lucideX [size]="16"></svg></button>
-                        }
-                      </div>
-                    </div>
-                  }
-                </div>
-
-                <!-- Mark all ready -->
-                <button (click)="markAllReady(t)"
-                        class="font-bold flex items-center justify-center gap-2"
-                        style="background:#15803d;color:white;min-height:56px;font-size:1rem;border:none;width:100%">
-                  <svg lucideCheckCheck [size]="18"></svg> Все напитки готовы
-                </button>
-              </div>
-            }
-          </main>
-        }
-
-        <!-- Ready tickets (collapsed) -->
-        @if (ready().length) {
-          <section class="px-3 pb-4 mt-1">
-            <button (click)="showReady.set(!showReady())"
-                    class="flex items-center gap-2 mb-2 text-sm font-semibold"
-                    style="color:#64748b">
-              {{ showReady() ? '▾' : '▸' }} Готово к выдаче ({{ ready().length }})
-            </button>
-            @if (showReady()) {
-              <div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
-                @for (t of ready(); track t.order_id) {
-                  <div class="rounded-lg p-3" style="background:#14532d;border:1px solid #166534">
-                    <div class="flex items-center justify-between mb-1">
-                      <span class="font-bold" style="color:#4ade80">#{{ t.order_id }}
-                        @if (t.table_number) { · {{ t.table_number }} }
-                      </span>
-                    </div>
-                    @for (it of t.items; track it.id) {
-                      <p class="text-sm" style="color:#bbf7d0">{{ it.quantity }}× {{ it.name }}</p>
-                    }
-                  </div>
-                }
-              </div>
-            }
-          </section>
-        }
+        <bar-orders-tab [active]="active()" [ready]="ready()"
+                        [noShift]="noShift()" [openingShift]="openingShift()"
+                        (openShift)="openShift()" (changed)="load()" />
       }
 
-      <!-- ── КУХНЯ (read-only) ─────────────────────────────────────── -->
       @if (tab() === 'kitchen') {
-        @if (noShift()) {
-          <div class="flex-1 flex flex-col items-center justify-center text-center px-4">
-            <span class="text-6xl mb-4">😴</span>
-            <p class="text-xl font-bold mb-1">Смена не открыта</p>
-          </div>
-        } @else if (!kitchenActive().length && !kitchenReady().length) {
-          <div class="flex-1 flex flex-col items-center justify-center text-center px-4">
-            <svg lucideCircleCheck [size]="48" class="mb-3" style="color:#4ADE80"></svg>
-            <p class="text-lg font-bold mb-1">Кухня свободна</p>
-            <p style="color:#64748b">Активных заказов нет</p>
-          </div>
-        } @else {
-
-          <!-- Готовые блюда — наверху, выделено зелёным -->
-          @if (kitchenReady().length) {
-            <section class="px-3 pt-3">
-              <p class="text-xs font-bold mb-2 uppercase tracking-wider flex items-center gap-1" style="color:#22c55e">
-                <svg lucideCircleCheck [size]="14"></svg> Готово к выдаче ({{ kitchenReady().length }})
-              </p>
-              <div class="grid gap-2 mb-3"
-                   style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
-                @for (t of kitchenReady(); track t.order_id) {
-                  <div class="rounded-xl p-3" style="background:#14532d;border:1px solid #166534">
-                    <div class="flex items-center gap-2 mb-2">
-                      <span class="font-bold" style="color:#4ade80">#{{ t.order_id }}</span>
-                      @if (t.table_number) {
-                        <span class="text-sm font-semibold px-2 py-0.5 rounded"
-                              style="background:rgba(0,0,0,0.3);color:#bbf7d0">{{ t.table_number }}</span>
-                      }
-                      <span class="text-xs ml-auto" style="color:#86efac">{{ t.waiter_name }}</span>
-                    </div>
-                    @for (it of t.items; track it.id) {
-                      <p class="text-sm" style="color:#bbf7d0">{{ it.quantity }}× {{ it.name }}</p>
-                    }
-                  </div>
-                }
-              </div>
-            </section>
-          }
-
-          <!-- В работе -->
-          @if (kitchenActive().length) {
-            <section class="px-3 pt-1 pb-4">
-              <p class="text-xs font-bold mb-2 uppercase tracking-wider flex items-center gap-1" style="color:#f59e0b">
-                <svg lucideClock [size]="14"></svg> Готовится ({{ kitchenActive().length }})
-              </p>
-              <div class="grid gap-2"
-                   style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
-                @for (t of kitchenActive(); track t.order_id) {
-                  <div class="rounded-xl p-3"
-                       style="background:#1e293b;border:2px solid"
-                       [style.border-color]="kitchenUrgency(t.elapsed_min)">
-                    <div class="flex items-center gap-2 mb-2">
-                      <span class="font-bold" style="color:#f59e0b">#{{ t.order_id }}</span>
-                      @if (t.table_number) {
-                        <span class="text-sm font-semibold px-2 py-0.5 rounded"
-                              style="background:#334155;color:#f1f5f9">{{ t.table_number }}</span>
-                      }
-                      <span class="text-xs font-bold ml-auto" [style.color]="kitchenUrgency(t.elapsed_min)">
-                        <svg lucideClock [size]="12" class="inline-block mr-0.5"></svg> {{ t.elapsed_min }} мин
-                      </span>
-                    </div>
-                    @for (it of t.items; track it.id) {
-                      <div class="flex items-center justify-between text-sm py-0.5">
-                        <span>{{ it.quantity }}× {{ it.name }}</span>
-                        <span class="text-xs px-2 py-0.5 rounded-full"
-                              [style]="it.kitchen_status === 'cooking'
-                                ? 'background:#f59e0b22;color:#f59e0b'
-                                : 'background:#1e293b;color:#64748b'">
-                          {{ it.kitchen_status === 'cooking' ? 'готовится' : 'ожидает' }}
-                        </span>
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            </section>
-          }
-        }
+        <bar-kitchen-monitor-tab [active]="kitchenActive()" [ready]="kitchenReady()" [noShift]="noShift()" />
       }
 
-      <!-- ── СКЛАД ──────────────────────────────────────────────────── -->
-      @if (tab() === 'stock') {
-        <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
-          <div class="px-3 py-2.5 flex-shrink-0">
-            <input [ngModel]="stockSearch()" (ngModelChange)="stockSearch.set($event)"
-                   class="w-full px-4 py-2.5 rounded-xl text-sm"
-                   placeholder="Поиск продукта..."
-                   style="background:#1e293b;border:1px solid #334155;color:#f1f5f9;outline:none"/>
-          </div>
-          <div class="flex-1 min-h-0 overflow-y-auto px-3 pb-6 space-y-2">
-            @for (p of filteredProducts(); track p.id) {
-              <div class="flex items-center gap-3 rounded-xl px-4 py-3"
-                   style="background:#1e293b;border:1px solid #334155">
-                <div class="flex-1 min-w-0">
-                  <p class="font-semibold truncate">{{ p.name }}</p>
-                  <p class="text-xs" style="color:#64748b">
-                    {{ p.unit }}
-                    @if (p.min_stock != null) { · мин: {{ p.min_stock }} }
-                  </p>
-                </div>
-                <div class="text-right mr-2">
-                  <p class="font-bold text-xl leading-none" [style.color]="stockColor(p)">
-                    {{ p.stock_quantity }}
-                  </p>
-                  <p class="text-xs" style="color:#64748b">{{ p.unit }}</p>
-                </div>
-                <button (click)="openStockAdjust(p)"
-                        class="rounded-xl font-bold text-base flex-shrink-0"
-                        style="background:#334155;color:#f1f5f9;min-height:44px;min-width:48px">
-                  ±
-                </button>
-              </div>
-            }
-            @if (!filteredProducts().length) {
-              <p class="text-center py-10 text-sm" style="color:#64748b">Ничего не найдено</p>
-            }
-          </div>
-        </div>
-      }
+      <!-- new/resv держим живыми, чтобы корзина и формы переживали смену вкладок -->
+      <bar-new-order-tab [visible]="tab() === 'new'" (submitted)="onOrderSubmitted()" />
+      <bar-reservations-tab [visible]="tab() === 'resv'" (todayCount)="resvTodayCount.set($event)" />
 
-      <!-- ── РЕЦЕПТУРЫ ───────────────────────────────────────────── -->
-      @if (tab() === 'recipes') {
-        <div class="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-1 pb-6">
-          @for (cat of barMenu(); track cat.id) {
-            <p class="text-xs font-bold uppercase tracking-wider px-1 pt-3 pb-1" style="color:#64748b">
-              {{ cat.name }}
-            </p>
-            @for (item of cat.items; track item.id) {
-              <div class="rounded-xl overflow-hidden mb-2" style="background:#1e293b;border:1px solid #334155">
-                <button (click)="selectRecipeItem(item)"
-                        class="w-full flex items-center gap-3 px-4 py-3"
-                        style="border:none;text-align:left;background:transparent;cursor:pointer">
-                  <div class="flex-1 min-w-0 text-left">
-                    <p class="font-semibold text-sm">
-                      {{ item.name }}
-                      @if (item.volume) {
-                        <span style="color:#64748b"> {{ item.volume }}</span>
-                      }
-                    </p>
-                    <p class="text-xs" style="color:#64748b">{{ item.price }} ₽</p>
-                  </div>
-                  <span class="text-sm flex-shrink-0" style="color:#64748b">
-                    {{ recipeSelectedItem()?.id === item.id ? '▾' : '▸' }}
-                  </span>
-                </button>
-
-                @if (recipeSelectedItem()?.id === item.id) {
-                  <div style="border-top:1px solid #334155">
-                    @if (!recipeComponents().length) {
-                      <p class="px-4 py-3 text-sm" style="color:#64748b">Рецептура не задана</p>
-                    }
-                    @for (comp of recipeComponents(); track comp.id) {
-                      <div class="flex items-center gap-2 px-4 py-2.5" style="border-bottom:1px solid #0f172a">
-                        <p class="flex-1 text-sm font-medium truncate">{{ comp.product_name }}</p>
-                        <input type="number" [value]="comp.quantity" min="0.001" step="0.001"
-                               class="w-20 text-center text-sm rounded-lg py-1.5"
-                               style="background:#0f172a;border:1px solid #334155;color:#f1f5f9"
-                               (change)="updateComponentQty(comp, +$any($event.target).value)"/>
-                        <span class="text-xs w-8 flex-shrink-0" style="color:#64748b">{{ comp.product_unit }}</span>
-                        <button (click)="deleteComponent(comp.id)"
-                                class="rounded-lg flex items-center justify-center flex-shrink-0"
-                                style="background:#ef444422;color:#ef4444;min-width:36px;min-height:36px;border:none;cursor:pointer">
-                          <svg lucideX [size]="14"></svg>
-                        </button>
-                      </div>
-                    }
-                    <div class="px-3 py-2.5 flex items-center gap-2" style="border-top:1px solid #334155">
-                      <select [(ngModel)]="recipeNewProduct" class="flex-1 text-sm rounded-xl py-2 px-3"
-                              style="background:#0f172a;border:1px solid #334155;color:#f1f5f9">
-                        <option [ngValue]="null">Продукт...</option>
-                        @for (p of products(); track p.id) {
-                          <option [ngValue]="p.id">{{ p.name }} ({{ p.unit }})</option>
-                        }
-                      </select>
-                      <input type="number" [(ngModel)]="recipeNewQty" min="0.001" step="0.001"
-                             class="w-20 text-center text-sm rounded-xl py-2"
-                             style="background:#0f172a;border:1px solid #334155;color:#f1f5f9"/>
-                      <button (click)="addComponent()" [disabled]="!recipeNewProduct || recipeSaving()"
-                              class="rounded-xl font-bold text-sm flex-shrink-0"
-                              style="background:#f59e0b;color:#0f172a;min-height:40px;min-width:44px;border:none;cursor:pointer">
-                        +
-                      </button>
-                    </div>
-                  </div>
-                }
-              </div>
-            }
-          }
-        </div>
-      }
-
-      <!-- ── СВОЙ ЗАКАЗ ───────────────────────────────────────────── -->
-      @if (tab() === 'new') {
-        <div class="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
-
-          <!-- Menu panel -->
-          <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
-
-            <!-- Label / guests row -->
-            <div class="flex items-center gap-3 p-3 pb-2">
-              <input [(ngModel)]="barLabel" class="field flex-1" placeholder="Стол / зона / стойка"
-                     style="background:#1e293b;border-color:#334155;color:#f1f5f9"/>
-              <input [(ngModel)]="barGuests" type="number" min="1" class="field w-20"
-                     placeholder="Гостей" style="background:#1e293b;border-color:#334155;color:#f1f5f9"/>
-            </div>
-
-            <!-- Breadcrumb -->
-            @if (activeCat() !== 0) {
-              <div class="flex-shrink-0 flex items-center gap-1 px-3 pb-2 text-sm"
-                   style="color:#64748b">
-                <button (click)="goRoot()"
-                        class="font-semibold hover:underline" style="color:#f59e0b">Меню</button>
-                @if (activeDrink()) {
-                  <span>›</span>
-                  <button (click)="goCat()" class="font-semibold hover:underline"
-                          style="color:#f59e0b">{{ activeCatName() }}</button>
-                  <span>›</span>
-                  <span style="color:#f1f5f9">{{ activeDrink() }}</span>
-                } @else {
-                  <span>›</span>
-                  <span style="color:#f1f5f9">{{ activeCatName() }}</span>
-                }
-              </div>
-            }
-
-            <!-- ── Уровень 1: Сетка категорий ── -->
-            @if (activeCat() === 0) {
-              <div class="flex-1 min-h-0 overflow-y-auto p-3">
-                <div class="grid gap-3"
-                     style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))">
-                  @for (cat of barMenu(); track cat.id) {
-                    <button (click)="activeCat.set(cat.id)"
-                            class="flex flex-col items-center justify-center gap-2 rounded-2xl p-4 transition-all active:scale-95"
-                            style="background:#1e293b;border:1px solid #334155;min-height:110px">
-                      @if (cat.type === 'kitchen') {
-                        <svg lucideUtensilsCrossed [size]="40" style="color:#f59e0b"></svg>
-                      } @else {
-                        <svg lucideGlassWater [size]="40" style="color:#f59e0b"></svg>
-                      }
-                      <span class="font-bold text-sm text-center leading-tight uppercase tracking-wide"
-                            style="color:#f1f5f9">{{ cat.name }}</span>
-                      <span class="text-xs" style="color:#64748b">{{ cat.items.length }} поз.</span>
-                    </button>
-                  }
-                </div>
-              </div>
-            }
-
-            <!-- ── Уровень 2: Папки по виду напитка/блюда ── -->
-            @if (activeCat() !== 0 && !activeDrink()) {
-              <div class="flex-1 min-h-0 overflow-y-auto p-3">
-                <div class="grid gap-3"
-                     style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))">
-                  @for (group of drinkGroups(); track group.name) {
-                    <button (click)="selectDrinkGroup(group)"
-                            class="flex flex-col items-center justify-center gap-2 rounded-2xl p-4 transition-all active:scale-95"
-                            style="background:#1e293b;border:1px solid #334155;min-height:110px">
-                      @if (group.items.length > 1) {
-                        <svg lucideFolder [size]="40" style="color:#f59e0b"></svg>
-                      } @else {
-                        <span style="font-size:2.5rem;line-height:1;color:#f59e0b">✚</span>
-                      }
-                      <span class="font-bold text-sm text-center leading-tight uppercase tracking-wide"
-                            style="color:#f1f5f9">{{ group.name }}</span>
-                      @if (group.items.length > 1) {
-                        <span class="text-xs" style="color:#64748b">{{ group.items.length }} вар.</span>
-                      } @else {
-                        <span class="text-xs font-bold" style="color:#f59e0b">{{ group.items[0].price }} ₽</span>
-                      }
-                    </button>
-                  }
-                </div>
-              </div>
-            }
-
-            <!-- ── Уровень 3: Варианты по объёму ── -->
-            @if (activeCat() !== 0 && activeDrink()) {
-              <div class="flex-1 min-h-0 overflow-y-auto p-3">
-                <div class="grid gap-3"
-                     style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
-                  @for (item of drinkVariants(); track item.id) {
-                    <div class="flex flex-col rounded-2xl overflow-hidden relative"
-                         style="background:#1e293b;border:1px solid;min-height:120px"
-                         [style.border-color]="item.is_out_of_stock ? '#ef4444' : '#334155'">
-                      <button (click)="!item.is_out_of_stock && addToCart(item)"
-                              class="flex flex-col items-center justify-center gap-2 p-5 flex-1 transition-all active:scale-95"
-                              [style.opacity]="item.is_out_of_stock ? '0.4' : '1'"
-                              [style.cursor]="item.is_out_of_stock ? 'not-allowed' : 'pointer'">
-                        <svg lucideWine [size]="32" style="color:#f59e0b"></svg>
-                        <span class="font-bold text-base" style="color:#f1f5f9">
-                          {{ item.volume || 'Порция' }}
-                        </span>
-                        <span class="font-bold text-lg" style="color:#f59e0b">{{ item.price }} ₽</span>
-                      </button>
-                      <button (click)="toggleStock(item)"
-                              class="py-1.5 text-xs font-bold text-center"
-                              [style]="item.is_out_of_stock
-                                ? 'background:#ef444422;color:#ef4444'
-                                : 'background:#1e293b;color:#475569;border-top:1px solid #334155'">
-                        {{ item.is_out_of_stock ? '🔴 Закончилось' : 'Отметить «нет»' }}
-                      </button>
-                    </div>
-                  }
-                </div>
-              </div>
-            }
-          </div>
-
-          <!-- Cart panel -->
-          <div class="flex-shrink-0 max-h-64 md:max-h-none w-full md:w-72 flex flex-col overflow-hidden"
-               style="background:#0a0f1e;border-top:1px solid #1e293b;border-left:1px solid #1e293b">
-            <div class="flex-shrink-0 px-4 py-3 font-bold flex items-center gap-2" style="border-bottom:1px solid #1e293b">
-              <svg lucideReceipt [size]="16"></svg> Заказ
-            </div>
-
-            <div class="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-2">
-              @for (line of cartLines(); track line.item.id) {
-                <div class="flex items-center gap-2 py-1.5" style="border-bottom:1px solid #1e293b">
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium truncate">{{ line.item.name }}</p>
-                    <p class="text-xs" style="color:#64748b">{{ line.item.price }} ₽</p>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <button (click)="decCart(line.item)" class="w-7 h-7 rounded-full font-bold text-sm flex items-center justify-center"
-                            style="background:#1e293b">−</button>
-                    <span class="w-6 text-center text-sm font-bold">{{ line.qty }}</span>
-                    <button (click)="addToCart(line.item)" class="w-7 h-7 rounded-full font-bold text-sm flex items-center justify-center"
-                            style="background:#1e293b">+</button>
-                  </div>
-                  <span class="text-sm font-bold w-16 text-right" style="color:#f59e0b">
-                    {{ line.item.price * line.qty | number:'1.0-0' }} ₽
-                  </span>
-                </div>
-              }
-              @if (!cartLines().length) {
-                <p class="text-sm py-4 text-center" style="color:#475569">Добавьте позиции</p>
-              }
-            </div>
-
-            <div class="flex-shrink-0 px-4 py-3" style="border-top:1px solid #1e293b">
-              <div class="flex items-center justify-between mb-3">
-                <span style="color:#94a3b8">Итого</span>
-                <span class="font-bold text-lg" style="color:#f59e0b">{{ cartTotal() | number:'1.0-0' }} ₽</span>
-              </div>
-              <button (click)="openPayModal()" [disabled]="!cartLines().length || submitting()"
-                      class="w-full py-3 rounded-xl font-bold text-sm"
-                      style="background:#f59e0b;color:#0f172a">
-                {{ submitting() ? 'Отправка...' : 'Принять заказ' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-
-      <!-- ── Модальное окно корректировки склада ─────────────────── -->
-      @if (stockAdjustTarget()) {
-        <div class="fixed inset-0 z-50 flex items-end justify-center"
-             style="background:rgba(0,0,0,0.75)" (click)="stockAdjustTarget.set(null)">
-          <div class="w-full max-w-md rounded-t-2xl p-5"
-               style="background:#1e293b;border-top:1px solid #334155"
-               (click)="$event.stopPropagation()">
-            <p class="font-bold text-lg mb-0.5">{{ stockAdjustTarget()!.name }}</p>
-            <p class="text-sm mb-4" style="color:#94a3b8">
-              Остаток:
-              <span class="font-bold" [style.color]="stockColor(stockAdjustTarget()!)">
-                {{ stockAdjustTarget()!.stock_quantity }} {{ stockAdjustTarget()!.unit }}
-              </span>
-            </p>
-            <div class="grid grid-cols-2 gap-2 mb-4">
-              <button (click)="stockAdjustReason = 'manual_in'"
-                      class="py-3 rounded-xl font-bold text-sm"
-                      [style]="stockAdjustReason === 'manual_in'
-                        ? 'background:#22c55e;color:#0f172a;border:none'
-                        : 'background:#0f172a;color:#94a3b8;border:1px solid #334155'">
-                ↑ Приход
-              </button>
-              <button (click)="stockAdjustReason = 'manual_out'"
-                      class="py-3 rounded-xl font-bold text-sm"
-                      [style]="stockAdjustReason === 'manual_out'
-                        ? 'background:#ef4444;color:white;border:none'
-                        : 'background:#0f172a;color:#94a3b8;border:1px solid #334155'">
-                ↓ Списание
-              </button>
-            </div>
-            <div class="flex items-center gap-3 mb-4">
-              <button (click)="stockAdjustQty = clamp1(stockAdjustQty - 1)"
-                      class="w-12 h-12 rounded-xl font-bold text-xl flex-shrink-0"
-                      style="background:#0f172a;color:#f1f5f9;border:1px solid #334155">−</button>
-              <input type="number" [(ngModel)]="stockAdjustQty" min="1"
-                     class="flex-1 text-center py-3 rounded-xl font-bold text-xl"
-                     style="background:#0f172a;border:1px solid #334155;color:#f1f5f9"/>
-              <button (click)="stockAdjustQty = stockAdjustQty + 1"
-                      class="w-12 h-12 rounded-xl font-bold text-xl flex-shrink-0"
-                      style="background:#0f172a;color:#f1f5f9;border:1px solid #334155">+</button>
-            </div>
-            <div class="flex gap-2">
-              <button (click)="stockAdjustTarget.set(null)"
-                      class="flex-1 py-3 rounded-xl font-semibold text-sm"
-                      style="background:#0f172a;color:#94a3b8;border:1px solid #334155">
-                Отмена
-              </button>
-              <button (click)="doAdjust()" [disabled]="stockAdjusting()"
-                      class="flex-1 py-3 rounded-xl font-bold text-sm"
-                      style="background:#f59e0b;color:#0f172a;border:none">
-                {{ stockAdjusting() ? '...' : 'Сохранить' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-
-      <!-- ── Модальное окно оплаты ──────────────────────────────── -->
-      @if (payModal()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4"
-             style="background:rgba(0,0,0,0.7)" (click)="payModal.set(false)">
-          <div class="rounded-2xl p-6 w-full max-w-sm"
-               style="background:#1e293b;border:1px solid #334155"
-               (click)="$event.stopPropagation()">
-            <p class="font-bold text-lg mb-1">Способ оплаты</p>
-            <p class="text-sm mb-4" style="color:#64748b">
-              Итого: <span class="font-bold" style="color:#f59e0b">{{ cartTotal() | number:'1.0-0' }} ₽</span>
-            </p>
-
-            <div class="grid grid-cols-3 gap-2 mb-5">
-              @for (p of payOptions; track p.value) {
-                <button (click)="selectedPay = p.value"
-                        class="py-3 rounded-xl font-bold text-sm flex flex-col items-center gap-1 transition-all"
-                        [style]="selectedPay === p.value
-                          ? 'background:#f59e0b;color:#0f172a'
-                          : 'background:#0f172a;color:#94a3b8;border:1px solid #334155'">
-                  <svg [lucideIcon]="p.icon" [size]="20"></svg>
-                  {{ p.label }}
-                </button>
-              }
-            </div>
-
-            <div class="flex gap-2">
-              <button (click)="payModal.set(false)"
-                      class="flex-1 py-2.5 rounded-xl font-semibold text-sm"
-                      style="background:#0f172a;color:#94a3b8;border:1px solid #334155">
-                Отмена
-              </button>
-              <button (click)="submitOrder()"
-                      class="flex-1 py-2.5 rounded-xl font-bold text-sm"
-                      style="background:#f59e0b;color:#0f172a">
-                Принять и чек
-              </button>
-            </div>
-          </div>
-        </div>
-      }
+      <bd-touch-keyboard />
     </div>
-  `
+  `,
 })
 export class BartenderPage implements OnInit, OnDestroy {
-  readonly auth  = inject(AuthService);
-  private api    = inject(ApiService);
-  private toast  = inject(ToastService);
-  private printer = inject(ReceiptPrintService);
+  readonly auth    = inject(AuthService);
+  private orderApi = inject(OrderApi);
+  private shiftApi = inject(ShiftApi);
+  private toast    = inject(ToastService);
 
-  barConfirmDelete = signal<number | null>(null);
-
-  barRemoveItem(orderId: number, it: KitchenItem) {
-    this.barConfirmDelete.set(null);
-    this.api.removeItemFromOrder(orderId, it.id).subscribe({
-      next: () => this.load(),
-      error: (err) => this.toast.apiError(err, 'Не удалось удалить позицию'),
-    });
-  }
-
-  toggleStock(item: MenuItem) {
-    const prev = item.is_out_of_stock;
-    item.is_out_of_stock = !prev;
-    this.api.toggleOutOfStock(item.id).subscribe({
-      error: () => { item.is_out_of_stock = prev; this.toast.error('Ошибка'); },
-    });
-  }
-
-  tab        = signal<'orders' | 'new' | 'kitchen' | 'stock' | 'recipes'>('orders');
-  active     = signal<KitchenTicket[]>([]);
-  ready      = signal<KitchenTicket[]>([]);
-  noShift    = signal(false);
-  loading    = signal(false);
-  lastUpdate = signal('—');
-  showReady  = signal(false);
-  soundOn    = signal(true);
+  tab          = signal<Tab>('orders');
+  active       = signal<KitchenTicket[]>([]);
+  ready        = signal<KitchenTicket[]>([]);
+  noShift      = signal(false);
+  openingShift = signal(false);
+  loading      = signal(false);
+  lastUpdate   = signal('—');
+  soundOn      = signal(true);
 
   // kitchen readiness (read-only view for bartender)
-  kitchenActive    = signal<KitchenTicket[]>([]);
-  kitchenReady     = signal<KitchenTicket[]>([]);
-  showKitchenReady = signal(false);
+  kitchenActive      = signal<KitchenTicket[]>([]);
+  kitchenReady       = signal<KitchenTicket[]>([]);
   kitchenUnseenCount = signal(0);
   private kitchenReadySeenIds = new Set<number>();
 
-  // own order
-  barMenu      = signal<{ id: number; name: string; type: string; items: MenuItem[] }[]>([]);
-  barLabel     = '';
-  barGuests    = 1;
-  private cart = signal<Map<number, { item: MenuItem; qty: number }>>(new Map());
-  submitting   = signal(false);
-
-  // navigation: 0 = root, >0 = inside category
-  activeCat     = signal<number>(0);
-  // navigation: '' = drink-type grid, else = drink name selected
-  activeDrink   = signal<string>('');
-
-  activeCatName = computed(() =>
-    this.barMenu().find(c => c.id === this.activeCat())?.name ?? ''
-  );
-  activeCatItems = computed(() =>
-    this.barMenu().find(c => c.id === this.activeCat())?.items ?? []
-  );
-
-  // Group items inside a category by drink name (level 2 folders)
-  drinkGroups = computed(() => {
-    const map = new Map<string, MenuItem[]>();
-    for (const item of this.activeCatItems()) {
-      const key = item.name;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(item);
-    }
-    return [...map.entries()].map(([name, items]) => ({ name, items }));
-  });
-
-  // Items for the selected drink name (level 3 — by volume)
-  drinkVariants = computed(() =>
-    this.activeCatItems().filter(i => i.name === this.activeDrink())
-  );
-
-  goRoot() { this.activeCat.set(0); this.activeDrink.set(''); }
-  goCat()  { this.activeDrink.set(''); }
-
-  // ── Stock tab ─────────────────────────────────────────────────────
-  products           = signal<Product[]>([]);
-  stockSearch        = signal('');
-  stockAdjustTarget  = signal<Product | null>(null);
-  stockAdjustQty     = 1;
-  stockAdjustReason: 'manual_in' | 'manual_out' = 'manual_in';
-  stockAdjusting     = signal(false);
-
-  filteredProducts = computed(() => {
-    const q = this.stockSearch().trim().toLowerCase();
-    const list = this.products().slice().sort((a, b) => {
-      const aLow = a.is_low ? 0 : 1;
-      const bLow = b.is_low ? 0 : 1;
-      return aLow - bLow || a.name.localeCompare(b.name);
-    });
-    return q ? list.filter(p => p.name.toLowerCase().includes(q)) : list;
-  });
-
-  // ── Recipes tab ───────────────────────────────────────────────────
-  recipeSelectedItem = signal<MenuItem | null>(null);
-  recipeComponents   = signal<MenuItemComponent[]>([]);
-  recipeNewProduct: number | null = null;
-  recipeNewQty       = 1;
-  recipeSaving       = signal(false);
-
-  // payment modal
-  payModal    = signal(false);
-  selectedPay: PaymentMethod = 'cash';
-  payOptions  = PAY_OPTIONS;
-
-  cartLines = computed(() => [...this.cart().values()]);
-  cartTotal = computed(() => this.cartLines().reduce((s, l) => s + l.item.price * l.qty, 0));
+  resvTodayCount = signal(0);
 
   private timer?: ReturnType<typeof setInterval>;
   private seenIds = new Set<number>();
@@ -820,8 +150,6 @@ export class BartenderPage implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.load();
-    this.loadMenu();
-    this.loadProducts();
     this.timer = setInterval(() => this.load(), REFRESH_MS);
   }
 
@@ -837,7 +165,7 @@ export class BartenderPage implements OnInit, OnDestroy {
 
   load() {
     this.loading.set(true);
-    this.api.getKitchenOrders('bar').subscribe({
+    this.orderApi.getKitchenOrders('bar').subscribe({
       next: d => {
         this.noShift.set(d.shift === null);
         this.active.set(d.active);
@@ -848,7 +176,7 @@ export class BartenderPage implements OnInit, OnDestroy {
       },
       error: () => this.loading.set(false),
     });
-    this.api.getKitchenOrders('kitchen').subscribe({
+    this.orderApi.getKitchenOrders('kitchen').subscribe({
       next: d => {
         this.kitchenActive.set(d.active);
         this.kitchenReady.set(d.ready);
@@ -858,22 +186,37 @@ export class BartenderPage implements OnInit, OnDestroy {
     });
   }
 
-  loadMenu() {
-    this.api.getMenuByCategory().subscribe(cats => {
-      this.barMenu.set(
-        cats.filter(c => c.station_type === 'bar' || c.station_type === 'kitchen')
-            .map(c => ({ id: c.id, name: c.name, type: c.station_type, items: c.items }))
-      );
-      this.goRoot();
-    });
+  onOrderSubmitted() {
+    this.tab.set('orders');
+    this.load();
   }
 
-  selectDrinkGroup(group: { name: string; items: MenuItem[] }) {
-    if (group.items.length === 1) {
-      this.addToCart(group.items[0]);
-    } else {
-      this.activeDrink.set(group.name);
-    }
+  openKitchenTab() {
+    this.tab.set('kitchen');
+    this.kitchenReady().forEach(t => this.kitchenReadySeenIds.add(t.order_id));
+    this.kitchenUnseenCount.set(0);
+  }
+
+  openShift() {
+    if (this.openingShift()) return;
+    this.openingShift.set(true);
+    // Сначала проверяем — вдруг смену уже открыли с другого устройства
+    this.shiftApi.getCurrentShift().subscribe({
+      next: () => { this.openingShift.set(false); this.load(); },
+      error: () => {
+        this.shiftApi.createShift({}).subscribe({
+          next: () => {
+            this.openingShift.set(false);
+            this.toast.success('Смена открыта');
+            this.load();
+          },
+          error: err => {
+            this.openingShift.set(false);
+            this.toast.apiError(err, 'Не удалось открыть смену');
+          },
+        });
+      },
+    });
   }
 
   private detectNew(active: KitchenTicket[]) {
@@ -883,191 +226,6 @@ export class BartenderPage implements OnInit, OnDestroy {
     }
     if (hasNew && this.primed && this.soundOn()) this.beep();
     this.primed = true;
-  }
-
-  setStatus(item: KitchenItem, status: KitchenStatus) {
-    item.kitchen_status = status;
-    this.api.setKitchenItemStatus(item.id, status).subscribe({
-      next: () => { if (status === 'ready') this.load(); },
-      error: () => this.load(),
-    });
-  }
-
-  markAllReady(t: KitchenTicket) {
-    this.active.update(list => list.filter(x => x.order_id !== t.order_id));
-    this.api.markKitchenOrderReady(t.order_id, 'bar').subscribe({ next: () => this.load(), error: () => this.load() });
-  }
-
-  // ── own order ─────────────────────────────────────────────────────
-  addToCart(item: MenuItem) {
-    this.cart.update(m => {
-      const next = new Map(m);
-      const cur = next.get(item.id);
-      next.set(item.id, { item, qty: (cur?.qty ?? 0) + 1 });
-      return next;
-    });
-  }
-
-  decCart(item: MenuItem) {
-    this.cart.update(m => {
-      const next = new Map(m);
-      const cur = next.get(item.id);
-      if (!cur) return next;
-      if (cur.qty <= 1) next.delete(item.id);
-      else next.set(item.id, { ...cur, qty: cur.qty - 1 });
-      return next;
-    });
-  }
-
-  openPayModal() {
-    if (!this.cartLines().length) return;
-    this.selectedPay = 'cash';
-    this.payModal.set(true);
-  }
-
-  submitOrder() {
-    if (!this.cartLines().length || this.submitting()) return;
-    this.payModal.set(false);
-    this.submitting.set(true);
-    this.api.getCurrentShift().subscribe({
-      next: shift => {
-        const label = this.barLabel.trim() || 'Стойка';
-        this.api.createOrder({
-          shift: shift.id,
-          table_number: label,
-          guests: this.barGuests || 1,
-          notes: '',
-          items: this.cartLines().map(l => ({ menu_item: l.item.id, quantity: l.qty })),
-        }).subscribe({
-          next: order => {
-            this.api.closeOrder(order.id, this.selectedPay).subscribe({
-              next: res => {
-                this.submitting.set(false);
-                this.cart.set(new Map());
-                this.barLabel = '';
-                this.barGuests = 1;
-                this.tab.set('orders');
-                this.toast.success('Заказ принят');
-                this.load();
-                this.printer.printHardware(res.receipt);
-              },
-              error: () => {
-                this.submitting.set(false);
-                this.toast.error('Ошибка при закрытии заказа');
-              },
-            });
-          },
-          error: () => { this.submitting.set(false); this.toast.error('Ошибка при создании заказа'); },
-        });
-      },
-      error: () => { this.submitting.set(false); this.toast.error('Нет открытой смены'); },
-    });
-  }
-
-  // ── Stock methods ─────────────────────────────────────────────────
-  loadProducts() {
-    this.api.getProducts().subscribe(p => this.products.set(p));
-  }
-
-  stockColor(p: Product): string {
-    if (p.is_low) return '#ef4444';
-    if (p.min_stock != null && p.stock_quantity < p.min_stock * 1.5) return '#f59e0b';
-    return '#22c55e';
-  }
-
-  openStockAdjust(product: Product) {
-    this.stockAdjustTarget.set(product);
-    this.stockAdjustQty = 1;
-    this.stockAdjustReason = 'manual_in';
-  }
-
-  clamp1(n: number) { return Math.max(1, n); }
-
-  doAdjust() {
-    const p = this.stockAdjustTarget();
-    if (!p) return;
-    this.stockAdjusting.set(true);
-    const qty = this.stockAdjustReason === 'manual_out'
-      ? -Math.abs(this.stockAdjustQty)
-      : Math.abs(this.stockAdjustQty);
-    this.api.adjustStock({ product: p.id, quantity: qty, reason: this.stockAdjustReason }).subscribe({
-      next: updated => {
-        this.products.update(list => list.map(x => x.id === updated.id ? updated : x));
-        this.stockAdjustTarget.set(null);
-        this.stockAdjusting.set(false);
-        this.toast.success('Остатки обновлены');
-      },
-      error: (err) => { this.stockAdjusting.set(false); this.toast.apiError(err, 'Ошибка при обновлении остатков'); },
-    });
-  }
-
-  // ── Recipe methods ────────────────────────────────────────────────
-  selectRecipeItem(item: MenuItem) {
-    if (this.recipeSelectedItem()?.id === item.id) {
-      this.recipeSelectedItem.set(null);
-      return;
-    }
-    this.recipeSelectedItem.set(item);
-    this.recipeComponents.set([]);
-    this.recipeNewProduct = null;
-    this.recipeNewQty = 1;
-    this.api.getComponents(item.id).subscribe(c => this.recipeComponents.set(c));
-  }
-
-  addComponent() {
-    const item = this.recipeSelectedItem();
-    if (!item || !this.recipeNewProduct) return;
-    this.recipeSaving.set(true);
-    this.api.createComponent({ menu_item: item.id, product: this.recipeNewProduct, quantity: this.recipeNewQty }).subscribe({
-      next: () => {
-        this.api.getComponents(item.id).subscribe(c => this.recipeComponents.set(c));
-        this.recipeNewProduct = null;
-        this.recipeNewQty = 1;
-        this.recipeSaving.set(false);
-      },
-      error: (err) => { this.recipeSaving.set(false); this.toast.apiError(err, 'Ошибка при добавлении компонента'); },
-    });
-  }
-
-  updateComponentQty(comp: MenuItemComponent, qty: number) {
-    if (!qty || qty <= 0) return;
-    this.api.updateComponent(comp.id, qty).subscribe({
-      next: updated => this.recipeComponents.update(list => list.map(c => c.id === updated.id ? updated : c)),
-      error: (err) => this.toast.apiError(err, 'Ошибка при обновлении рецепта'),
-    });
-  }
-
-  deleteComponent(compId: number) {
-    const item = this.recipeSelectedItem();
-    if (!item) return;
-    this.api.deleteComponent(compId).subscribe({
-      next: () => this.api.getComponents(item.id).subscribe(c => this.recipeComponents.set(c)),
-      error: (err) => this.toast.apiError(err, 'Ошибка при удалении компонента'),
-    });
-  }
-
-  openKitchenTab() {
-    this.tab.set('kitchen');
-    this.kitchenReady().forEach(t => this.kitchenReadySeenIds.add(t.order_id));
-    this.kitchenUnseenCount.set(0);
-  }
-
-  kitchenUrgency(min: number): string {
-    if (min >= 15) return '#ef4444';
-    if (min >= 8)  return '#f59e0b';
-    return '#22c55e';
-  }
-
-  itemBg(status: string): string {
-    if (status === 'cooking') return '#422006';
-    if (status === 'ready')   return '#14532d';
-    return '#0f172a';
-  }
-
-  urgencyColor(min: number): string {
-    if (min >= 10) return '#ef4444';
-    if (min >= 5)  return '#f59e0b';
-    return '#22c55e';
   }
 
   toggleSound() {

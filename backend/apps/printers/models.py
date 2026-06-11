@@ -6,7 +6,15 @@ class Printer(models.Model):
         ('network', 'Ethernet (raw, порт 9100)'),
         ('agent',   'USB через локальный агент'),
     ]
+    STATIONS = [
+        ('',       'Любые чеки'),
+        ('bar',    'Бар'),
+        ('waiter', 'Официанты'),
+    ]
     name       = models.CharField(max_length=100, verbose_name='Название')
+    station    = models.CharField(max_length=20, choices=STATIONS, blank=True, default='',
+                                  verbose_name='Назначение',
+                                  help_text='Чьи чеки печатает: бара, официантов или любые')
     connection = models.CharField(max_length=20, choices=CONNECTIONS, default='network')
     host       = models.CharField(max_length=100, blank=True, verbose_name='IP/хост (для Ethernet)')
     port       = models.PositiveIntegerField(default=9100)
@@ -22,6 +30,33 @@ class Printer(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.get_connection_display()})"
+
+
+class ReceiptSettings(models.Model):
+    """Настройки внешнего вида чека (одна запись на заведение)."""
+    title             = models.CharField(max_length=50, default='BAR DREAM', verbose_name='Заголовок')
+    subtitle          = models.CharField(max_length=100, blank=True, default='vk.com/mydreambar',
+                                         verbose_name='Подзаголовок (адрес, соцсети)')
+    footer            = models.CharField(max_length=100, blank=True, default='Спасибо за визит!',
+                                         verbose_name='Текст внизу чека')
+    qr_data           = models.CharField(max_length=200, blank=True, default='',
+                                         verbose_name='QR-код (ссылка или текст)',
+                                         help_text='Пусто — QR не печатается')
+    qr_label          = models.CharField(max_length=100, blank=True, default='',
+                                         verbose_name='Подпись под QR-кодом')
+    print_second_copy = models.BooleanField(default=True, verbose_name='Печатать копию «для сверки»')
+
+    class Meta:
+        verbose_name = 'Настройки чека'
+        verbose_name_plural = 'Настройки чека'
+
+    def __str__(self):
+        return f'Чек: {self.title}'
+
+    @classmethod
+    def get(cls) -> 'ReceiptSettings':
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
 
 
 class PrintJob(models.Model):
@@ -44,6 +79,7 @@ class PrintJob(models.Model):
     error      = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     sent_at    = models.DateTimeField(null=True, blank=True)
+    claimed_at = models.DateTimeField(null=True, blank=True, verbose_name='Забрано агентом')
 
     class Meta:
         db_table = 'orders_printjob'

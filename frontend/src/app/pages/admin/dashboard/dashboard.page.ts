@@ -1,7 +1,8 @@
 import { Component, OnInit, OnDestroy, signal, computed, ElementRef, ViewChild, ChangeDetectorRef } from '@angular/core';
+import { formatMoney as money } from '../../../shared/lib/formatters';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { ApiService } from '../../../core/services/api.service';
+import { AnalyticsApi } from '../../../entities/analytics';
 import { DashboardData, ShiftAnalytics, TopItem, Shift } from '../../../core/models';
 import { Chart, registerables, ChartConfiguration } from 'chart.js';
 import { LucideClock, LucideDownload } from '@lucide/angular';
@@ -15,7 +16,6 @@ const CAT_COLORS = {
   hookah:  '#EA580C',
 };
 
-const money = (v: number) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(v) + ' ₽';
 
 // Plugin: draw total in the middle of the doughnut
 const donutCenter = {
@@ -68,58 +68,6 @@ const donutCenter = {
   `],
   template: `
     <div class="space-y-5">
-
-      <!-- ── Shift status banner ─────────────────────────────────── -->
-      @if (data()) {
-        @if (!data()!.current_shift) {
-          <!-- No shift open -->
-          <div class="rounded-2xl p-5 flex flex-col sm:flex-row items-center gap-4"
-               style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:2px solid #f59e0b">
-            <div class="flex items-center gap-3 flex-1">
-              <span class="text-4xl">🔴</span>
-              <div>
-                <p class="font-bold text-lg leading-tight" style="color:#78350f">Смена не открыта</p>
-                <p class="text-sm mt-0.5" style="color:#92400e">Билеты и заказы не принимаются</p>
-              </div>
-            </div>
-            <a routerLink="/admin/shifts/active"
-               class="btn btn-primary w-full sm:w-auto flex-shrink-0"
-               style="font-size:1rem;padding:14px 28px;min-height:52px;background:#f59e0b;color:#000;font-weight:700;border:none">
-              ⚡ Открыть смену
-            </a>
-          </div>
-        } @else {
-          <!-- Shift is open -->
-          <div class="rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-3"
-               style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:2px solid #22c55e">
-            <div class="flex items-center gap-3 flex-1">
-              <span class="w-3 h-3 rounded-full bg-green-500 animate-pulse flex-shrink-0"></span>
-              <div>
-                <p class="font-bold text-base leading-tight" style="color:#166534">
-                  Смена открыта — {{ formatDate(data()!.current_shift!.date) }}
-                </p>
-                <p class="text-sm mt-0.5" style="color:#15803d">
-                  {{ data()!.current_shift!.orders_count }} заказов ·
-                  {{ data()!.current_shift!.tickets_count }} билетов
-                </p>
-              </div>
-            </div>
-            <div class="flex items-center gap-4 sm:gap-6">
-              @for (c of currentShiftCats(); track c.label) {
-                <div class="text-center">
-                  <p class="font-bold text-base leading-none" [style.color]="c.color">
-                    {{ c.value | number:'1.0-0' }} ₽
-                  </p>
-                  <p class="text-xs section-title mt-0.5">{{ c.label }}</p>
-                </div>
-              }
-              <a routerLink="/admin/shifts/active"
-                 class="btn btn-ghost btn-sm flex-shrink-0"
-                 style="border-color:#22c55e;color:#166534">Управление</a>
-            </div>
-          </div>
-        }
-      }
 
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <h1 class="text-xl font-bold">Аналитика</h1>
@@ -260,19 +208,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private maxTop = 1;
   private redraw = () => { this.drawDonut(); this.drawBar(); };
 
-  constructor(private api: ApiService, private cdr: ChangeDetectorRef) {}
+  constructor(private analyticsApi: AnalyticsApi, private cdr: ChangeDetectorRef) {}
 
   ngOnInit() {
-    this.api.getDashboard().subscribe(d => {
+    this.analyticsApi.getDashboard().subscribe(d => {
       this.data.set(d);
       this.cdr.detectChanges();
       queueMicrotask(() => this.drawDonut());
     });
-    this.api.getTopItems().subscribe(i => {
+    this.analyticsApi.getTopItems().subscribe(i => {
       this.maxTop = Math.max(1, ...i.map(x => x.total_revenue));
       this.topItems.set(i);
     });
-    this.api.getShiftAnalytics(15).subscribe(s => {
+    this.analyticsApi.getShiftAnalytics(15).subscribe(s => {
       // keep only shifts that actually have revenue, oldest→newest
       this.shiftAnalytics.set(s.filter(x => x.total > 0).reverse());
       this.cdr.detectChanges();
@@ -420,7 +368,4 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.barChart = new Chart(this.shiftsRef.nativeElement, cfg);
   }
 
-  formatDate(d: string): string {
-    return new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-  }
 }
