@@ -2,20 +2,22 @@ import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
+import { InventoryApi } from '../../../entities/inventory';
+import { MenuApi } from '../../../entities/menu';
+import { BdTableComponent, BdTableColumn } from '../../../shared/ui';
 import {
   Product, MenuItemComponent, ConsumptionRow, MenuByCategory,
-  InventoryMovement, MovementReason, PRODUCT_UNITS,
+  InventoryMovement, MovementReason,
 } from '../../../core/models';
 import {
   LucideDynamicIcon,
-  LucidePackage, LucideFlaskConical, LucideBarChart2, LucideList,
+  LucideFlaskConical, LucideBarChart2, LucideList,
   LucideTriangleAlert, LucidePencil, LucideTrash2, LucideCheck, LucideX,
   LucideGlassWater, LucideUtensilsCrossed, LucideWind, LucideClock,
   LucideClipboardList,
 } from '@lucide/angular';
 
-type Tab = 'stock' | 'recipes' | 'consumption' | 'movements';
+type Tab = 'recipes' | 'consumption' | 'movements';
 
 const REASON_LABELS: Record<MovementReason, string> = {
   sale:       'Продажа',
@@ -27,8 +29,8 @@ const REASON_LABELS: Record<MovementReason, string> = {
 @Component({
   selector: 'app-inventory',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideDynamicIcon,
-    LucidePackage, LucideBarChart2,
+  imports: [CommonModule, FormsModule, LucideDynamicIcon, BdTableComponent,
+    LucideBarChart2,
     LucideTriangleAlert, LucidePencil, LucideTrash2, LucideCheck, LucideX,
     LucideClock, LucideClipboardList],
   template: `
@@ -55,233 +57,15 @@ const REASON_LABELS: Record<MovementReason, string> = {
                 ? 'background:white;color:var(--color-text);box-shadow:0 1px 3px rgba(0,0,0,.1)'
                 : 'background:transparent;color:var(--color-muted)'">
         <svg [lucideIcon]="t.icon" [size]="16"></svg> <span class="hidden sm:inline">{{ t.label }}</span>
-        @if (t.key === 'stock' && lowCount() > 0) {
-          <span class="w-4 h-4 rounded-full text-white flex items-center justify-center"
-                style="background:#dc2626;font-size:9px;font-weight:700">{{ lowCount() }}</span>
-        }
       </button>
     }
   </div>
-
-  <!-- ══ TAB: ОСТАТКИ ════════════════════════════════════════════ -->
-  @if (tab() === 'stock') {
-    <div class="space-y-3">
-
-      <!-- Toolbar -->
-      <div class="flex items-center gap-2 flex-wrap">
-        <button (click)="showAddProduct.set(!showAddProduct())"
-                class="btn btn-primary btn-sm">
-          + Товар
-        </button>
-        <button (click)="stockFilter.set(stockFilter() === 'low' ? 'all' : 'low')"
-                class="btn btn-sm flex items-center gap-1"
-                [style]="stockFilter() === 'low'
-                  ? 'background:#fee2e2;color:#dc2626;border:1px solid #fca5a5'
-                  : 'background:var(--color-bg);color:var(--color-muted);border:1px solid var(--color-border)'">
-          <svg lucideTriangleAlert [size]="12"></svg> Только нехватка
-        </button>
-        <span class="ml-auto text-xs" style="color:var(--color-muted)">
-          {{ filteredProducts().length }} / {{ products().length }}
-        </span>
-      </div>
-
-      <!-- Add form -->
-      @if (showAddProduct()) {
-        <div class="card" style="border-color:var(--color-gold)">
-          <h3 class="font-semibold mb-3 text-sm">Новый товар</h3>
-          <div class="grid grid-cols-2 gap-3 mb-3">
-            <div class="col-span-2">
-              <label class="section-title block mb-1">Название</label>
-              <input [(ngModel)]="newProduct.name" class="field" placeholder="Водка TUNDRA"/>
-            </div>
-            <div>
-              <label class="section-title block mb-1">Единица</label>
-              <select [(ngModel)]="newProduct.unit" class="field">
-                @for (u of units; track u) { <option [value]="u">{{ u }}</option> }
-              </select>
-            </div>
-            <div>
-              <label class="section-title block mb-1">Объём упаковки</label>
-              <input [(ngModel)]="newProduct.pack_size" type="number" min="0.001" step="any" class="field" placeholder="500"/>
-            </div>
-            <div>
-              <label class="section-title block mb-1">Цена упаковки ₽</label>
-              <input [(ngModel)]="newProduct.purchase_price" type="number" min="0" class="field" placeholder="800"/>
-            </div>
-            <div>
-              <label class="section-title block mb-1">Минимальный остаток</label>
-              <input [(ngModel)]="newProduct.min_stock" type="number" min="0" step="any" class="field" placeholder="необязательно"/>
-            </div>
-          </div>
-          <div class="flex gap-2">
-            <button (click)="saveProduct()" class="btn btn-primary btn-sm">Сохранить</button>
-            <button (click)="showAddProduct.set(false)" class="btn btn-ghost btn-sm">Отмена</button>
-          </div>
-        </div>
-      }
-
-      <!-- Products table -->
-      @if (filteredProducts().length) {
-        <div class="card p-0 overflow-hidden">
-          <table class="w-full text-sm">
-            <thead>
-              <tr style="background:var(--color-bg);border-bottom:1px solid var(--color-border)">
-                <th class="text-left px-4 py-2.5 font-semibold section-title">Товар</th>
-                <th class="text-right px-3 py-2.5 font-semibold section-title">Остаток</th>
-                <th class="text-right px-3 py-2.5 font-semibold section-title hidden sm:table-cell">Минимум</th>
-                <th class="text-right px-3 py-2.5 font-semibold section-title hidden md:table-cell">Упаковка</th>
-                <th class="text-right px-3 py-2.5 font-semibold section-title hidden md:table-cell">Цена уп.</th>
-                <th class="px-3 py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (p of filteredProducts(); track p.id) {
-
-                <!-- Edit row -->
-                @if (editProductId() === p.id) {
-                  <tr style="border-bottom:1px solid var(--color-border);background:var(--color-gold-light)">
-                    <td class="px-3 py-2">
-                      <input [(ngModel)]="editProduct.name" class="field" style="height:30px"/>
-                    </td>
-                    <td class="px-3 py-2 text-right">
-                      <div class="flex items-center gap-1 justify-end">
-                        <input [(ngModel)]="editProduct.stock_quantity" type="number" step="any"
-                               class="field text-right" style="height:30px;width:70px"/>
-                        <select [(ngModel)]="editProduct.unit" class="field" style="height:30px;width:54px">
-                          @for (u of units; track u) { <option [value]="u">{{ u }}</option> }
-                        </select>
-                      </div>
-                    </td>
-                    <td class="px-3 py-2 hidden sm:table-cell">
-                      <input [(ngModel)]="editProduct.min_stock" type="number" step="any" placeholder="—"
-                             class="field text-right" style="height:30px;width:70px"/>
-                    </td>
-                    <td class="px-3 py-2 hidden md:table-cell">
-                      <input [(ngModel)]="editProduct.pack_size" type="number" step="any"
-                             class="field text-right" style="height:30px;width:70px"/>
-                    </td>
-                    <td class="px-3 py-2 hidden md:table-cell">
-                      <input [(ngModel)]="editProduct.purchase_price" type="number" step="any"
-                             class="field text-right" style="height:30px;width:70px"/>
-                    </td>
-                    <td class="px-3 py-2">
-                      <div class="flex gap-1">
-                        <button (click)="saveEditProduct(p)" class="btn btn-primary btn-sm"><svg lucideCheck [size]="14"></svg></button>
-                        <button (click)="editProductId.set(null)" class="btn btn-ghost btn-sm"><svg lucideX [size]="14"></svg></button>
-                      </div>
-                    </td>
-                  </tr>
-
-                <!-- Normal row -->
-                } @else {
-                  <tr style="border-bottom:1px solid var(--color-border)" [style.opacity]="p.is_active ? '1' : '0.45'">
-                    <td class="px-4 py-2.5">
-                      <span class="font-medium">{{ p.name }}</span>
-                    </td>
-                    <td class="px-3 py-2.5 text-right">
-                      <span class="font-bold text-base"
-                            [style.color]="stockColor(p)">
-                        {{ p.stock_quantity | number:'1.0-2' }}
-                      </span>
-                      <span class="text-xs ml-0.5" style="color:var(--color-muted)">{{ p.unit }}</span>
-                    </td>
-                    <td class="px-3 py-2.5 text-right hidden sm:table-cell" style="color:var(--color-muted)">
-                      {{ p.min_stock != null ? (p.min_stock | number:'1.0-2') + ' ' + p.unit : '—' }}
-                    </td>
-                    <td class="px-3 py-2.5 text-right hidden md:table-cell" style="color:var(--color-muted)">
-                      {{ p.pack_size | number:'1.0-2' }} {{ p.unit }}
-                    </td>
-                    <td class="px-3 py-2.5 text-right hidden md:table-cell" style="color:var(--color-muted)">
-                      {{ p.purchase_price | number:'1.0-0' }} ₽
-                    </td>
-                    <td class="px-3 py-2.5">
-                      <div class="flex gap-1 justify-end">
-                        <button (click)="startAdjust(p)"
-                                class="btn btn-sm"
-                                style="background:var(--color-gold-light);color:var(--color-gold-hover);font-size:11px">
-                          ± Корректировать
-                        </button>
-                        <button (click)="startEditProduct(p)" class="btn btn-ghost btn-sm"><svg lucidePencil [size]="14"></svg></button>
-                      </div>
-                    </td>
-                  </tr>
-                }
-
-                <!-- Adjust inline row -->
-                @if (adjustProductId() === p.id) {
-                  <tr style="border-bottom:2px solid var(--color-gold);background:#fffbeb">
-                    <td colspan="6" class="px-4 py-3">
-                      <div class="flex flex-wrap items-end gap-3">
-
-                        <!-- Reason buttons -->
-                        <div>
-                          <p class="section-title mb-1.5">Операция</p>
-                          <div class="flex gap-1">
-                            @for (r of adjustReasons; track r.key) {
-                              <button (click)="adjustReason.set(r.key)"
-                                      class="btn btn-sm"
-                                      [style]="adjustReason() === r.key
-                                        ? r.style + ';border:2px solid currentColor'
-                                        : 'background:var(--color-bg);color:var(--color-muted);border:1px solid var(--color-border)'">
-                                {{ r.icon }} {{ r.label }}
-                              </button>
-                            }
-                          </div>
-                        </div>
-
-                        <!-- Qty input -->
-                        <div>
-                          <p class="section-title mb-1.5">
-                            {{ adjustReason() === 'adjustment' ? 'Фактический остаток (' + p.unit + ')' : 'Количество (' + p.unit + ')' }}
-                          </p>
-                          <input [(ngModel)]="adjustQty" type="number" min="0" step="any"
-                                 class="field" style="width:110px"
-                                 [placeholder]="adjustReason() === 'adjustment' ? p.stock_quantity.toString() : '0'"/>
-                        </div>
-
-                        <!-- Note -->
-                        <div class="flex-1 min-w-[140px]">
-                          <p class="section-title mb-1.5">Комментарий (необязательно)</p>
-                          <input [(ngModel)]="adjustNote" class="field" placeholder="Поступление от поставщика..."/>
-                        </div>
-
-                        <!-- Actions -->
-                        <div class="flex gap-2 items-end">
-                          <button (click)="applyAdjust(p)" class="btn btn-primary btn-sm">Применить</button>
-                          <button (click)="adjustProductId.set(null)" class="btn btn-ghost btn-sm">Отмена</button>
-                        </div>
-
-                      </div>
-
-                      <!-- Preview -->
-                      @if (adjustQty !== null && adjustQty !== undefined && adjustQty !== '') {
-                        <p class="text-xs mt-2" style="color:var(--color-muted)">
-                          {{ adjustPreview(p) }}
-                        </p>
-                      }
-                    </td>
-                  </tr>
-                }
-
-              }
-            </tbody>
-          </table>
-        </div>
-      } @else {
-        <div class="text-center py-10" style="color:var(--color-muted)">
-          <svg lucidePackage [size]="48" class="mb-2 mx-auto"></svg>
-          {{ products().length ? 'Нет позиций с нехваткой' : 'Товары ещё не добавлены' }}
-        </div>
-      }
-
-    </div>
-  }
 
   <!-- ══ TAB: РЕЦЕПТУРЫ ══════════════════════════════════════════ -->
   @if (tab() === 'recipes') {
     @if (!products().length) {
       <div class="card text-center py-8" style="color:var(--color-muted)">
-        Сначала добавьте товары на вкладке «Остатки»
+        Сначала добавьте товары на странице «Остатки на складе»
       </div>
     } @else {
       <p class="text-sm" style="color:var(--color-muted)">
@@ -337,7 +121,8 @@ const REASON_LABELS: Record<MovementReason, string> = {
                     }
                     @if (addingCompFor() === item.id) {
                       <div class="flex items-center gap-2 mt-2 pt-2" style="border-top:1px solid var(--color-border)">
-                        <select [(ngModel)]="newComp.product" class="field text-sm flex-1" style="height:30px">
+                        <select [(ngModel)]="newComp.product" (ngModelChange)="onCompProductChange()"
+                                class="field text-sm flex-1" style="height:30px">
                           <option [value]="0" disabled>Выбрать товар...</option>
                           @for (p of activeProducts(); track p.id) {
                             <option [value]="p.id">{{ p.name }} ({{ p.unit }})</option>
@@ -352,7 +137,7 @@ const REASON_LABELS: Record<MovementReason, string> = {
                         <button (click)="addingCompFor.set(null)" class="btn btn-ghost btn-sm"><svg lucideX [size]="14"></svg></button>
                       </div>
                     } @else {
-                      <button (click)="startAddComp(item.id)"
+                      <button (click)="startAddComp(item)"
                               class="btn btn-ghost btn-sm mt-2 text-xs"
                               style="color:var(--color-gold-hover)">
                         + Добавить компонент
@@ -416,21 +201,8 @@ const REASON_LABELS: Record<MovementReason, string> = {
             </div>
           </div>
         </div>
-        <div class="card p-0 overflow-hidden">
-          <table class="w-full text-sm">
-            <thead>
-              <tr style="background:var(--color-bg);border-bottom:1px solid var(--color-border)">
-                <th class="text-left px-4 py-2.5 font-semibold section-title">Товар</th>
-                <th class="text-right px-3 py-2.5 font-semibold section-title">Остаток</th>
-                <th class="text-right px-3 py-2.5 font-semibold section-title">Расход</th>
-                <th class="text-right px-3 py-2.5 font-semibold section-title hidden sm:table-cell">Упак.</th>
-                <th class="text-right px-3 py-2.5 font-semibold section-title">Купить</th>
-                <th class="text-right px-3 py-2.5 font-semibold section-title hidden sm:table-cell">₽ / уп</th>
-                <th class="text-right px-3 py-2.5 font-semibold section-title">Итого ₽</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (row of consumption(); track row.product_id) {
+        <bd-table [columns]="consumptionColumns" [rows]="consumption()" trackField="product_id">
+          <ng-template let-row>
                 <tr style="border-bottom:1px solid var(--color-border)">
                   <td class="px-4 py-2.5 font-medium">{{ row.product_name }}</td>
                   <td class="px-3 py-2.5 text-right">
@@ -451,16 +223,15 @@ const REASON_LABELS: Record<MovementReason, string> = {
                   <td class="px-3 py-2.5 text-right hidden sm:table-cell">{{ row.purchase_price | number:'1.0-0' }}</td>
                   <td class="px-3 py-2.5 text-right font-semibold">{{ row.total_cost | number:'1.0-0' }}</td>
                 </tr>
-              }
-            </tbody>
-            <tfoot>
-              <tr style="background:var(--color-bg);border-top:2px solid var(--color-border)">
-                <td class="px-4 py-2.5 font-bold" colspan="6">Итого к закупке</td>
-                <td class="px-3 py-2.5 text-right font-bold text-base">{{ totalCost() | number:'1.0-0' }} ₽</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+          </ng-template>
+
+          <tfoot>
+            <tr style="background:var(--color-bg);border-top:2px solid var(--color-border)">
+              <td class="px-4 py-2.5 font-bold" colspan="6">Итого к закупке</td>
+              <td class="px-3 py-2.5 text-right font-bold text-base">{{ totalCost() | number:'1.0-0' }} ₽</td>
+            </tr>
+          </tfoot>
+        </bd-table>
       } @else if (consumptionQueried()) {
         <div class="text-center py-10" style="color:var(--color-muted)">
           <svg lucideBarChart2 [size]="40" class="mb-2 mx-auto"></svg>
@@ -505,20 +276,8 @@ const REASON_LABELS: Record<MovementReason, string> = {
       @if (movementsLoading()) {
         <div class="text-center py-8 flex items-center justify-center gap-2" style="color:var(--color-muted)"><svg lucideClock [size]="16"></svg> Загрузка...</div>
       } @else if (filteredMovements().length) {
-        <div class="card p-0 overflow-hidden">
-          <table class="w-full text-sm">
-            <thead>
-              <tr style="background:var(--color-bg);border-bottom:1px solid var(--color-border)">
-                <th class="text-left px-4 py-2.5 font-semibold section-title">Дата и время</th>
-                <th class="text-left px-3 py-2.5 font-semibold section-title">Товар</th>
-                <th class="text-right px-3 py-2.5 font-semibold section-title">Количество</th>
-                <th class="text-left px-3 py-2.5 font-semibold section-title hidden sm:table-cell">Тип</th>
-                <th class="text-left px-3 py-2.5 font-semibold section-title hidden md:table-cell">Кто</th>
-                <th class="text-left px-3 py-2.5 font-semibold section-title hidden md:table-cell">Комментарий</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (m of filteredMovements(); track m.id) {
+        <bd-table [columns]="movementsColumns" [rows]="filteredMovements()">
+          <ng-template let-m>
                 <tr style="border-bottom:1px solid var(--color-border)">
                   <td class="px-4 py-2.5 whitespace-nowrap" style="color:var(--color-muted)">
                     {{ m.created_at | date:'dd.MM HH:mm' }}
@@ -541,10 +300,8 @@ const REASON_LABELS: Record<MovementReason, string> = {
                     {{ m.note || '—' }}
                   </td>
                 </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+          </ng-template>
+        </bd-table>
       } @else {
         <div class="text-center py-10" style="color:var(--color-muted)">
           <svg lucideClipboardList [size]="40" class="mb-2 mx-auto"></svg>
@@ -559,43 +316,37 @@ const REASON_LABELS: Record<MovementReason, string> = {
   `,
 })
 export class InventoryPage implements OnInit {
-  tab = signal<Tab>('stock');
+  tab = signal<Tab>('recipes');
 
   tabs: { key: Tab; icon: LucideIconInput; label: string }[] = [
-    { key: 'stock'       as Tab, icon: LucidePackage,    label: 'Остатки'   },
     { key: 'recipes'     as Tab, icon: LucideFlaskConical,     label: 'Рецептуры' },
     { key: 'consumption' as Tab, icon: LucideBarChart2,  label: 'Расход'    },
     { key: 'movements'   as Tab, icon: LucideList,       label: 'Движения'  },
   ];
 
-  units = PRODUCT_UNITS;
-
-  // ── Products / Stock ──────────────────────────────────────────────
+  // ── Products (для рецептур и фильтра движений) ────────────────────
   products       = signal<Product[]>([]);
-  showAddProduct = signal(false);
-  stockFilter    = signal<'all' | 'low'>('all');
-  editProductId  = signal<number | null>(null);
-  newProduct: Partial<Product> = { name: '', unit: 'мл', pack_size: 1, purchase_price: 0, min_stock: null };
-  editProduct: Partial<Product> = {};
   activeProducts = computed(() => this.products().filter(p => p.is_active));
   lowCount       = computed(() => this.products().filter(p => p.is_low).length);
 
-  filteredProducts = computed(() =>
-    this.stockFilter() === 'low'
-      ? this.products().filter(p => p.is_low)
-      : this.products()
-  );
+  // ── Table columns ─────────────────────────────────────────────────
+  consumptionColumns: BdTableColumn[] = [
+    { label: 'Товар' },
+    { label: 'Остаток', align: 'right' },
+    { label: 'Расход',  align: 'right' },
+    { label: 'Упак.',   align: 'right', visibleFrom: 'sm' },
+    { label: 'Купить',  align: 'right' },
+    { label: '₽ / уп',  align: 'right', visibleFrom: 'sm' },
+    { label: 'Итого ₽', align: 'right' },
+  ];
 
-  // ── Adjustment ────────────────────────────────────────────────────
-  adjustProductId = signal<number | null>(null);
-  adjustReason    = signal<MovementReason>('manual_in');
-  adjustQty: any  = '';
-  adjustNote      = '';
-
-  adjustReasons = [
-    { key: 'manual_in'  as MovementReason, icon: '+', label: 'Приход',        style: 'background:#dcfce7;color:#16a34a' },
-    { key: 'manual_out' as MovementReason, icon: '−', label: 'Списание',      style: 'background:#fee2e2;color:#dc2626' },
-    { key: 'adjustment' as MovementReason, icon: '=', label: 'Инвентаризация', style: 'background:#eff6ff;color:#2563eb' },
+  movementsColumns: BdTableColumn[] = [
+    { label: 'Дата и время' },
+    { label: 'Товар' },
+    { label: 'Количество', align: 'right' },
+    { label: 'Тип',         visibleFrom: 'sm' },
+    { label: 'Кто',         visibleFrom: 'md' },
+    { label: 'Комментарий', visibleFrom: 'md' },
   ];
 
   // ── Recipes ───────────────────────────────────────────────────────
@@ -645,12 +396,12 @@ export class InventoryPage implements OnInit {
     return list;
   });
 
-  constructor(private api: ApiService) {}
+  constructor(private inventoryApi: InventoryApi, private menuApi: MenuApi) {}
 
   ngOnInit() {
-    this.api.getProducts().subscribe(p => this.products.set(p));
-    this.api.getMenuByCategory().subscribe(d => this.menuByCategory.set(d));
-    this.api.getComponents().subscribe(c => this.components.set(c));
+    this.inventoryApi.getProducts().subscribe(p => this.products.set(p));
+    this.menuApi.getMenuByCategory().subscribe(d => this.menuByCategory.set(d));
+    this.inventoryApi.getComponents().subscribe(c => this.components.set(c));
     this.applyPreset(this.presets[0]);
   }
 
@@ -659,95 +410,6 @@ export class InventoryPage implements OnInit {
     if (t === 'movements' && !this.movements().length) this.loadMovements();
   }
 
-  // ── Stock color ───────────────────────────────────────────────────
-  stockColor(p: Product): string {
-    if (p.stock_quantity <= 0) return '#dc2626';
-    if (p.is_low) return '#ea580c';
-    return 'var(--color-text)';
-  }
-
-  // ── Product CRUD ──────────────────────────────────────────────────
-  saveProduct() {
-    if (!this.newProduct.name) return;
-    this.api.createProduct(this.newProduct).subscribe(p => {
-      this.products.update(list => [...list, p].sort((a, b) => a.name.localeCompare(b.name)));
-      this.showAddProduct.set(false);
-      this.newProduct = { name: '', unit: 'мл', pack_size: 1, purchase_price: 0, min_stock: null };
-    });
-  }
-
-  startEditProduct(p: Product) {
-    this.editProductId.set(p.id);
-    this.adjustProductId.set(null);
-    this.editProduct = {
-      name: p.name, unit: p.unit, pack_size: p.pack_size,
-      purchase_price: p.purchase_price, stock_quantity: p.stock_quantity,
-      min_stock: p.min_stock,
-    };
-  }
-
-  saveEditProduct(p: Product) {
-    this.api.updateProduct(p.id, this.editProduct).subscribe(updated => {
-      this.products.update(list => list.map(x => x.id === p.id ? updated : x));
-      this.editProductId.set(null);
-    });
-  }
-
-  deleteProduct(p: Product) {
-    if (!confirm(`Удалить «${p.name}»?`)) return;
-    this.api.deleteProduct(p.id).subscribe(() => {
-      this.products.update(list => list.filter(x => x.id !== p.id));
-      this.components.update(list => list.filter(c => c.product !== p.id));
-    });
-  }
-
-  // ── Adjustment ────────────────────────────────────────────────────
-  startAdjust(p: Product) {
-    this.adjustProductId.set(this.adjustProductId() === p.id ? null : p.id);
-    this.editProductId.set(null);
-    this.adjustQty = '';
-    this.adjustNote = '';
-    this.adjustReason.set('manual_in');
-  }
-
-  adjustPreview(p: Product): string {
-    const qty = parseFloat(this.adjustQty);
-    if (isNaN(qty)) return '';
-    const reason = this.adjustReason();
-    let newStock: number;
-    let delta: number;
-    if (reason === 'manual_in') {
-      delta = Math.abs(qty);
-      newStock = p.stock_quantity + delta;
-    } else if (reason === 'manual_out') {
-      delta = -Math.abs(qty);
-      newStock = p.stock_quantity + delta;
-    } else {
-      delta = qty - p.stock_quantity;
-      newStock = qty;
-    }
-    const sign = delta >= 0 ? '+' : '';
-    return `${p.stock_quantity} ${p.unit} → ${newStock.toFixed(2)} ${p.unit} (${sign}${delta.toFixed(2)})`;
-  }
-
-  applyAdjust(p: Product) {
-    const qty = parseFloat(this.adjustQty);
-    if (isNaN(qty) || qty < 0) return;
-    const reason = this.adjustReason();
-    let sendQty: number;
-    if (reason === 'adjustment') {
-      sendQty = qty - p.stock_quantity;
-    } else {
-      sendQty = qty;
-    }
-    this.api.adjustStock({ product: p.id, quantity: sendQty, reason, note: this.adjustNote }).subscribe(updated => {
-      this.products.update(list => list.map(x => x.id === p.id ? updated : x));
-      this.adjustProductId.set(null);
-      this.adjustQty = '';
-      this.adjustNote = '';
-      if (this.movements().length) this.loadMovements();
-    });
-  }
 
   // ── Recipe helpers ────────────────────────────────────────────────
   recipeOpen(id: number) { return this.openRecipes().has(id); }
@@ -768,18 +430,42 @@ export class InventoryPage implements OnInit {
   }
 
   unitForProduct(productId: number): string {
-    return this.products().find(p => p.id === productId)?.unit ?? '';
+    return this.products().find(p => p.id === +productId)?.unit ?? '';
   }
 
-  startAddComp(itemId: number) {
-    this.addingCompFor.set(itemId);
-    this.newComp = { product: 0, quantity: 0 };
+  /** Число и единица из подписи позиции: «50 мл» → {50, мл}, «0,5 л» → {0.5, л} */
+  private volumeHint: { value: number; unit: string } | null = null;
+
+  private parseVolume(volume?: string): { value: number; unit: string } | null {
+    const m = (volume ?? '').match(/(\d+(?:[.,]\d+)?)\s*(мл|л|кг|г|шт)?/iu);
+    if (!m) return null;
+    const value = parseFloat(m[1].replace(',', '.'));
+    return value > 0 ? { value, unit: (m[2] ?? '').toLowerCase() } : null;
+  }
+
+  startAddComp(item: { id: number; volume?: string }) {
+    this.addingCompFor.set(item.id);
+    this.volumeHint = this.parseVolume(item.volume);
+    this.newComp = { product: 0, quantity: this.volumeHint?.value ?? 0 };
     this.editCompId.set(null);
+  }
+
+  /** При выборе товара пересчитываем подсказку под его единицу (0.5 л → 500 мл) */
+  onCompProductChange() {
+    const hint = this.volumeHint;
+    if (!hint) return;
+    const unit = this.unitForProduct(this.newComp.product);
+    let qty = hint.value;
+    if (hint.unit === 'л'  && unit === 'мл') qty = hint.value * 1000;
+    if (hint.unit === 'мл' && unit === 'л')  qty = hint.value / 1000;
+    if (hint.unit === 'кг' && unit === 'г')  qty = hint.value * 1000;
+    if (hint.unit === 'г'  && unit === 'кг') qty = hint.value / 1000;
+    this.newComp.quantity = qty;
   }
 
   saveNewComp(itemId: number) {
     if (!this.newComp.product || !this.newComp.quantity) return;
-    this.api.createComponent({ menu_item: itemId, product: this.newComp.product, quantity: this.newComp.quantity })
+    this.inventoryApi.createComponent({ menu_item: itemId, product: this.newComp.product, quantity: this.newComp.quantity })
       .subscribe(comp => {
         this.components.update(list => [...list, comp]);
         this.addingCompFor.set(null);
@@ -793,14 +479,14 @@ export class InventoryPage implements OnInit {
   }
 
   saveEditComp(comp: MenuItemComponent) {
-    this.api.updateComponent(comp.id, this.editCompQty).subscribe(updated => {
+    this.inventoryApi.updateComponent(comp.id, this.editCompQty).subscribe(updated => {
       this.components.update(list => list.map(c => c.id === comp.id ? updated : c));
       this.editCompId.set(null);
     });
   }
 
   deleteComp(comp: MenuItemComponent) {
-    this.api.deleteComponent(comp.id).subscribe(() => {
+    this.inventoryApi.deleteComponent(comp.id).subscribe(() => {
       this.components.update(list => list.filter(c => c.id !== comp.id));
     });
   }
@@ -820,7 +506,7 @@ export class InventoryPage implements OnInit {
   loadConsumption() {
     this.consumptionLoading.set(true);
     this.consumptionQueried.set(false);
-    this.api.getConsumption(this.dateFrom, this.dateTo).subscribe({
+    this.inventoryApi.getConsumption(this.dateFrom, this.dateTo).subscribe({
       next: data => {
         this.consumption.set(data);
         this.consumptionLoading.set(false);
@@ -833,7 +519,7 @@ export class InventoryPage implements OnInit {
   // ── Movements ─────────────────────────────────────────────────────
   loadMovements() {
     this.movementsLoading.set(true);
-    this.api.getMovements(this.movementsFilter.productId ?? undefined).subscribe({
+    this.inventoryApi.getMovements(this.movementsFilter.productId ?? undefined).subscribe({
       next: data => { this.movements.set(data); this.movementsLoading.set(false); },
       error: () => this.movementsLoading.set(false),
     });

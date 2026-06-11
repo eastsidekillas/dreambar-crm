@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Receipt } from '../../core/models';
-import { ApiService } from '../../core/services/api.service';
+import { OrderApi } from '../../entities/order';
 import { ToastService } from '../../shared/ui';
 
 /**
@@ -9,7 +9,7 @@ import { ToastService } from '../../shared/ui';
  */
 @Injectable({ providedIn: 'root' })
 export class ReceiptPrintService {
-  private api = inject(ApiService);
+  private orderApi = inject(OrderApi);
   private toast = inject(ToastService);
 
   /**
@@ -19,7 +19,7 @@ export class ReceiptPrintService {
   printHardware(receipts: Receipt | Receipt[]): void {
     const list = Array.isArray(receipts) ? receipts : [receipts];
     for (const r of list) {
-      this.api.printReceipt(r.id).subscribe({
+      this.orderApi.printReceipt(r.id).subscribe({
         next: (res) => {
           if (res.status === 'error') {
             this.toast.error(`Принтер: ${res.error || 'ошибка печати'}`);

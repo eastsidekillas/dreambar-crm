@@ -1,6 +1,8 @@
 import { Component, OnInit, signal, computed, inject } from '@angular/core';
+import { formatDateTime as fmtDateTime } from '../../../shared/lib/formatters';
 import { CommonModule } from '@angular/common';
-import { ApiService } from '../../../core/services/api.service';
+import { OrderApi } from '../../../entities/order';
+import { ShiftApi } from '../../../entities/shift';
 import { ReceiptPrintService } from '../../../features/receipt/receipt-print.service';
 import { Receipt } from '../../../core/models';
 import { LucideReceipt, LucideClock, LucidePrinter } from '@lucide/angular';
@@ -61,22 +63,21 @@ import { LucideReceipt, LucideClock, LucidePrinter } from '@lucide/angular';
   `
 })
 export class HistoryPage implements OnInit {
-  private api = inject(ApiService);
+  private orderApi = inject(OrderApi);
+  private shiftApi = inject(ShiftApi);
   private printer = inject(ReceiptPrintService);
 
   receipts = signal<Receipt[]>([]);
   total = computed(() => this.receipts().reduce((s, r) => s + +r.total, 0));
 
   ngOnInit() {
-    this.api.getCurrentShift().subscribe({
-      next: s => this.api.getReceipts(s.id).subscribe(r => this.receipts.set(r)),
-      error: () => this.api.getReceipts().subscribe(r => this.receipts.set(r)),
+    this.shiftApi.getCurrentShift().subscribe({
+      next: s => this.orderApi.getReceipts(s.id).subscribe(r => this.receipts.set(r)),
+      error: () => this.orderApi.getReceipts().subscribe(r => this.receipts.set(r)),
     });
   }
 
   reprint(r: Receipt) { this.printer.printHardware(r); }
 
-  formatTime(dt: string) {
-    return new Date(dt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  }
+  formatTime(dt: string) { return fmtDateTime(dt); }
 }

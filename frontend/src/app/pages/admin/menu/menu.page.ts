@@ -2,14 +2,14 @@ import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
+import { MenuApi } from '../../../entities/menu';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Menu, MenuItem, MenuCategory, MenuSection } from '../../../core/models';
 import {
   LucideDynamicIcon,
   LucideGlassWater, LucideUtensilsCrossed, LucideWind, LucideClipboardList,
   LucideSearch, LucideX, LucidePencil, LucideTrash2, LucideEye,
-  LucideCheck,
+  LucideCheck, LucideChevronUp, LucideChevronDown,
 } from '@lucide/angular';
 
 const STATIONS: { value: string; label: string; icon: LucideIconInput }[] = [
@@ -29,7 +29,8 @@ interface CategoryNode extends MenuCategory { items: MenuItem[]; }
   standalone: true,
   imports: [CommonModule, FormsModule, LucideDynamicIcon,
     LucideUtensilsCrossed,
-    LucideSearch, LucideX, LucidePencil, LucideTrash2, LucideEye, LucideCheck],
+    LucideSearch, LucideX, LucidePencil, LucideTrash2, LucideEye, LucideCheck,
+    LucideChevronUp, LucideChevronDown],
   template: `
 <div class="space-y-3">
 
@@ -54,6 +55,12 @@ interface CategoryNode extends MenuCategory { items: MenuItem[]; }
             style="font-size:12px">
       + Меню
     </button>
+    <button (click)="importFile.click()" class="btn btn-sm btn-ghost" style="font-size:12px"
+            title="Загрузить меню из файла экспорта — создаст новое меню">
+      Импорт
+    </button>
+    <input #importFile type="file" accept=".json,application/json" class="hidden"
+           (change)="importMenuFile($event)"/>
   </div>
 
   <!-- ── Create menu form ───────────────────────────────────────────── -->
@@ -84,6 +91,8 @@ interface CategoryNode extends MenuCategory { items: MenuItem[]; }
       }
       <button (click)="startRename()" class="btn btn-ghost btn-sm" style="font-size:11px">Переименовать</button>
       <button (click)="duplicateSelectedMenu()" class="btn btn-ghost btn-sm" style="font-size:11px">Дублировать</button>
+      <button (click)="exportSelectedMenu()" class="btn btn-ghost btn-sm" style="font-size:11px"
+              title="Скачать меню файлом — для переноса или резервной копии">Экспорт</button>
       @if (!selectedMenu()!.is_active && selectedMenu()!.sections_count === 0) {
         <button (click)="deleteSelectedMenu()"
                 class="btn btn-sm ml-auto"
@@ -328,6 +337,16 @@ interface CategoryNode extends MenuCategory { items: MenuItem[]; }
                     }
                     <span class="text-xs" style="color:var(--color-muted)">{{ cat.items.length }}</span>
                     <div class="ml-auto flex items-center gap-1" (click)="$event.stopPropagation()">
+                      @if (!searchRaw) {
+                        <button (click)="moveCategory(cat, sec, -1)"
+                                [disabled]="$first"
+                                [style.opacity]="$first ? '0.3' : '1'"
+                                class="btn btn-ghost btn-sm" title="Выше"><svg lucideChevronUp [size]="12"></svg></button>
+                        <button (click)="moveCategory(cat, sec, 1)"
+                                [disabled]="$last"
+                                [style.opacity]="$last ? '0.3' : '1'"
+                                class="btn btn-ghost btn-sm" title="Ниже"><svg lucideChevronDown [size]="12"></svg></button>
+                      }
                       <button (click)="startAddItem(cat.id)"
                               class="btn btn-ghost btn-sm" style="font-size:11px">+ Позицию</button>
                       <button (click)="startEditCategory(cat)"
@@ -435,6 +454,16 @@ interface CategoryNode extends MenuCategory { items: MenuItem[]; }
                         </div>
                         <!-- Actions (visible on hover) -->
                         <div class="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          @if (!searchRaw) {
+                            <button (click)="moveItem(item, cat, -1)"
+                                    [disabled]="$first"
+                                    [style.opacity]="$first ? '0.3' : '1'"
+                                    class="btn btn-ghost btn-sm" title="Выше"><svg lucideChevronUp [size]="12"></svg></button>
+                            <button (click)="moveItem(item, cat, 1)"
+                                    [disabled]="$last"
+                                    [style.opacity]="$last ? '0.3' : '1'"
+                                    class="btn btn-ghost btn-sm" title="Ниже"><svg lucideChevronDown [size]="12"></svg></button>
+                          }
                           <button (click)="startEditItem(item)"
                                   class="btn btn-ghost btn-sm"><svg lucidePencil [size]="12"></svg></button>
                           <button (click)="quickToggle(item)"
@@ -577,8 +606,11 @@ export class MenuManagementComponent implements OnInit {
       .map(sec => {
         const cats = this.menuCategories()
           .filter(c => c.section === sec.id && (showAll || c.is_active))
+          .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name))
           .map(cat => {
-            let its = this.menuItems().filter(i => i.category === cat.id && (showAll || i.is_active));
+            let its = this.menuItems()
+              .filter(i => i.category === cat.id && (showAll || i.is_active))
+              .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name));
             if (term) its = its.filter(i =>
               i.name.toLowerCase().includes(term) ||
               (i.description ?? '').toLowerCase().includes(term) ||
@@ -624,18 +656,19 @@ export class MenuManagementComponent implements OnInit {
   editItemForm: Partial<MenuItem> & { is_active: boolean; is_out_of_stock: boolean } =
                { name: '', price: 0, volume: '', description: '', cost_price: 0, category: 0, is_active: true, is_out_of_stock: false };
 
-  constructor(private api: ApiService, private toast: ToastService) {}
+  constructor(private menuApi: MenuApi, private toast: ToastService) {}
 
   ngOnInit() { this.loadAll(); }
 
-  loadAll() {
+  loadAll(selectId?: number) {
     this.loading.set(true);
-    this.api.getMenus().subscribe(menus => {
+    this.menuApi.getMenus().subscribe(menus => {
       this.menus.set(menus);
-      const active = menus.find(m => m.is_active) ?? menus[0];
+      const preferred = selectId != null ? menus.find(m => m.id === selectId) : undefined;
+      const active = preferred ?? menus.find(m => m.is_active) ?? menus[0];
       if (active) this.selectedMenuId.set(active.id);
     });
-    this.api.getMenuSections().subscribe(s => {
+    this.menuApi.getMenuSections().subscribe(s => {
       this.sections.set(s);
       if (s.length) {
         const firstId = s[0].id;
@@ -644,8 +677,8 @@ export class MenuManagementComponent implements OnInit {
         this.expandedSections.set(ex);
       }
     });
-    this.api.getMenuCategories().subscribe(c => this.categories.set(c));
-    this.api.getMenuItems().subscribe(i => { this.items.set(i); this.loading.set(false); });
+    this.menuApi.getMenuCategories().subscribe(c => this.categories.set(c));
+    this.menuApi.getMenuItems().subscribe(i => { this.items.set(i); this.loading.set(false); });
   }
 
   // ── Search ────────────────────────────────────────────────────────
@@ -666,7 +699,7 @@ export class MenuManagementComponent implements OnInit {
 
   createMenu() {
     if (!this.newMenuName.trim()) return;
-    this.api.createMenu({ name: this.newMenuName.trim() }).subscribe(m => {
+    this.menuApi.createMenu({ name: this.newMenuName.trim() }).subscribe(m => {
       this.menus.update(list => [...list, m]);
       this.selectedMenuId.set(m.id);
       this.newMenuName = '';
@@ -678,7 +711,7 @@ export class MenuManagementComponent implements OnInit {
   activateSelectedMenu() {
     const id = this.selectedMenuId();
     if (!id) return;
-    this.api.activateMenu(id).subscribe(updated => {
+    this.menuApi.activateMenu(id).subscribe(updated => {
       this.menus.update(list => list.map(m => ({ ...m, is_active: m.id === updated.id })));
       this.toast.success(`Меню «${updated.name}» теперь активное`);
     });
@@ -689,7 +722,7 @@ export class MenuManagementComponent implements OnInit {
     if (!id) return;
     const src = this.selectedMenu();
     const name = src ? `Копия: ${src.name}` : 'Новое меню';
-    this.api.duplicateMenu(id, name).subscribe(m => {
+    this.menuApi.duplicateMenu(id, name).subscribe(m => {
       this.menus.update(list => [...list, m]);
       this.toast.success(`Меню скопировано как «${m.name}»`);
       this.loadAll();
@@ -704,10 +737,47 @@ export class MenuManagementComponent implements OnInit {
   saveRename() {
     const id = this.selectedMenuId();
     if (!id || !this.renameValue.trim()) return;
-    this.api.updateMenu(id, { name: this.renameValue.trim() }).subscribe(updated => {
+    this.menuApi.updateMenu(id, { name: this.renameValue.trim() }).subscribe(updated => {
       this.menus.update(list => list.map(m => m.id === id ? updated : m));
       this.renamingMenu.set(false);
       this.toast.success('Название обновлено');
+    });
+  }
+
+  exportSelectedMenu() {
+    const menu = this.selectedMenu();
+    if (!menu) return;
+    this.menuApi.exportMenu(menu.id).subscribe(data => {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `menu-${menu.name.replace(/[^\wа-яА-ЯёЁ-]+/g, '_')}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      this.toast.success(`Меню «${menu.name}» скачано`);
+    });
+  }
+
+  importMenuFile(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    file.text().then(text => {
+      let data: object;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        this.toast.error('Файл не читается — это не файл экспорта меню');
+        return;
+      }
+      this.menuApi.importMenu(data).subscribe({
+        next: m => {
+          this.toast.success(`Меню «${m.name}» импортировано: ${m.items_imported} позиций`);
+          this.loadAll(m.id);
+        },
+        error: err => this.toast.apiError(err, 'Не удалось импортировать меню'),
+      });
     });
   }
 
@@ -715,7 +785,7 @@ export class MenuManagementComponent implements OnInit {
     const menu = this.selectedMenu();
     if (!menu) return;
     if (!confirm(`Удалить меню «${menu.name}»? Это действие необратимо.`)) return;
-    this.api.deleteMenu(menu.id).subscribe({
+    this.menuApi.deleteMenu(menu.id).subscribe({
       next: () => {
         this.menus.update(list => list.filter(m => m.id !== menu.id));
         const next = this.menus()[0];
@@ -734,7 +804,7 @@ export class MenuManagementComponent implements OnInit {
 
   saveSection() {
     if (!this.newSection.name || !this.selectedMenuId()) return;
-    this.api.createMenuSection({ ...this.newSection, menu: this.selectedMenuId()! }).subscribe(s => {
+    this.menuApi.createMenuSection({ ...this.newSection, menu: this.selectedMenuId()! }).subscribe(s => {
       this.sections.update(list => [...list, s]);
       const ex = new Set(this.expandedSections());
       ex.add(s.id);
@@ -750,7 +820,7 @@ export class MenuManagementComponent implements OnInit {
   }
 
   saveSectionEdit(sec: MenuSection) {
-    this.api.updateMenuSection(sec.id, this.editSectionForm).subscribe(updated => {
+    this.menuApi.updateMenuSection(sec.id, this.editSectionForm).subscribe(updated => {
       this.sections.update(list => list.map(s => s.id === sec.id ? updated : s));
       this.editSectionId.set(null);
     });
@@ -759,7 +829,7 @@ export class MenuManagementComponent implements OnInit {
   deleteSection(sec: MenuSection) {
     const catCount = this.categories().filter(c => c.section === sec.id).length;
     if (!confirm(`Удалить раздел «${sec.name}»?${catCount ? ` В нём ${catCount} категорий — они тоже будут удалены.` : ''}`)) return;
-    this.api.deleteMenuSection(sec.id).subscribe({
+    this.menuApi.deleteMenuSection(sec.id).subscribe({
       next: () => {
         const deletedCatIds = this.categories().filter(c => c.section === sec.id).map(c => c.id);
         this.sections.update(list => list.filter(s => s.id !== sec.id));
@@ -782,7 +852,7 @@ export class MenuManagementComponent implements OnInit {
 
   saveCategory(sectionId: number) {
     if (!this.newCategory.name) return;
-    this.api.createMenuCategory({ ...this.newCategory, section: sectionId }).subscribe(c => {
+    this.menuApi.createMenuCategory({ ...this.newCategory, section: sectionId }).subscribe(c => {
       this.categories.update(list => [...list, c]);
       const ex = new Set(this.expandedCategories());
       ex.add(c.id);
@@ -798,16 +868,44 @@ export class MenuManagementComponent implements OnInit {
   }
 
   saveCategoryEdit(cat: MenuCategory) {
-    this.api.updateMenuCategory(cat.id, this.editCategoryForm).subscribe(updated => {
+    this.menuApi.updateMenuCategory(cat.id, this.editCategoryForm).subscribe(updated => {
       this.categories.update(list => list.map(c => c.id === cat.id ? updated : c));
       this.editCategoryId.set(null);
+    });
+  }
+
+  moveCategory(cat: MenuCategory, sec: SectionNode, delta: -1 | 1) {
+    const visible = sec.categories;
+    const vi = visible.findIndex(c => c.id === cat.id);
+    const neighbor = visible[vi + delta];
+    if (!neighbor) return;
+
+    // Полный список категорий раздела (включая скрытые), чтобы не потерять их порядок
+    const ids = this.categories()
+      .filter(c => c.section === sec.id)
+      .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name))
+      .map(c => c.id)
+      .filter(id => id !== cat.id);
+    const ni = ids.indexOf(neighbor.id);
+    ids.splice(delta === 1 ? ni + 1 : ni, 0, cat.id);
+
+    const orderMap = new Map(ids.map((id, idx) => [id, (idx + 1) * 10]));
+    const prev = this.categories();
+    this.categories.update(list => list.map(c =>
+      orderMap.has(c.id) ? { ...c, sort_order: orderMap.get(c.id)! } : c
+    ));
+    this.menuApi.reorderMenuCategories(ids).subscribe({
+      error: () => {
+        this.categories.set(prev);
+        this.toast.error('Не удалось изменить порядок');
+      },
     });
   }
 
   deleteCategory(cat: MenuCategory) {
     const count = this.items().filter(i => i.category === cat.id).length;
     if (!confirm(`Удалить категорию «${cat.name}»?${count ? ` В ней ${count} позиций.` : ''}`)) return;
-    this.api.deleteMenuCategory(cat.id).subscribe({
+    this.menuApi.deleteMenuCategory(cat.id).subscribe({
       next: () => {
         this.categories.update(list => list.filter(c => c.id !== cat.id));
         this.items.update(list => list.filter(i => i.category !== cat.id));
@@ -829,7 +927,7 @@ export class MenuManagementComponent implements OnInit {
 
   saveItem(categoryId: number) {
     if (!this.newItem.name || !this.newItem.price) return;
-    this.api.createMenuItem({ ...this.newItem, category: categoryId }).subscribe(item => {
+    this.menuApi.createMenuItem({ ...this.newItem, category: categoryId }).subscribe(item => {
       this.items.update(list => [...list, item]);
       this.addingItemFor.set(null);
       this.newItem = { name: '', price: 0, volume: '', description: '', cost_price: 0 };
@@ -847,21 +945,49 @@ export class MenuManagementComponent implements OnInit {
   }
 
   saveItemEdit(item: MenuItem) {
-    this.api.updateMenuItem(item.id, this.editItemForm).subscribe(updated => {
+    this.menuApi.updateMenuItem(item.id, this.editItemForm).subscribe(updated => {
       this.items.update(list => list.map(i => i.id === item.id ? updated : i));
       this.editItemId.set(null);
     });
   }
 
+  moveItem(item: MenuItem, cat: CategoryNode, delta: -1 | 1) {
+    const visible = cat.items;
+    const vi = visible.findIndex(i => i.id === item.id);
+    const neighbor = visible[vi + delta];
+    if (!neighbor) return;
+
+    // Полный список категории (включая скрытые), чтобы не потерять их порядок
+    const ids = this.items()
+      .filter(i => i.category === cat.id)
+      .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name))
+      .map(i => i.id)
+      .filter(id => id !== item.id);
+    const ni = ids.indexOf(neighbor.id);
+    ids.splice(delta === 1 ? ni + 1 : ni, 0, item.id);
+
+    const orderMap = new Map(ids.map((id, idx) => [id, (idx + 1) * 10]));
+    const prev = this.items();
+    this.items.update(list => list.map(i =>
+      orderMap.has(i.id) ? { ...i, sort_order: orderMap.get(i.id)! } : i
+    ));
+    this.menuApi.reorderMenuItems(ids).subscribe({
+      error: () => {
+        this.items.set(prev);
+        this.toast.error('Не удалось изменить порядок');
+      },
+    });
+  }
+
   quickToggle(item: MenuItem) {
-    this.api.updateMenuItem(item.id, { is_active: !item.is_active }).subscribe(updated => {
+    this.menuApi.updateMenuItem(item.id, { is_active: !item.is_active }).subscribe(updated => {
       this.items.update(list => list.map(i => i.id === item.id ? updated : i));
     });
   }
 
   deleteItem(item: MenuItem) {
     if (!confirm(`Удалить «${item.name}»?`)) return;
-    this.api.deleteMenuItem(item.id).subscribe({
+    this.menuApi.deleteMenuItem(item.id).subscribe({
       next: () => {
         this.items.update(list => list.filter(i => i.id !== item.id));
         this.editItemId.set(null);

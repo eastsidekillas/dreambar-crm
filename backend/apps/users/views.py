@@ -29,6 +29,7 @@ class UserProfileListView(APIView):
                 'allowed_roles': profile.allowed_roles if profile else [],
                 'is_active': u.is_active,
                 'has_pin': bool(profile.pin_hash) if profile else False,
+                'must_change_password': profile.must_change_password if profile else False,
             })
         return Response(result)
 
@@ -54,6 +55,9 @@ class UserProfileListView(APIView):
         profile, _ = UserProfile.objects.get_or_create(user=user)
         profile.role = role
         profile.display_name = display_name
+        if created:
+            # Пароль выдан админом — временный, при первом входе сотрудник сменит его
+            profile.must_change_password = True
         profile.save()
 
         return Response({
@@ -88,6 +92,10 @@ class EmployeeDetailView(APIView):
         if 'password' in request.data and request.data['password']:
             user.set_password(request.data['password'])
             user.save(update_fields=['password'])
+            # Сброс пароля админом — снова временный
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            profile.must_change_password = True
+            profile.save(update_fields=['must_change_password'])
 
         if 'pin' in request.data:
             profile, _ = UserProfile.objects.get_or_create(user=user)
@@ -108,6 +116,7 @@ class EmployeeDetailView(APIView):
             'allowed_roles': profile.allowed_roles if profile else [],
             'is_active': user.is_active,
             'has_pin': bool(profile.pin_hash) if profile else False,
+            'must_change_password': profile.must_change_password if profile else False,
         })
 
     def delete(self, request, user_id):
@@ -215,6 +224,30 @@ class StaffListView(APIView):
                 'has_pin':      bool(profile.pin_hash),
             })
         return Response(result)
+
+
+class MyPasswordView(APIView):
+    """POST {current_password, new_password} — смена собственного пароля.
+    Сбрасывает флаг must_change_password."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        current = str(request.data.get('current_password', ''))
+        new     = str(request.data.get('new_password', ''))
+
+        if not request.user.check_password(current):
+            return Response({'detail': 'Текущий пароль неверный.'}, status=400)
+        if len(new) < 6:
+            return Response({'detail': 'Новый пароль — минимум 6 символов.'}, status=400)
+        if new == current:
+            return Response({'detail': 'Новый пароль совпадает с текущим.'}, status=400)
+
+        request.user.set_password(new)
+        request.user.save(update_fields=['password'])
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        profile.must_change_password = False
+        profile.save(update_fields=['must_change_password'])
+        return Response({'detail': 'Пароль обновлён.'})
 
 
 class MyPinView(APIView):

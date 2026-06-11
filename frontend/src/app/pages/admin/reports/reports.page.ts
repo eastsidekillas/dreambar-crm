@@ -4,7 +4,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Chart } from 'chart.js/auto';
-import { ApiService } from '../../../core/services/api.service';
+import { AnalyticsApi } from '../../../entities/analytics';
 import { SalesReport } from '../../../core/models';
 
 type ChartMetric = 'revenue' | 'receipts' | 'avgcheck';
@@ -171,7 +171,7 @@ const CAT_COLORS: Record<string, string> = {
   `,
 })
 export class ReportsComponent implements OnInit, OnDestroy {
-  private api = inject(ApiService);
+  private analyticsApi = inject(AnalyticsApi);
 
   report      = signal<SalesReport | null>(null);
   loading     = signal(false);
@@ -208,7 +208,7 @@ export class ReportsComponent implements OnInit, OnDestroy {
 
   load() {
     this.loading.set(true);
-    this.api.getSalesReport(this.dateFrom || undefined, this.dateTo || undefined).subscribe({
+    this.analyticsApi.getSalesReport(this.dateFrom || undefined, this.dateTo || undefined).subscribe({
       next: r => {
         this.report.set(r);
         this.loading.set(false);

@@ -1,8 +1,9 @@
 import { Component, OnInit, signal, computed } from '@angular/core';
+import { formatTime as fmtTime } from '../../../shared/lib/formatters';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ApiService } from '../../../core/services/api.service';
+import { ShiftApi } from '../../../entities/shift';
 import { Shift } from '../../../core/models';
 import { LucideCalendarDays, LucideCircleCheck } from '@lucide/angular';
 
@@ -155,10 +156,10 @@ export class ShiftsDayPage implements OnInit {
   dayOrders  = computed(() => this.dayShifts().reduce((a, s) => a + s.orders_count, 0));
   dayTickets = computed(() => this.dayShifts().reduce((a, s) => a + s.tickets_count, 0));
 
-  constructor(private api: ApiService, private router: Router) {}
+  constructor(private shiftApi: ShiftApi, private router: Router) {}
 
   ngOnInit() {
-    this.api.getShifts().subscribe(s => {
+    this.shiftApi.getShifts().subscribe(s => {
       this.shifts.set(s);
       if (s.length && !this.selectedDate()) this.selectedDate.set(s[0].date);
     });
@@ -171,7 +172,5 @@ export class ShiftsDayPage implements OnInit {
   formatDateLabel(d: string) {
     return new Date(d).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
   }
-  formatTime(dt: string) {
-    return new Date(dt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  }
+  formatTime(dt: string) { return fmtTime(dt); }
 }

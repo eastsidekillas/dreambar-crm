@@ -1,14 +1,17 @@
 import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed, inject, ViewChild } from '@angular/core';
+import { formatDate as fmtDate } from '../../shared/lib/formatters';
 import { CommonModule } from '@angular/common';
 import { RouterModule, RouterOutlet, Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
-import { ApiService } from '../../core/services/api.service';
+import { OrderApi } from '../../entities/order';
+import { ShiftApi } from '../../entities/shift';
 import { CartService } from '../../features/cart/cart.service';
 import { CartDrawerComponent, CartSubmit } from '../../widgets/cart-drawer/cart-drawer.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { Shift } from '../../core/models';
+import { ROLE_LABEL } from '../../shared/lib/roles';
 import {
   LucideDynamicIcon,
   LucideClipboardList, LucideUtensilsCrossed, LucideTicket, LucideReceipt,
@@ -125,12 +128,7 @@ export class WaiterShell implements OnInit {
     return r === 'waiter' || r === 'bartender' || r === 'admin';
   });
 
-  roleLabel = computed(() => {
-    const map: Record<string, string> = {
-      admin: 'Администратор', waiter: 'Официант', bartender: 'Бармен', wardrobe: 'Гардероб',
-    };
-    return map[this.auth.role() ?? ''] ?? '';
-  });
+  roleLabel = computed(() => ROLE_LABEL[this.auth.role() ?? ''] ?? '');
 
   /** Tabs depend on role. */
   tabs = computed<Tab[]>(() => {
@@ -148,7 +146,7 @@ export class WaiterShell implements OnInit {
     }
   });
 
-  constructor(private api: ApiService, private router: Router, private toast: ToastService) {}
+  constructor(private orderApi: OrderApi, private shiftApi: ShiftApi, private router: Router, private toast: ToastService) {}
 
   ngOnInit() {
     this.loadShift();
@@ -156,14 +154,14 @@ export class WaiterShell implements OnInit {
   }
 
   loadShift() {
-    this.api.getCurrentShift().subscribe({
+    this.shiftApi.getCurrentShift().subscribe({
       next: s => this.shift.set(s),
       error: () => this.shift.set(null)
     });
   }
 
   openShift() {
-    this.api.createShift({}).subscribe({ next: s => this.shift.set(s) });
+    this.shiftApi.createShift({}).subscribe({ next: s => this.shift.set(s) });
   }
 
   onSubmitOrder(payload: CartSubmit) {
@@ -173,7 +171,7 @@ export class WaiterShell implements OnInit {
     const s = this.shift();
     if (!s) { this.toast.error('Нет открытой смены'); this.drawerRef?.resetSubmitting(); return; }
     // Новая посадка: заказ остаётся ОТКРЫТЫМ, пока компания сидит за столом.
-    this.api.createOrder({
+    this.orderApi.createOrder({
       shift: s.id, table_number: payload.table, guests: payload.guests, notes: '',
       items: this.cart.items().map(c => ({ menu_item: c.item.id, quantity: c.qty, guest_no: c.guestNo }))
     }).subscribe({
@@ -188,7 +186,7 @@ export class WaiterShell implements OnInit {
 
   /** Дозаказ: добавляем позиции корзины в уже открытую посадку. */
   private appendToSession(orderId: number) {
-    const calls = this.cart.items().map(c => this.api.addItemToOrder(orderId, c.item.id, c.qty, c.guestNo));
+    const calls = this.cart.items().map(c => this.orderApi.addItemToOrder(orderId, c.item.id, c.qty, c.guestNo));
     forkJoin(calls.length ? calls : [of(null)]).subscribe({
       next: () => {
         this.afterSubmit();
@@ -206,7 +204,5 @@ export class WaiterShell implements OnInit {
     this.drawerRef?.resetSubmitting();
   }
 
-  formatDate(d: string): string {
-    return new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-  }
+  formatDate(d: string): string { return fmtDate(d); }
 }

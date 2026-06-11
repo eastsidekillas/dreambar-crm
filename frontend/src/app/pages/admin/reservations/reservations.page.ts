@@ -1,7 +1,8 @@
 import { Component, OnInit, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
+import { ReservationApi } from '../../../entities/reservation';
+import { TableApi } from '../../../entities/table';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Reservation, ReservationStatus, Zone } from '../../../core/models';
 import {
@@ -353,7 +354,8 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   `,
 })
 export class ReservationsPage implements OnInit {
-  private api   = inject(ApiService);
+  private reservationApi = inject(ReservationApi);
+  private tableApi = inject(TableApi);
   private toast = inject(ToastService);
 
   reservations = signal<Reservation[]>([]);
@@ -390,7 +392,7 @@ export class ReservationsPage implements OnInit {
 
   ngOnInit() {
     this.setToday();
-    this.api.getZones().subscribe({ next: z => this.zones.set(z), error: () => {} });
+    this.tableApi.getZones().subscribe({ next: z => this.zones.set(z), error: () => {} });
   }
 
   setToday() {
@@ -401,7 +403,7 @@ export class ReservationsPage implements OnInit {
 
   load() {
     this.loading.set(true);
-    this.api.getReservations({
+    this.reservationApi.getReservations({
       date:      this.filterDate    || undefined,
       date_to:   this.filterDateTo  || undefined,
       status:    this.filterStatus  || undefined,
@@ -477,8 +479,8 @@ export class ReservationsPage implements OnInit {
     };
 
     const req = this.editId()
-      ? this.api.updateReservation(this.editId()!, data)
-      : this.api.createReservation(data);
+      ? this.reservationApi.updateReservation(this.editId()!, data)
+      : this.reservationApi.createReservation(data);
 
     req.subscribe({
       next: saved => {
@@ -500,14 +502,14 @@ export class ReservationsPage implements OnInit {
   }
 
   setStatus(r: Reservation, st: ReservationStatus) {
-    this.api.setReservationStatus(r.id, st).subscribe({
+    this.reservationApi.setReservationStatus(r.id, st).subscribe({
       next: updated => this.reservations.update(list => list.map(x => x.id === r.id ? updated : x)),
       error: (err) => this.toast.apiError(err, 'Ошибка при смене статуса'),
     });
   }
 
   markDeposit(r: Reservation, paid: boolean) {
-    this.api.markReservationDeposit(r.id, paid).subscribe({
+    this.reservationApi.markReservationDeposit(r.id, paid).subscribe({
       next: updated => this.reservations.update(list => list.map(x => x.id === r.id ? updated : x)),
       error: (err) => this.toast.apiError(err, 'Ошибка при обновлении депозита'),
     });
@@ -518,7 +520,7 @@ export class ReservationsPage implements OnInit {
   doDelete() {
     const r = this.deleteTarget();
     if (!r) return;
-    this.api.deleteReservation(r.id).subscribe({
+    this.reservationApi.deleteReservation(r.id).subscribe({
       next: () => {
         this.reservations.update(list => list.filter(x => x.id !== r.id));
         this.deleteTarget.set(null);

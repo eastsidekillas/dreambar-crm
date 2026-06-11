@@ -3,9 +3,10 @@ import { Component, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
-import { ApiService } from '../../core/services/api.service';
+import { ShiftApi } from '../../entities/shift';
 import { Shift } from '../../core/models';
 import { filter } from 'rxjs/operators';
+import { ROLE_LABEL } from '../../shared/lib/roles';
 import {
   LucideDynamicIcon,
   LucideLayoutDashboard, LucideCalendar, LucideTrendingUp, LucidePackage,
@@ -28,7 +29,10 @@ const PAGE_META: { prefix: string; title: string; desc: string }[] = [
   { prefix: '/admin/reports',        title: 'Отчёты',          desc: 'Продажи по категориям, позициям и способам оплаты' },
   { prefix: '/admin/forecast',       title: 'Прогноз',         desc: 'Ожидаемая выручка на основе прошлых смен' },
   { prefix: '/admin/export',         title: 'Экспорт в Excel', desc: 'Сводные отчёты и отчёты по сменам в формате .xlsx' },
-  { prefix: '/admin/inventory',      title: 'Склад · Продукты',desc: 'Остатки, рецептуры и движения по складу' },
+  { prefix: '/admin/inventory/stock',    title: 'Остатки на складе', desc: 'Остатки, приход и списание товаров' },
+  { prefix: '/admin/inventory/stocktake',title: 'Инвентаризация',    desc: 'Пересчёт фактических остатков' },
+  { prefix: '/admin/inventory/report',   title: 'Отчёт склада',      desc: 'Потрачено, продано, заработано, расхождение' },
+  { prefix: '/admin/inventory',          title: 'Рецептуры и движения', desc: 'Состав позиций, расход и движения по складу' },
   { prefix: '/admin/purchases',      title: 'Закупки',         desc: 'Приход товара на склад' },
   { prefix: '/admin/menu',           title: 'Меню',            desc: 'Позиции, цены, станции приготовления' },
   { prefix: '/admin/modifiers',      title: 'Модификаторы',    desc: 'Добавки и опции к позициям меню' },
@@ -38,11 +42,6 @@ const PAGE_META: { prefix: string; title: string; desc: string }[] = [
   { prefix: '/admin/audit',          title: 'Аудит',           desc: 'Журнал удалённых позиций заказов' },
   { prefix: '/admin/printers',       title: 'Принтеры',        desc: 'Чековые принтеры и настройка печати' },
 ];
-
-const ROLE_LABEL: Record<string, string> = {
-  admin: 'Администратор', waiter: 'Официант', bartender: 'Бармен',
-  kitchen: 'Кухня', wardrobe: 'Гардероб',
-};
 
 @Component({
   selector: 'app-admin-shell',
@@ -110,8 +109,8 @@ const ROLE_LABEL: Record<string, string> = {
         <aside class="hidden md:flex flex-col w-56 min-h-screen sticky top-0 h-screen overflow-y-auto"
                style="background:white;border-right:1px solid var(--color-border)">
 
-          <div class="px-5 py-5 flex items-center gap-2 flex-shrink-0"
-               style="border-bottom:1px solid var(--color-border)">
+          <div class="px-5 flex items-center gap-2 flex-shrink-0"
+               style="border-bottom:1px solid var(--color-border);height:64px">
             <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                  style="background:var(--color-gold)">
               <svg lucideGlassWater [size]="18" style="color:white"></svg>
@@ -158,6 +157,7 @@ const ROLE_LABEL: Record<string, string> = {
                     <div class="ml-6 mt-0.5 space-y-0.5">
                       @for (child of entry.children; track child.path) {
                         <a [routerLink]="child.path" routerLinkActive="active"
+                           [routerLinkActiveOptions]="{ exact: true }"
                            class="nav-child" [title]="child.desc || child.label">
                           <span style="width:4px;height:4px;border-radius:50%;background:currentColor;flex-shrink:0"></span>
                           {{ child.label }}
@@ -296,12 +296,15 @@ export class AdminShell {
     },
     {
       type: 'group',
-      label: 'Склад',
+      label: 'Управление складом',
       icon: LucidePackage,
       desc: 'Остатки и закупки',
       children: [
-        { path: '/admin/inventory', label: 'Продукты', desc: 'Остатки и рецептуры' },
-        { path: '/admin/purchases', label: 'Закупки',  desc: 'Приход товара' },
+        { path: '/admin/inventory/stock',     label: 'Остатки на складе', desc: 'Остатки, приход и списание' },
+        { path: '/admin/inventory/stocktake', label: 'Инвентаризация',    desc: 'Пересчёт фактических остатков' },
+        { path: '/admin/purchases',           label: 'Закупки',           desc: 'Заявки и приход товара' },
+        { path: '/admin/inventory',           label: 'Рецептуры',         desc: 'Состав позиций, расход, движения' },
+        { path: '/admin/inventory/report',    label: 'Отчёт склада',      desc: 'Потрачено, продано, заработано' },
       ],
     },
     {
@@ -341,7 +344,7 @@ export class AdminShell {
     { path: '/admin/menu',          label: 'Меню',    icon: LucideUtensilsCrossed },
   ];
 
-  constructor(private auth: AuthService, private router: Router, private api: ApiService) {
+  constructor(private auth: AuthService, private router: Router, private shiftApi: ShiftApi) {
     this.url.set(this.router.url);
     this.loadShift();
 
@@ -353,7 +356,7 @@ export class AdminShell {
         const s = new Set(this.expanded()); s.add(label); this.expanded.set(s);
       };
       if (url.includes('/admin/shifts')) expand('Смены');
-      if (url.includes('/admin/inventory') || url.includes('/admin/purchases')) expand('Склад');
+      if (url.includes('/admin/inventory') || url.includes('/admin/purchases')) expand('Управление складом');
       if (url.includes('/admin/menu') || url.includes('/admin/modifiers')) expand('Меню');
       if (url.includes('/admin/reports') || url.includes('/admin/forecast') || url.includes('/admin/export')) expand('Аналитика');
       if (url.includes('/admin/printers')) expand('Настройки');
@@ -361,7 +364,7 @@ export class AdminShell {
   }
 
   private loadShift() {
-    this.api.getCurrentShift().subscribe({
+    this.shiftApi.getCurrentShift().subscribe({
       next: s => this.shift.set(s),
       error: () => this.shift.set(null),
     });

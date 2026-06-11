@@ -2,31 +2,11 @@ import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, OnDestroy, signal, computed, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { ApiService } from '../../core/services/api.service';
+import { EmployeeApi } from '../../entities/employee';
 import { AuthService } from '../../core/services/auth.service';
 import { StaffMember } from '../../core/models';
-import {
-  LucideDynamicIcon,
-  LucideCrown, LucideGlassWater, LucideBell, LucideChefHat, LucideWind, LucideShirt,
-} from '@lucide/angular';
-
-const ROLE_COLOR: Record<string, string> = {
-  admin:     '#f59e0b',
-  bartender: '#3b82f6',
-  waiter:    '#10b981',
-  kitchen:   '#ef4444',
-  hookah:    '#8b5cf6',
-  wardrobe:  '#64748b',
-};
-
-const ROLE_ICON: Record<string, LucideIconInput> = {
-  admin:     LucideCrown,
-  bartender: LucideGlassWater,
-  waiter:    LucideBell,
-  kitchen:   LucideChefHat,
-  hookah:    LucideWind,
-  wardrobe:  LucideShirt,
-};
+import { LucideDynamicIcon, LucideGlassWater } from '@lucide/angular';
+import { ROLE_COLOR, ROLE_ICON } from '../../shared/lib/roles';
 
 @Component({
   selector: 'app-pin-login',
@@ -397,7 +377,7 @@ export class PinLoginPage implements OnInit, OnDestroy {
   private _timer: any;
 
   constructor(
-    private api: ApiService,
+    private employeeApi: EmployeeApi,
     private auth: AuthService,
     private router: Router,
   ) {}
@@ -426,7 +406,7 @@ export class PinLoginPage implements OnInit, OnDestroy {
 
   loadStaff() {
     this.loading.set(true);
-    this.api.getStaffList().subscribe({
+    this.employeeApi.getStaffList().subscribe({
       next: list => { this.staff.set(list); this.loading.set(false); },
       error: ()  => { this.loading.set(false); },
     });
@@ -466,13 +446,19 @@ export class PinLoginPage implements OnInit, OnDestroy {
     if (!s || this.loading()) return;
     this.loading.set(true);
 
-    this.api.pinLogin(s.id, this.pin()).subscribe({
+    this.employeeApi.pinLogin(s.id, this.pin()).subscribe({
       next: tokens => {
         localStorage.setItem('access_token', tokens.access);
         localStorage.setItem('refresh_token', tokens.refresh);
         this.auth.fetchProfile().subscribe(user => {
           this.loading.set(false);
-          this.router.navigate([this.auth.landingRoute(user.role)]);
+          if (user.must_change_password) {
+            this.router.navigateByUrl('/welcome');
+          } else if (this.auth.needsRoleSelect()) {
+            this.router.navigateByUrl('/role-select');
+          } else {
+            this.router.navigate([this.auth.landingRoute(user.role)]);
+          }
         });
       },
       error: err => {
@@ -485,5 +471,5 @@ export class PinLoginPage implements OnInit, OnDestroy {
   }
 
   roleColor(role: string) { return ROLE_COLOR[role] ?? '#64748b'; }
-  roleIcon(role: string): LucideIconInput  { return ROLE_ICON[role] ?? LucideCrown; }
+  roleIcon(role: string): LucideIconInput  { return ROLE_ICON[role] ?? ROLE_ICON['admin']; }
 }

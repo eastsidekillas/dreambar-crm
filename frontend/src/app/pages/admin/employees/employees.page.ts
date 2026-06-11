@@ -1,23 +1,26 @@
 import type { LucideIconInput } from '@lucide/angular';
+import { ROLE_LABEL, ROLE_ICON } from '../../../shared/lib/roles';
 import { Component, OnInit, signal } from '@angular/core';
+import { formatDate as fmtDate } from '../../../shared/lib/formatters';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../../core/services/api.service';
+import { EmployeeApi } from '../../../entities/employee';
+import { ShiftApi } from '../../../entities/shift';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Employee, EmployeeActivity, Shift, Order } from '../../../core/models';
 import {
   LucideDynamicIcon,
   LucideCrown, LucideUser, LucideGlassWater, LucideChefHat, LucideShirt,
-  LucideUsers, LucideTrash2, LucideX,
+  LucideUsers, LucideTrash2, LucideX, LucideKeyRound,
 } from '@lucide/angular';
 
-const ROLE_META: Record<string, { label: string; icon: LucideIconInput; cls: string }> = {
-  admin:     { label: 'Администратор', icon: LucideCrown,       cls: 'badge-gold'  },
-  waiter:    { label: 'Официант',      icon: LucideUser,        cls: 'badge-green' },
-  bartender: { label: 'Бармен',        icon: LucideGlassWater,  cls: 'badge-amber' },
-  kitchen:   { label: 'Кухня',         icon: LucideChefHat,     cls: 'badge-blue'  },
-  wardrobe:  { label: 'Гардероб',      icon: LucideShirt,       cls: 'badge-gray'  },
+const ROLE_CLS: Record<string, string> = {
+  admin: 'badge-gold', waiter: 'badge-green', bartender: 'badge-amber',
+  kitchen: 'badge-blue', wardrobe: 'badge-gray',
 };
+const ROLE_META: Record<string, { label: string; icon: LucideIconInput; cls: string }> =
+  Object.fromEntries(Object.entries(ROLE_CLS).map(([role, cls]) =>
+    [role, { label: ROLE_LABEL[role], icon: ROLE_ICON[role], cls }]));
 
 const ROLES = Object.entries(ROLE_META).map(([value, m]) => ({ value, label: m.label }));
 
@@ -32,7 +35,7 @@ interface EditState {
   selector: 'app-employees',
   standalone: true,
   imports: [CommonModule, FormsModule, LucideDynamicIcon,
-    LucideUsers, LucideTrash2, LucideX],
+    LucideUsers, LucideTrash2, LucideX, LucideKeyRound],
   template: `
     <div class="space-y-5">
       <div class="flex items-center justify-between flex-wrap gap-3">
@@ -111,6 +114,13 @@ interface EditState {
                       <span class="badge flex items-center gap-1" [class]="roleCls(emp.role)"><svg [lucideIcon]="roleIcon(emp.role)" [size]="12"></svg> {{ roleLabel(emp.role) }}</span>
                       @if (!emp.is_active) {
                         <span class="badge badge-gray">неактивен</span>
+                      }
+                      @if (emp.must_change_password) {
+                        <span class="badge flex items-center gap-1"
+                              style="background:#fef3c7;color:#b45309"
+                              title="Сотрудник ещё не входил со своим паролем — действует временный от администратора">
+                          <svg lucideKeyRound [size]="11"></svg> временный пароль
+                        </span>
                       }
                     </div>
                   </div>
@@ -358,21 +368,21 @@ export class EmployeesComponent implements OnInit {
 
   roles = ROLES;
 
-  constructor(private api: ApiService, private toast: ToastService) {}
+  constructor(private employeeApi: EmployeeApi, private shiftApi: ShiftApi, private toast: ToastService) {}
 
   ngOnInit() {
-    this.api.getShifts().subscribe(s => this.shifts.set(s));
+    this.shiftApi.getShifts().subscribe(s => this.shifts.set(s));
     this.loadEmployees();
     this.loadActivity();
   }
 
   loadEmployees() {
-    this.api.getEmployees().subscribe(e => this.employees.set(e));
+    this.employeeApi.getEmployees().subscribe(e => this.employees.set(e));
   }
 
   loadActivity() {
     this.openedUser.set(null);
-    this.api.getEmployeeActivity(this.selectedShift ?? undefined).subscribe(a => this.activity.set(a));
+    this.employeeApi.getEmployeeActivity(this.selectedShift ?? undefined).subscribe(a => this.activity.set(a));
   }
 
   toggleAdd() {
@@ -387,7 +397,7 @@ export class EmployeesComponent implements OnInit {
       this.addError.set('Укажите имя и логин'); return;
     }
     this.saving.set(true);
-    this.api.createEmployee(this.newEmp).subscribe({
+    this.employeeApi.createEmployee(this.newEmp).subscribe({
       next: () => {
         this.saving.set(false);
         this.showAdd.set(false);
@@ -437,7 +447,7 @@ export class EmployeesComponent implements OnInit {
     };
     if (this.editState.password) payload['password'] = this.editState.password;
 
-    this.api.updateEmployee(emp.id, payload).subscribe({
+    this.employeeApi.updateEmployee(emp.id, payload).subscribe({
       next: () => {
         this.saving.set(false);
         this.editingId.set(null);
@@ -453,7 +463,7 @@ export class EmployeesComponent implements OnInit {
 
   savePin(emp: Employee) {
     if (this.pinInput.length < 4) return;
-    this.api.setEmployeePin(emp.id, this.pinInput).subscribe({
+    this.employeeApi.setEmployeePin(emp.id, this.pinInput).subscribe({
       next: () => {
         this.pinEditId.set(null);
         this.pinInput = '';
@@ -468,7 +478,7 @@ export class EmployeesComponent implements OnInit {
 
   deleteEmployee(emp: Employee) {
     if (!confirm(`Удалить сотрудника «${emp.display_name}»?\n\nЗаказы и история сохранятся, но сотрудник больше не сможет войти.`)) return;
-    this.api.deleteEmployee(emp.id).subscribe({
+    this.employeeApi.deleteEmployee(emp.id).subscribe({
       next: () => {
         this.editingId.set(null);
         this.employees.update(list => list.filter(e => e.id !== emp.id));
@@ -478,7 +488,7 @@ export class EmployeesComponent implements OnInit {
   }
 
   toggleActive(emp: Employee) {
-    this.api.updateEmployee(emp.id, { is_active: !emp.is_active }).subscribe({
+    this.employeeApi.updateEmployee(emp.id, { is_active: !emp.is_active }).subscribe({
       next: () => this.loadEmployees(),
     });
   }
@@ -486,7 +496,7 @@ export class EmployeesComponent implements OnInit {
   toggleOrders(e: EmployeeActivity) {
     if (this.openedUser() === e.user_id) { this.openedUser.set(null); return; }
     this.openedUser.set(e.user_id);
-    this.api.getEmployeeOrders(e.user_id, this.selectedShift ?? undefined).subscribe(o => this.empOrders.set(o));
+    this.employeeApi.getEmployeeOrders(e.user_id, this.selectedShift ?? undefined).subscribe(o => this.empOrders.set(o));
   }
 
   itemsSummary(o: Order): string {
@@ -501,9 +511,7 @@ export class EmployeesComponent implements OnInit {
   roleIcon(r: string): LucideIconInput  { return ROLE_META[r]?.icon ?? LucideUser; }
   roleLabel(r: string)          { return ROLE_META[r]?.label ?? r; }
 
-  formatDate(d: string) {
-    return new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
-  }
+  formatDate(d: string) { return fmtDate(d, { day: 'numeric', month: 'short' }); }
 
   private emptyNew() {
     return { username: '', password: '', display_name: '', role: 'waiter', allowed_roles: [] as string[] };

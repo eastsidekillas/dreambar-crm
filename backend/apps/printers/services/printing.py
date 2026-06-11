@@ -46,6 +46,24 @@ def _money(value) -> str:
     return f"{n:,}".replace(",", " ")
 
 
+def _qr(data: str, module_size: int = 6) -> bytes:
+    """QR-код командами GS ( k (ESC/POS, модель 2). Печатается по центру."""
+    payload = data.encode("utf-8")
+    out = bytearray()
+    # модель 2
+    out += GS + b"(k\x04\x00\x31\x41\x32\x00"
+    # размер модуля (1..16)
+    out += GS + b"(k\x03\x00\x31\x43" + bytes([max(1, min(16, module_size))])
+    # коррекция ошибок M
+    out += GS + b"(k\x03\x00\x31\x45\x31"
+    # данные: длина = len + 3
+    n = len(payload) + 3
+    out += GS + b"(k" + bytes([n & 0xFF, (n >> 8) & 0xFF]) + b"\x31\x50\x30" + payload
+    # печать
+    out += GS + b"(k\x03\x00\x31\x51\x30"
+    return bytes(out)
+
+
 def _line(left: str, right: str, width: int) -> bytes:
     right = right or ""
     space = width - len(right)
@@ -56,13 +74,16 @@ def _line(left: str, right: str, width: int) -> bytes:
 
 def render_receipt(receipt, width: int = 48, copy_label: str = "") -> bytes:
     from django.utils import timezone
+    from apps.printers.models import ReceiptSettings
 
+    rs = ReceiptSettings.get()
     out = bytearray()
     out += INIT + _codepage_select()
     out += ALIGN_CENTER + DOUBLE_ON + BOLD_ON
-    out += _enc("BAR DREAM") + FEED
+    out += _enc(rs.title) + FEED
     out += DOUBLE_OFF + BOLD_OFF
-    out += _enc("vk.com/mydreambar") + FEED
+    if rs.subtitle:
+        out += _enc(rs.subtitle) + FEED
     out += _enc("-" * width) + FEED
 
     out += ALIGN_LEFT
@@ -90,7 +111,13 @@ def render_receipt(receipt, width: int = 48, copy_label: str = "") -> bytes:
     out += DOUBLE_OFF + BOLD_OFF
     out += _line("Оплата", receipt.get_payment_method_display(), width)
     out += _enc("-" * width) + FEED
-    out += ALIGN_CENTER + _enc("Спасибо за визит!") + FEED
+    if rs.footer:
+        out += ALIGN_CENTER + _enc(rs.footer) + FEED
+    if rs.qr_data and not copy_label:
+        # QR только на гостевой копии — на копии «для сверки» он не нужен
+        out += FEED + ALIGN_CENTER + _qr(rs.qr_data) + FEED
+        if rs.qr_label:
+            out += _enc(rs.qr_label) + FEED
     if copy_label:
         out += FEED + BOLD_ON + _enc(copy_label) + FEED + BOLD_OFF
     out += FEED * 3 + CUT
@@ -98,10 +125,12 @@ def render_receipt(receipt, width: int = 48, copy_label: str = "") -> bytes:
 
 
 def render_receipt_two_copies(receipt, width: int = 48) -> bytes:
-    return (
-        render_receipt(receipt, width=width, copy_label="") +
-        render_receipt(receipt, width=width, copy_label="--- ДЛЯ СВЕРКИ ---")
-    )
+    from apps.printers.models import ReceiptSettings
+
+    payload = render_receipt(receipt, width=width, copy_label="")
+    if ReceiptSettings.get().print_second_copy:
+        payload += render_receipt(receipt, width=width, copy_label="--- ДЛЯ СВЕРКИ ---")
+    return payload
 
 
 def send_network(host: str, port: int, payload: bytes, timeout: float = 2.0) -> None:
@@ -113,6 +142,28 @@ def get_default_printer():
     from apps.printers.models import Printer
     return (Printer.objects.filter(is_active=True, is_default=True).first()
             or Printer.objects.filter(is_active=True).first())
+
+
+# роль сотрудника → назначение принтера (Printer.station)
+_ROLE_STATION = {
+    'bartender': 'bar',
+    'waiter':    'waiter',
+    'wardrobe':  'waiter',
+}
+
+
+def get_printer_for_user(user):
+    """Принтер по роли печатающего: бармен → «Бар», официант → «Официанты».
+    Нет подходящего — принтер по умолчанию."""
+    from apps.printers.models import Printer
+
+    profile = getattr(user, 'profile', None)
+    station = _ROLE_STATION.get(profile.role) if profile else None
+    if station:
+        printer = Printer.objects.filter(is_active=True, station=station).first()
+        if printer:
+            return printer
+    return get_default_printer()
 
 
 def dispatch(job) -> None:

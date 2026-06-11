@@ -1,19 +1,18 @@
 import type { LucideIconInput } from '@lucide/angular';
+import { PAY_ICON } from '../../../shared/lib/payments';
 import { Component, OnInit, signal, computed } from '@angular/core';
+import { formatDate as fmtDate } from '../../../shared/lib/formatters';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { ApiService } from '../../../core/services/api.service';
+import { OrderApi } from '../../../entities/order';
+import { ShiftApi } from '../../../entities/shift';
 import { Shift, Receipt } from '../../../core/models';
 import {
   LucideDynamicIcon,
   LucideBanknote, LucideCreditCard, LucideSmartphone, LucideShuffle,
   LucideReceipt,
 } from '@lucide/angular';
-
-const PAY_ICON: Record<string, LucideIconInput> = {
-  cash: LucideBanknote, card: LucideCreditCard, transfer: LucideSmartphone, mixed: LucideShuffle,
-};
 
 @Component({
   selector: 'app-shifts-receipts',
@@ -180,10 +179,10 @@ export class ShiftsReceiptsPage implements OnInit {
     return [...map.values()].sort((a, b) => b.total - a.total);
   });
 
-  constructor(private api: ApiService, private route: ActivatedRoute) {}
+  constructor(private orderApi: OrderApi, private shiftApi: ShiftApi, private route: ActivatedRoute) {}
 
   ngOnInit() {
-    this.api.getShifts().subscribe(s => {
+    this.shiftApi.getShifts().subscribe(s => {
       this.shifts.set(s);
       this.route.queryParams.subscribe(params => {
         if (params['shift']) this.shiftId = String(params['shift']);
@@ -196,7 +195,7 @@ export class ShiftsReceiptsPage implements OnInit {
     this.loading.set(true);
     this.openedId.set(null);
     const id = this.shiftId ? +this.shiftId : undefined;
-    this.api.getReceipts(id).subscribe({
+    this.orderApi.getReceipts(id).subscribe({
       next:  r => { this.receipts.set(r); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
@@ -208,9 +207,7 @@ export class ShiftsReceiptsPage implements OnInit {
 
   payIcon(method: string): LucideIconInput { return PAY_ICON[method] ?? LucideBanknote; }
 
-  formatDate(d: string) {
-    return new Date(d).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });
-  }
+  formatDate(d: string) { return fmtDate(d, { weekday: 'short', day: 'numeric', month: 'long' }); }
   formatDateTime(dt: string) {
     return new Date(dt).toLocaleString('ru-RU', {
       day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',

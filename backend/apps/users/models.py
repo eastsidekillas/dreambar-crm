@@ -17,6 +17,8 @@ class UserProfile(models.Model):
     display_name  = models.CharField(max_length=100, blank=True)
     allowed_roles = models.JSONField(default=list, blank=True, verbose_name='Доступные роли')
     pin_hash      = models.CharField(max_length=128, blank=True, default='', verbose_name='PIN (хэш)')
+    # True = пароль временный (выдан админом) — при входе требуем сменить
+    must_change_password = models.BooleanField(default=False, verbose_name='Сменить пароль при входе')
 
     class Meta:
         db_table = 'orders_userprofile'  # сохраняем имя таблицы — данные не трогаем
