@@ -27,6 +27,10 @@ export class InventoryApi {
   getLowStock(): Observable<Product[]> {
     return this.http.get<Product[]>(`${BASE}/inventory/products/low_stock/`);
   }
+  /** Создаёт товары из позиций меню (готовая продукция) + рецептуру «1 шт». */
+  createProductsFromMenu(menuItemIds: number[]): Observable<Product[]> {
+    return this.http.post<Product[]>(`${BASE}/inventory/products/from_menu/`, { menu_item_ids: menuItemIds });
+  }
 
   // ── Recipe components ────────────────────────────────────────────
   getComponents(menuItemId?: number): Observable<MenuItemComponent[]> {
