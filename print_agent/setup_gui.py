@@ -38,9 +38,6 @@ DEFAULTS = {
     'usb_vendor':      '',
     'usb_product':     '',
     'raw_path':        '',
-    'atol_com_file':   '',
-    'atol_baud':       '115200',
-    'atol_library':    '',
 }
 
 
@@ -105,8 +102,7 @@ class App(tk.Tk):
         modes = [('Windows-принтер (рекомендуется)', 'windows'),
                  ('COM-порт (serial)',               'serial'),
                  ('USB libusb',                      'usb'),
-                 ('Файл/устройство (raw)',            'raw'),
-                 ('АТОЛ ККТ — Драйвер ККТ 10',        'atol')]
+                 ('Файл/устройство (raw)',            'raw')]
         for i, (label, val) in enumerate(modes):
             rb = ttk.Radiobutton(frm_mode, text=label, variable=self.v_mode,
                                  value=val, command=self._on_mode_change)
@@ -122,9 +118,6 @@ class App(tk.Tk):
         self.v_usb_vendor   = tk.StringVar()
         self.v_usb_product  = tk.StringVar()
         self.v_raw_path     = tk.StringVar()
-        self.v_atol_com     = tk.StringVar()
-        self.v_atol_baud    = tk.StringVar()
-        self.v_atol_lib     = tk.StringVar()
 
         self._mode_rows: dict[str, list[tk.Widget]] = {}
 
@@ -149,11 +142,6 @@ class App(tk.Tk):
         row('USB Vendor ID:', self.v_usb_vendor, ['usb'], width=10, hint='напр. 0x2912')
         row('USB Product ID:', self.v_usb_product, ['usb'], width=10)
         row('Путь устройства:', self.v_raw_path, ['raw'], hint='напр. /dev/usb/lp0')
-        row('COM-порт ККТ:', self.v_atol_com, ['atol'], width=10,
-            hint='пусто — поиск по USB (рекомендуется)')
-        row('Скорость ККТ (baud):', self.v_atol_baud, ['atol'], width=10)
-        row('Путь к fptr10.dll:', self.v_atol_lib, ['atol'],
-            hint='пусто — стандартное расположение ДТО 10')
 
         self.frm_params.columnconfigure(1, weight=1)
         self._on_mode_change()
@@ -215,9 +203,6 @@ class App(tk.Tk):
         self.v_usb_vendor.set(c['usb_vendor'])
         self.v_usb_product.set(c['usb_product'])
         self.v_raw_path.set(c['raw_path'])
-        self.v_atol_com.set(c['atol_com_file'])
-        self.v_atol_baud.set(c['atol_baud'])
-        self.v_atol_lib.set(c['atol_library'])
         self._on_mode_change()
 
     def _save(self):
@@ -233,9 +218,6 @@ class App(tk.Tk):
             'usb_vendor':      self.v_usb_vendor.get().strip(),
             'usb_product':     self.v_usb_product.get().strip(),
             'raw_path':        self.v_raw_path.get().strip(),
-            'atol_com_file':   self.v_atol_com.get().strip(),
-            'atol_baud':       self.v_atol_baud.get().strip() or '115200',
-            'atol_library':    self.v_atol_lib.get().strip(),
         }
         write_config(values)
         messagebox.showinfo('Сохранено', f'config.ini сохранён:\n{CFG_PATH}')

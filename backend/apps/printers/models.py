@@ -5,9 +5,8 @@ from django.db import models
 
 class Printer(models.Model):
     CONNECTIONS = [
-        ('network',    'Ethernet (raw, порт 9100)'),
-        ('agent',      'USB через локальный агент'),
-        ('agent_atol', 'АТОЛ ККТ через локальный агент (ДТО 10)'),
+        ('network', 'Ethernet (raw, порт 9100)'),
+        ('agent',   'USB через локальный агент'),
     ]
     STATIONS = [
         ('',       'Любые чеки'),
@@ -33,7 +32,7 @@ class Printer(models.Model):
 
     def save(self, *args, **kwargs):
         # агентскому принтеру ключ нужен всегда — генерируем, чтобы не вписывать руками
-        if self.connection in ('agent', 'agent_atol') and not self.agent_key:
+        if self.connection == 'agent' and not self.agent_key:
             self.agent_key = secrets.token_hex(16)
         super().save(*args, **kwargs)
 
@@ -44,8 +43,10 @@ class Printer(models.Model):
 class ReceiptSettings(models.Model):
     """Настройки внешнего вида чека (одна запись на заведение)."""
     title             = models.CharField(max_length=50, default='BAR DREAM', verbose_name='Заголовок')
-    subtitle          = models.CharField(max_length=100, blank=True, default='vk.com/mydreambar',
-                                         verbose_name='Подзаголовок (адрес, соцсети)')
+    subtitle          = models.TextField(blank=True, default='vk.com/mydreambar',
+                                         verbose_name='Подзаголовок (ООО, ИНН, адрес, соцсети)',
+                                         help_text='Можно несколько строк — каждая печатается '
+                                                   'на чеке отдельной строкой')
     footer            = models.CharField(max_length=100, blank=True, default='Спасибо за визит!',
                                          verbose_name='Текст внизу чека')
     qr_data           = models.CharField(max_length=200, blank=True, default='',

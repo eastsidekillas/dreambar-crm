@@ -21,16 +21,9 @@
               pyusb + python-escpos)
     raw     — просто писать байты в файл/устройство: `raw_path`
               (Linux: /dev/usb/lp0)
-    atol    — ККТ АТОЛ (20Ф, 22Ф, 30Ф...) через Драйвер ККТ 10 (ДТО 10).
-              ESC/POS ККТ не понимает, поэтому в админке у принтера должен быть
-              выбран тип «АТОЛ ККТ через локальный агент» — backend тогда шлёт
-              JSON-операции, а агент печатает их нефискальным документом через
-              libfptr10. Параметры: `atol_com_file` (пусто = USB-автопоиск),
-              `atol_baud`, `atol_library` (путь к fptr10.dll, пусто = стандартный).
 """
 import base64
 import configparser
-import json
 import os
 import signal
 import sys
@@ -70,9 +63,6 @@ def load_config():
         'usb_vendor':      get('usb_vendor'),
         'usb_product':     get('usb_product'),
         'raw_path':        get('raw_path'),
-        'atol_com_file':   get('atol_com_file'),
-        'atol_baud':       int(get('atol_baud', '115200') or '115200'),
-        'atol_library':    get('atol_library'),
     }
 
 
@@ -132,116 +122,7 @@ def make_writer(c):
                 f.write(data)
         return write_raw
 
-    if mode == 'atol':
-        return _make_atol_writer(c)
-
-    sys.exit(f'Неизвестный mode={mode!r}. Допустимо: windows, serial, usb, raw, atol.')
-
-
-def _make_atol_writer(c):
-    """ККТ АТОЛ через ДТО 10 (libfptr10). Payload — JSON с операциями
-    (формат atol-ops/1 из backend), печатается нефискальным документом."""
-    # Обёртку libfptr10.py инсталлятор ДТО НЕ ставит — её кладут рядом с агентом
-    # (берётся из дистрибутива драйвера). Ищем рядом с агентом и в каталоге
-    # из atol_library; работает и из собранного .exe.
-    for d in [_base_dir(),
-              c['atol_library'] and (c['atol_library'] if os.path.isdir(c['atol_library'])
-                                     else os.path.dirname(c['atol_library']))]:
-        if d and d not in sys.path:
-            sys.path.insert(0, d)
-    try:
-        from libfptr10 import IFptr
-    except ImportError:
-        sys.exit(
-            'Не найден модуль libfptr10 (Python-обёртка Драйвера ККТ 10).\n'
-            'Инсталлятор ДТО его НЕ устанавливает. Скачайте дистрибутив драйвера:\n'
-            '  fs.atol.ru -> «Программное обеспечение» -> ДТО -> 10.x\n'
-            'возьмите из него файл wrappers/python/libfptr10.py и положите рядом '
-            f'с агентом, в папку:\n  {_base_dir()}\n'
-            'Сам «Драйвер ККТ 10» тоже должен быть установлен (он даёт fptr10.dll).'
-        )
-
-    try:
-        fptr = IFptr(c['atol_library'] or '')
-    except Exception as exc:
-        sys.exit(
-            f'libfptr10 найден, но не удалось загрузить библиотеку драйвера (fptr10.dll): {exc}\n'
-            'Проверьте: 1) установлен ли «Драйвер ККТ 10»; 2) совпадает ли разрядность '
-            'Python/агента и драйвера (x86 загружает только x86, x64 — только x64).\n'
-            'Можно указать путь к fptr10.dll явно: config.ini -> atol_library '
-            r'(обычно C:\Program Files (x86)\ATOL\Drivers10\KKT\bin\fptr10.dll).'
-        )
-
-    settings = {IFptr.LIBFPTR_SETTING_MODEL: IFptr.LIBFPTR_MODEL_ATOL_AUTO}
-    if c['atol_com_file']:
-        settings[IFptr.LIBFPTR_SETTING_PORT]     = IFptr.LIBFPTR_PORT_COM
-        settings[IFptr.LIBFPTR_SETTING_COM_FILE] = c['atol_com_file']
-        settings[IFptr.LIBFPTR_SETTING_BAUDRATE] = c['atol_baud']
-    else:
-        settings[IFptr.LIBFPTR_SETTING_PORT] = IFptr.LIBFPTR_PORT_USB
-    fptr.setSettings(settings)
-
-    align_map = {'left':   IFptr.LIBFPTR_ALIGNMENT_LEFT,
-                 'center': IFptr.LIBFPTR_ALIGNMENT_CENTER,
-                 'right':  IFptr.LIBFPTR_ALIGNMENT_RIGHT}
-
-    def check(result, action):
-        if result != 0:
-            raise RuntimeError(f'{action}: [{fptr.errorCode()}] {fptr.errorDescription()}')
-
-    def print_text(text='', align='left', double=False):
-        fptr.setParam(IFptr.LIBFPTR_PARAM_TEXT, text)
-        fptr.setParam(IFptr.LIBFPTR_PARAM_ALIGNMENT,
-                      align_map.get(align, IFptr.LIBFPTR_ALIGNMENT_LEFT))
-        if double:
-            fptr.setParam(IFptr.LIBFPTR_PARAM_FONT_DOUBLE_WIDTH, True)
-            fptr.setParam(IFptr.LIBFPTR_PARAM_FONT_DOUBLE_HEIGHT, True)
-        check(fptr.printText(), 'printText')
-
-    def end_document():
-        fptr.setParam(IFptr.LIBFPTR_PARAM_PRINT_FOOTER, False)
-        check(fptr.endNonfiscalDocument(), 'endNonfiscalDocument')
-
-    def write_atol(data):
-        ops = json.loads(data.decode('utf-8')).get('ops', [])
-        if not fptr.isOpened():
-            check(fptr.open(), 'open')
-        in_doc = False
-        try:
-            for op in ops:
-                kind = op.get('op')
-                if kind == 'drawer':
-                    fptr.openDrawer()  # вне документа; ящик подключается к ККТ
-                    continue
-                if kind == 'cut':
-                    if in_doc:
-                        end_document()
-                        in_doc = False
-                    continue
-                if not in_doc:
-                    check(fptr.beginNonfiscalDocument(), 'beginNonfiscalDocument')
-                    in_doc = True
-                if kind == 'text':
-                    # bold ДТО в printText не поддерживает — игнорируем флаг
-                    print_text(op.get('text', ''), op.get('align', 'left'),
-                               op.get('double', False))
-                elif kind == 'feed':
-                    for _ in range(int(op.get('n', 1))):
-                        print_text('')
-                elif kind == 'qr':
-                    fptr.setParam(IFptr.LIBFPTR_PARAM_BARCODE, op.get('data', ''))
-                    fptr.setParam(IFptr.LIBFPTR_PARAM_BARCODE_TYPE, IFptr.LIBFPTR_BT_QR)
-                    fptr.setParam(IFptr.LIBFPTR_PARAM_ALIGNMENT,
-                                  IFptr.LIBFPTR_ALIGNMENT_CENTER)
-                    fptr.setParam(IFptr.LIBFPTR_PARAM_SCALE, 5)
-                    check(fptr.printBarcode(), 'printBarcode')
-            if in_doc:
-                end_document()
-        except Exception:
-            # сбросить соединение, чтобы следующее задание началось чисто
-            fptr.close()
-            raise
-    return write_atol
+    sys.exit(f'Неизвестный mode={mode!r}. Допустимо: windows, serial, usb, raw.')
 
 
 def ack(c, job_id, ok, error=''):
@@ -304,6 +185,14 @@ def _handle_signal(sig, frame):
 
 
 def main():
+    # лог в UTF-8: иначе русские тексты ошибок превращаются в «������»
+    # в консоли Windows и в окне конфигуратора
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except (AttributeError, OSError):
+            pass
+
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 

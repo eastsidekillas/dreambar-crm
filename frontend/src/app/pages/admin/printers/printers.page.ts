@@ -75,8 +75,6 @@ const STATION_LABEL: Record<string, string> = {
                   <p class="text-xs mt-0.5" style="color:var(--color-muted)">
                     @if (p.connection === 'network') {
                       <svg lucideGlobe [size]="12" class="inline-block mr-1"></svg>Ethernet · {{ p.host }}:{{ p.port }} · {{ p.width }} симв.
-                    } @else if (p.connection === 'agent_atol') {
-                      <svg lucideUsb [size]="12" class="inline-block mr-1"></svg>АТОЛ ККТ (агент) · ключ: {{ p.agent_key || '—' }} · {{ p.width }} симв.
                     } @else {
                       <svg lucideUsb [size]="12" class="inline-block mr-1"></svg>USB-агент · ключ: {{ p.agent_key || '—' }} · {{ p.width }} симв.
                     }
@@ -85,7 +83,7 @@ const STATION_LABEL: Record<string, string> = {
 
                 <!-- Actions -->
                 <div class="flex items-center gap-2 flex-shrink-0">
-                  @if (p.connection !== 'network') {
+                  @if (p.connection === 'agent') {
                     <button (click)="downloadConfig(p)" class="btn btn-ghost btn-sm"
                             title="Скачать config.ini для агента">
                       <svg lucideDownload [size]="14"></svg>
@@ -151,8 +149,12 @@ const STATION_LABEL: Record<string, string> = {
               </div>
               <div>
                 <label class="section-title block mb-1.5">Подзаголовок</label>
-                <input [(ngModel)]="rs.subtitle" class="field" maxlength="100"
-                       placeholder="Адрес, телефон или соцсети"/>
+                <textarea [(ngModel)]="rs.subtitle" class="field" maxlength="500" rows="3"
+                          style="resize:vertical;min-height:60px"
+                          placeholder="ООО «Дрим», ИНН 1234567890&#10;г. Город, ул. Улица, 1&#10;vk.com/mydreambar"></textarea>
+                <p class="text-xs mt-1" style="color:var(--color-muted)">
+                  Каждая строка печатается на чеке отдельно — удобно для ООО, ИНН и адреса
+                </p>
               </div>
               <div>
                 <label class="section-title block mb-1.5">Текст внизу чека</label>
@@ -185,7 +187,7 @@ const STATION_LABEL: Record<string, string> = {
             <div class="rounded-xl p-4 text-center"
                  style="background:var(--color-bg);font-family:'Courier New',monospace;font-size:12px;line-height:1.5">
               <p class="font-bold" style="font-size:15px;letter-spacing:1px">{{ rs.title || 'BAR DREAM' }}</p>
-              @if (rs.subtitle) { <p>{{ rs.subtitle }}</p> }
+              @if (rs.subtitle) { <p style="white-space:pre-line">{{ rs.subtitle }}</p> }
               <p>------------------------------</p>
               <p class="text-left">Чек №<span class="float-right">12-001</span></p>
               <p class="text-left">Стол<span class="float-right">Стол 5</span></p>
@@ -274,18 +276,7 @@ const STATION_LABEL: Record<string, string> = {
                       [class]="form.connection === 'agent' ? 'btn-primary' : 'btn-outline'">
                 <svg lucideUsb [size]="14"></svg> USB-агент
               </button>
-              <button (click)="form.connection = 'agent_atol'"
-                      class="btn btn-sm flex items-center gap-1" style="flex:1"
-                      [class]="form.connection === 'agent_atol' ? 'btn-primary' : 'btn-outline'">
-                <svg lucideUsb [size]="14"></svg> АТОЛ ККТ
-              </button>
             </div>
-            @if (form.connection === 'agent_atol') {
-              <p class="text-xs mt-1" style="color:var(--color-muted)">
-                Фискальный регистратор АТОЛ (20Ф, 22Ф...) через агент с Драйвером ККТ 10.
-                Чеки печатаются нефискальным документом. Для ленты 57 мм ставьте ширину 32.
-              </p>
-            }
           </div>
 
           <!-- Network fields -->
@@ -303,7 +294,7 @@ const STATION_LABEL: Record<string, string> = {
           }
 
           <!-- Agent key -->
-          @if (form.connection !== 'network') {
+          @if (form.connection === 'agent') {
             <div>
               <label class="section-title block mb-1.5">Ключ агента</label>
               <input [(ngModel)]="form.agent_key" class="field"
