@@ -49,7 +49,9 @@ export class AuthService {
   needsRoleSelect(): boolean {
     const user    = this.user();
     const allowed = user?.allowed_roles ?? [];
-    return allowed.length > 1 && !this.activeRole();
+    // У бармена два интерфейса (терминал и мобильные брони) — выбор нужен даже при одной роли
+    const optionCount = allowed.length + (allowed.includes('bartender') ? 1 : 0);
+    return optionCount > 1 && !this.activeRole();
   }
 
   setActiveRole(role: Role): void {
