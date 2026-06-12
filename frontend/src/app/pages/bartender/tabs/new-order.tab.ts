@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, computed, inject, signal } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PAY_OPTIONS } from '../../../shared/lib/payments';
@@ -12,6 +12,8 @@ import { MenuItem, PaymentMethod } from '../../../core/models';
 import {
   LucideDynamicIcon, LucideGlassWater, LucideUtensilsCrossed, LucideWine, LucideFolder, LucideReceipt,
 } from '@lucide/angular';
+
+const MENU_REFRESH_MS = 60_000;
 
 /** Вкладка «+ Новый» — свой заказ бармена: меню → корзина → оплата с чеком. */
 @Component({
@@ -82,22 +84,41 @@ import {
             <div class="grid gap-3"
                  style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))">
               @for (group of drinkGroups(); track group.name) {
-                <button (click)="selectDrinkGroup(group)"
-                        class="flex flex-col items-center justify-center gap-2 rounded-2xl p-4 transition-all active:scale-95"
-                        style="background:#1e293b;border:1px solid #334155;min-height:110px">
-                  @if (group.items.length > 1) {
-                    <svg lucideFolder [size]="40" style="color:#f59e0b"></svg>
-                  } @else {
-                    <span style="font-size:2.5rem;line-height:1;color:#f59e0b">✚</span>
+                <div class="flex flex-col rounded-2xl overflow-hidden"
+                     style="background:#1e293b;border:1px solid;min-height:110px"
+                     [style.border-color]="groupOut(group) ? '#ef4444' : '#334155'">
+                  <button (click)="selectDrinkGroup(group)"
+                          class="flex flex-col items-center justify-center gap-2 p-4 flex-1 transition-all active:scale-95"
+                          [style.opacity]="groupOut(group) ? '0.4' : '1'"
+                          [style.cursor]="groupOut(group) && group.items.length === 1 ? 'not-allowed' : 'pointer'">
+                    @if (group.items.length > 1) {
+                      <svg lucideFolder [size]="40" style="color:#f59e0b"></svg>
+                    } @else {
+                      <span style="font-size:2.5rem;line-height:1;color:#f59e0b">✚</span>
+                    }
+                    <span class="font-bold text-sm text-center leading-tight uppercase tracking-wide"
+                          style="color:#f1f5f9">{{ group.name }}</span>
+                    @if (group.items.length > 1) {
+                      <span class="text-xs" style="color:#64748b">{{ group.items.length }} вар.</span>
+                    } @else {
+                      <span class="text-xs font-bold" style="color:#f59e0b">{{ group.items[0].price }} ₽</span>
+                    }
+                  </button>
+                  @if (group.items.length === 1) {
+                    <button (click)="toggleStock(group.items[0])"
+                            class="py-1.5 text-xs font-bold text-center"
+                            [style]="group.items[0].is_out_of_stock
+                              ? 'background:#ef444422;color:#ef4444'
+                              : 'background:#1e293b;color:#475569;border-top:1px solid #334155'">
+                      {{ group.items[0].is_out_of_stock ? '🔴 Закончилось' : 'Отметить «нет»' }}
+                    </button>
+                  } @else if (groupOut(group)) {
+                    <div class="py-1.5 text-xs font-bold text-center"
+                         style="background:#ef444422;color:#ef4444">
+                      🔴 Закончилось
+                    </div>
                   }
-                  <span class="font-bold text-sm text-center leading-tight uppercase tracking-wide"
-                        style="color:#f1f5f9">{{ group.name }}</span>
-                  @if (group.items.length > 1) {
-                    <span class="text-xs" style="color:#64748b">{{ group.items.length }} вар.</span>
-                  } @else {
-                    <span class="text-xs font-bold" style="color:#f59e0b">{{ group.items[0].price }} ₽</span>
-                  }
-                </button>
+                </div>
               }
             </div>
           </div>
@@ -223,7 +244,7 @@ import {
     }
   `,
 })
-export class BarNewOrderTab {
+export class BarNewOrderTab implements OnChanges, OnDestroy {
   @Input() visible = false;
   /** Заказ оформлен — страница переключается на «Заказы» и перезагружает их */
   @Output() submitted = new EventEmitter<void>();
@@ -274,13 +295,36 @@ export class BarNewOrderTab {
   cartLines = computed(() => [...this.cart().values()]);
   cartTotal = computed(() => this.cartLines().reduce((s, l) => s + l.item.price * l.qty, 0));
 
+  private menuTimer?: ReturnType<typeof setInterval>;
+
   constructor() {
+    this.loadMenu(true);
+  }
+
+  /** Свежесть пометок «закончилось» с других устройств:
+   *  перечитываем меню при открытии вкладки + раз в минуту, пока она открыта. */
+  ngOnChanges(ch: SimpleChanges) {
+    if (!ch['visible']) return;
+    if (this.visible) {
+      if (!ch['visible'].firstChange) this.loadMenu();
+      this.menuTimer ??= setInterval(() => this.loadMenu(), MENU_REFRESH_MS);
+    } else if (this.menuTimer) {
+      clearInterval(this.menuTimer);
+      this.menuTimer = undefined;
+    }
+  }
+
+  ngOnDestroy() {
+    if (this.menuTimer) clearInterval(this.menuTimer);
+  }
+
+  private loadMenu(initial = false) {
     this.menuApi.getMenuByCategory().subscribe(cats => {
       this.menu.set(
         cats.filter(c => c.station_type === 'bar' || c.station_type === 'kitchen')
             .map(c => ({ id: c.id, name: c.name, type: c.station_type, items: c.items }))
       );
-      this.goRoot();
+      if (initial) this.goRoot();
     });
   }
 
@@ -289,10 +333,17 @@ export class BarNewOrderTab {
 
   selectDrinkGroup(group: { name: string; items: MenuItem[] }) {
     if (group.items.length === 1) {
+      if (group.items[0].is_out_of_stock) return;
       this.addToCart(group.items[0]);
     } else {
+      // Внутрь папки пускаем всегда — там можно снять/поставить пометки по вариантам
       this.activeDrink.set(group.name);
     }
+  }
+
+  /** Вся группа закончилась (для одиночной позиции — она сама). */
+  groupOut(group: { items: MenuItem[] }): boolean {
+    return group.items.every(i => i.is_out_of_stock);
   }
 
   toggleStock(item: MenuItem) {
