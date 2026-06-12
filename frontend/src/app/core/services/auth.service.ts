@@ -25,6 +25,8 @@ export class AuthService {
       tap(tokens => {
         localStorage.setItem('access_token', tokens.access);
         localStorage.setItem('refresh_token', tokens.refresh);
+        // Новый вход — старый выбор роли не должен переживать авторизацию
+        this.clearActiveRole();
       }),
       switchMap(() => this.fetchProfile())
     );
@@ -45,13 +47,21 @@ export class AuthService {
     );
   }
 
+  /** Есть ли из чего выбирать: больше одной роли или бармен (терминал + брони). */
+  hasRoleChoice(): boolean {
+    const allowed = this.user()?.allowed_roles ?? [];
+    return allowed.length + (allowed.includes('bartender') ? 1 : 0) > 1;
+  }
+
   /** Нужно ли показывать экран выбора роли? */
   needsRoleSelect(): boolean {
-    const user    = this.user();
-    const allowed = user?.allowed_roles ?? [];
-    // У бармена два интерфейса (терминал и мобильные брони) — выбор нужен даже при одной роли
-    const optionCount = allowed.length + (allowed.includes('bartender') ? 1 : 0);
-    return optionCount > 1 && !this.activeRole();
+    return this.hasRoleChoice() && !this.activeRole();
+  }
+
+  /** Быстрая смена роли без выхода из аккаунта. */
+  switchRole(): void {
+    this.clearActiveRole();
+    this.router.navigateByUrl('/role-select');
   }
 
   setActiveRole(role: Role): void {

@@ -6,7 +6,7 @@ import { TableApi } from '../../entities/table';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { Reservation, Zone } from '../../core/models';
-import { LucideCalendar, LucidePhone, LucidePlus, LucideX, LucideUsers, LucidePencil } from '@lucide/angular';
+import { LucideCalendar, LucidePhone, LucidePlus, LucideX, LucideUsers, LucidePencil, LucideArrowLeftRight } from '@lucide/angular';
 
 const REFRESH_MS = 60_000;
 
@@ -18,7 +18,7 @@ const REFRESH_MS = 60_000;
 @Component({
   selector: 'app-bartender-reservations-mobile',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideCalendar, LucidePhone, LucidePlus, LucideX, LucideUsers, LucidePencil],
+  imports: [CommonModule, FormsModule, LucideCalendar, LucidePhone, LucidePlus, LucideX, LucideUsers, LucidePencil, LucideArrowLeftRight],
   template: `
     <div class="flex flex-col" style="height:100dvh;background:#0f172a;color:#f1f5f9">
 
@@ -32,10 +32,19 @@ const REFRESH_MS = 60_000;
             <p class="text-xs" style="color:#94a3b8">{{ auth.user()?.display_name }}</p>
           </div>
         </div>
-        <button (click)="auth.logout()" class="text-sm px-3 rounded-xl"
-                style="background:#1e293b;color:#94a3b8;min-height:40px">
-          Выйти
-        </button>
+        <div class="flex items-center gap-2">
+          @if (auth.hasRoleChoice()) {
+            <button (click)="auth.switchRole()" title="Сменить роль / интерфейс"
+                    class="flex items-center justify-center rounded-xl"
+                    style="background:#1e293b;min-width:40px;min-height:40px">
+              <svg lucideArrowLeftRight [size]="18" style="color:#94a3b8"></svg>
+            </button>
+          }
+          <button (click)="auth.logout()" class="text-sm px-3 rounded-xl"
+                  style="background:#1e293b;color:#94a3b8;min-height:40px">
+            Выйти
+          </button>
+        </div>
       </header>
 
       <!-- ── Период ────────────────────────────────────────────────── -->
