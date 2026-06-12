@@ -141,14 +141,36 @@ def make_writer(c):
 def _make_atol_writer(c):
     """ККТ АТОЛ через ДТО 10 (libfptr10). Payload — JSON с операциями
     (формат atol-ops/1 из backend), печатается нефискальным документом."""
+    # Обёртку libfptr10.py инсталлятор ДТО НЕ ставит — её кладут рядом с агентом
+    # (берётся из дистрибутива драйвера). Ищем рядом с агентом и в каталоге
+    # из atol_library; работает и из собранного .exe.
+    for d in [_base_dir(),
+              c['atol_library'] and (c['atol_library'] if os.path.isdir(c['atol_library'])
+                                     else os.path.dirname(c['atol_library']))]:
+        if d and d not in sys.path:
+            sys.path.insert(0, d)
     try:
         from libfptr10 import IFptr
     except ImportError:
-        sys.exit('Не найден libfptr10. Установите «Драйвер ККТ 10» (ДТО 10) АТОЛ '
-                 'и положите libfptr10.py рядом с агентом (из дистрибутива ДТО), '
-                 'либо укажите его в PYTHONPATH.')
+        sys.exit(
+            'Не найден модуль libfptr10 (Python-обёртка Драйвера ККТ 10).\n'
+            'Инсталлятор ДТО его НЕ устанавливает. Скачайте дистрибутив драйвера:\n'
+            '  fs.atol.ru -> «Программное обеспечение» -> ДТО -> 10.x\n'
+            'возьмите из него файл wrappers/python/libfptr10.py и положите рядом '
+            f'с агентом, в папку:\n  {_base_dir()}\n'
+            'Сам «Драйвер ККТ 10» тоже должен быть установлен (он даёт fptr10.dll).'
+        )
 
-    fptr = IFptr(c['atol_library']) if c['atol_library'] else IFptr()
+    try:
+        fptr = IFptr(c['atol_library'] or '')
+    except Exception as exc:
+        sys.exit(
+            f'libfptr10 найден, но не удалось загрузить библиотеку драйвера (fptr10.dll): {exc}\n'
+            'Проверьте: 1) установлен ли «Драйвер ККТ 10»; 2) совпадает ли разрядность '
+            'Python/агента и драйвера (x86 загружает только x86, x64 — только x64).\n'
+            'Можно указать путь к fptr10.dll явно: config.ini -> atol_library '
+            r'(обычно C:\Program Files (x86)\ATOL\Drivers10\KKT\bin\fptr10.dll).'
+        )
 
     settings = {IFptr.LIBFPTR_SETTING_MODEL: IFptr.LIBFPTR_MODEL_ATOL_AUTO}
     if c['atol_com_file']:

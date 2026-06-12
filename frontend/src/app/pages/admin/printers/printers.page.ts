@@ -6,7 +6,7 @@ import { ToastService } from '../../../shared/ui';
 import { Printer, PrinterConnection, ReceiptSettings } from '../../../core/models';
 import {
   LucidePrinter, LucideGlobe, LucideUsb, LucidePencil, LucideTrash2,
-  LucideX, LucideCheck, LucideReceiptText,
+  LucideX, LucideCheck, LucideReceiptText, LucideDownload,
 } from '@lucide/angular';
 
 interface PrinterForm {
@@ -33,7 +33,7 @@ const STATION_LABEL: Record<string, string> = {
 @Component({
   selector: 'app-printers-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucidePrinter, LucideGlobe, LucideUsb, LucidePencil, LucideTrash2, LucideX, LucideCheck, LucideReceiptText],
+  imports: [CommonModule, FormsModule, LucidePrinter, LucideGlobe, LucideUsb, LucidePencil, LucideTrash2, LucideX, LucideCheck, LucideReceiptText, LucideDownload],
   template: `
     <div class="max-w-2xl mx-auto space-y-6">
 
@@ -85,6 +85,12 @@ const STATION_LABEL: Record<string, string> = {
 
                 <!-- Actions -->
                 <div class="flex items-center gap-2 flex-shrink-0">
+                  @if (p.connection !== 'network') {
+                    <button (click)="downloadConfig(p)" class="btn btn-ghost btn-sm"
+                            title="Скачать config.ini для агента">
+                      <svg lucideDownload [size]="14"></svg>
+                    </button>
+                  }
                   <button (click)="testPrint(p)"
                           [disabled]="testing() === p.id"
                           class="btn btn-ghost btn-sm"
@@ -301,9 +307,11 @@ const STATION_LABEL: Record<string, string> = {
             <div>
               <label class="section-title block mb-1.5">Ключ агента</label>
               <input [(ngModel)]="form.agent_key" class="field"
-                     placeholder="Уникальный ключ из настроек агента" />
+                     placeholder="Пусто — сгенерируется автоматически" />
               <p class="text-xs mt-1" style="color:var(--color-muted)">
-                Установите агент на ПК с подключённым принтером. Ключ должен совпадать.
+                После сохранения скачайте готовый config.ini (кнопка
+                <svg lucideDownload [size]="11" class="inline-block"></svg> на карточке принтера)
+                и положите его рядом с агентом на кассовом ПК — вписывать ничего не нужно.
               </p>
             </div>
           }
@@ -471,6 +479,20 @@ export class PrintersPage implements OnInit {
     this.printerApi.deletePrinter(p.id).subscribe({
       next: () => { this.saving.set(false); this.deleteTarget.set(null); this.load(); },
       error: ()  => this.saving.set(false),
+    });
+  }
+
+  downloadConfig(p: Printer) {
+    this.printerApi.downloadAgentConfig(p.id).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'config.ini';
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: err => this.toast.apiError(err, 'Не удалось скачать config.ini'),
     });
   }
 
