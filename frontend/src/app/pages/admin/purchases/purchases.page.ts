@@ -6,14 +6,16 @@ import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { PurchaseOrder, PurchaseOrderItem, Product } from '../../../core/models';
 import {
   LucideShoppingCart, LucideTriangleAlert, LucideClipboardList,
-  LucideMail, LucidePackage, LucideTrash2, LucideX, LucideCircleCheck,
+  LucideMail, LucidePackage, LucideTrash2, LucideX, LucideCircleCheck, LucideQrCode,
 } from '@lucide/angular';
+import { ReceiptImportModal } from './receipt-import.modal';
 
 @Component({
   selector: 'app-purchases',
   standalone: true,
   imports: [CommonModule, FormsModule, LucideShoppingCart, LucideTriangleAlert, LucideClipboardList,
-    LucideMail, LucidePackage, LucideTrash2, LucideX, LucideCircleCheck],
+    LucideMail, LucidePackage, LucideTrash2, LucideX, LucideCircleCheck, LucideQrCode,
+    ReceiptImportModal],
   template: `
 <div class="space-y-4">
 
@@ -24,10 +26,15 @@ import {
         Управление заказами поставщикам и оприходованием
       </p>
     </div>
-    <button (click)="createFromLowStock()" class="btn btn-primary btn-sm"
-            [disabled]="creating()">
-      {{ creating() ? 'Создание...' : '⚡ Создать заявку из остатков' }}
-    </button>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button (click)="receiptModal.show()" class="btn btn-outline btn-sm flex items-center gap-1.5">
+        <svg lucideQrCode [size]="15"></svg> Чек из магазина
+      </button>
+      <button (click)="createFromLowStock()" class="btn btn-primary btn-sm"
+              [disabled]="creating()">
+        {{ creating() ? 'Создание...' : '⚡ Создать заявку из остатков' }}
+      </button>
+    </div>
   </div>
 
   <!-- Low stock alert -->
@@ -239,6 +246,8 @@ import {
     </div>
   </div>
 }
+
+<receipt-import-modal #receiptModal (applied)="load()" />
   `,
 })
 export class PurchasesPage implements OnInit {

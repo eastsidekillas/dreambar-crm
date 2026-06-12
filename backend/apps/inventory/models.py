@@ -119,3 +119,51 @@ class PurchaseOrderItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} × {self.qty_ordered}{self.product.unit}"
+
+class ReceiptImport(models.Model):
+    """Загруженный кассовый чек из магазина (через сервис code-qr.ru).
+
+    Жизненный цикл: wait/process (сервис проверяет чек у ФНС) → done
+    (получен состав) → applied (создана закупка, остатки оприходованы).
+    """
+    STATUS_CHOICES = [
+        ('wait',    'В очереди'),
+        ('process', 'Проверяется'),
+        ('done',    'Готов к оприходованию'),
+        ('error',   'Ошибка'),
+        ('applied', 'Оприходован'),
+    ]
+    qr           = models.TextField(blank=True, verbose_name='Строка QR-кода')
+    hash         = models.CharField(max_length=64, blank=True, verbose_name='Hash в сервисе проверки')
+    status       = models.CharField(max_length=20, choices=STATUS_CHOICES, default='wait')
+    error        = models.TextField(blank=True)
+    store        = models.CharField(max_length=200, blank=True, verbose_name='Магазин')
+    total        = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    purchased_at = models.CharField(max_length=30, blank=True, verbose_name='Дата чека')
+    result       = models.JSONField(null=True, blank=True, verbose_name='Состав чека')
+    purchase     = models.ForeignKey(PurchaseOrder, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='receipt_imports')
+    created_by   = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Импорт чека'
+        verbose_name_plural = 'Импорты чеков'
+
+    def __str__(self):
+        return f"Чек {self.store or self.hash[:8]} ({self.get_status_display()})"
+
+
+class ReceiptItemMapping(models.Model):
+    """Самообучаемое сопоставление: название позиции в чеке магазина → товар на складе."""
+    receipt_name = models.CharField(max_length=300, unique=True, verbose_name='Название в чеке')
+    product      = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='receipt_mappings')
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Сопоставление чека'
+        verbose_name_plural = 'Сопоставления чеков'
+
+    def __str__(self):
+        return f"{self.receipt_name} → {self.product.name}"

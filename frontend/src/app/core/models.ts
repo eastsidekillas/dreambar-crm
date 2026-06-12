@@ -414,6 +414,33 @@ export interface PurchaseOrder {
   items: PurchaseOrderItem[];
 }
 
+export type ReceiptImportStatus = 'wait' | 'process' | 'done' | 'error' | 'applied';
+
+/** Строка чека магазина с подсказкой сопоставления товару склада. */
+export interface ReceiptImportLine {
+  name: string;
+  quantity: number;
+  price: number;
+  sum: number;
+  product: number | null;
+  remember?: boolean;
+}
+
+export interface ReceiptImport {
+  id: number;
+  qr: string;
+  hash: string;
+  status: ReceiptImportStatus;
+  status_label: string;
+  error: string;
+  store: string;
+  total: number | null;
+  purchased_at: string;
+  purchase: number | null;
+  created_at: string;
+  lines?: ReceiptImportLine[];
+}
+
 export interface StockReportDiscrepancyRow {
   product_id: number;
   product_name: string;
