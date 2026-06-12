@@ -83,7 +83,7 @@ export class LoginPage {
         this.loading.set(false);
         if (user.must_change_password) {
           this.router.navigateByUrl('/welcome');
-        } else if ((user.allowed_roles ?? []).length > 1) {
+        } else if (this.auth.needsRoleSelect()) {
           this.router.navigateByUrl('/role-select');
         } else {
           this.router.navigateByUrl(this.auth.landingRoute(user.role));
