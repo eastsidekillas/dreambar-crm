@@ -18,7 +18,7 @@ import {
   LucideCalendar, LucideUsers, LucideMessageCircle, LucideArmchair,
   LucideBanknote, LucideCreditCard, LucideSmartphone,
   LucideCheck, LucideClock, LucideX, LucideReceipt, LucidePencil,
-  LucidePlus, LucideArrowLeftRight,
+  LucidePlus, LucideArrowLeftRight, LucideUserMinus,
   LucideUtensilsCrossed, LucideTriangleAlert,
 } from '@lucide/angular';
 
@@ -31,7 +31,7 @@ const POLL_MS = 10_000;
     LucideCalendar, LucideUsers, LucideMessageCircle, LucideArmchair,
     LucideBanknote, LucideCreditCard,
     LucideCheck, LucideClock, LucideX, LucideReceipt, LucidePencil,
-    LucidePlus, LucideArrowLeftRight,
+    LucidePlus, LucideArrowLeftRight, LucideUserMinus,
     LucideUtensilsCrossed, LucideTriangleAlert],
   template: `
     <div class="space-y-3 pb-4">
@@ -549,10 +549,21 @@ const POLL_MS = 10_000;
                 </p>
               </div>
             </button>
+            <button (click)="choosePartial()"
+                    class="w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left"
+                    style="border:2px solid var(--color-border);background:white">
+              <svg lucideUserMinus [size]="32" style="color:var(--color-muted);flex-shrink:0"></svg>
+              <div>
+                <p class="font-bold text-base">Часть гостей уходит</p>
+                <p class="text-sm" style="color:var(--color-muted)">
+                  Чек только на уходящих — стол остаётся открыт
+                </p>
+              </div>
+            </button>
           </div>
         }
 
-        @if (checkoutStep() === 'pay' && !split()) {
+        @if (checkoutStep() === 'pay' && !split() && !partial()) {
           <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3">
             @for (item of coItems(); track item.id) {
               <div class="flex items-center gap-2 py-2" style="border-bottom:1px solid var(--color-border)">
@@ -705,6 +716,83 @@ const POLL_MS = 10_000;
             </button>
           </div>
         }
+
+        @if (checkoutStep() === 'pay' && partial()) {
+          <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-2">
+            <p class="text-sm" style="color:var(--color-muted)">
+              Отметь, кто уходит — чек будет только на них, остальные продолжают сидеть.
+            </p>
+            @for (grp of checkoutGuestGroups(); track grp.guest) {
+              <div (click)="togglePartialGuest(grp.guest)"
+                   class="rounded-xl overflow-hidden cursor-pointer"
+                   [style]="partialSel()[grp.guest]
+                     ? 'border:2px solid var(--color-gold)'
+                     : 'border:1.5px solid var(--color-border)'">
+                <div class="flex items-center gap-2 px-3 py-2.5"
+                     [style.background]="partialSel()[grp.guest] ? 'var(--color-gold-light)' : 'white'">
+                  <span class="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
+                        [style]="partialSel()[grp.guest]
+                          ? 'background:var(--color-gold);color:white'
+                          : 'border:1.5px solid var(--color-border-mid);background:white'">
+                    @if (partialSel()[grp.guest]) { <svg lucideCheck [size]="14"></svg> }
+                  </span>
+                  <span class="font-semibold text-sm flex-1">{{ guestLabel(grp.guest) }}</span>
+                  <span class="font-bold text-sm flex-shrink-0" style="color:var(--color-gold-hover)">
+                    {{ grp.total | number:'1.0-0' }} ₽
+                  </span>
+                </div>
+                <div class="px-3 py-2" style="background:white">
+                  @for (item of grp.items; track item.id) {
+                    <div class="flex items-center gap-2 py-0.5 text-sm">
+                      <span class="flex-1 truncate">{{ item.menu_item_name }}</span>
+                      <span style="color:var(--color-muted)">× {{ item.quantity }}</span>
+                      <span style="color:var(--color-gold-hover);min-width:52px;text-align:right">
+                        {{ item.subtotal | number:'1.0-0' }} ₽
+                      </span>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+          <div class="flex-shrink-0 px-4 pt-3 pb-5" style="border-top:1px solid var(--color-border)">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium" style="color:var(--color-muted)">
+                Выбрано: {{ partialItems().length }} поз.
+              </span>
+              <span class="text-2xl font-bold">{{ partialTotal() | number:'1.0-0' }} ₽</span>
+            </div>
+            @if (depositInfo()) {
+              @if (partialAllSelected()) {
+                <p class="text-xs mb-3" style="color:var(--color-gold-hover)">
+                  Выбраны все гости — стол закроется, депозит
+                  {{ depositInfo()!.deposit_amount | number:'1.0-0' }} ₽ будет учтён в чеке.
+                </p>
+              } @else {
+                <p class="text-xs mb-3" style="color:var(--color-muted)">
+                  Депозит {{ depositInfo()!.deposit_amount | number:'1.0-0' }} ₽ будет учтён
+                  при полном расчёте стола.
+                </p>
+              }
+            }
+            <div class="flex gap-2 mb-4">
+              @for (p of payments; track p.value) {
+                <button (click)="singlePay.set(p.value)" class="btn btn-sm flex items-center gap-1" style="flex:1"
+                        [class]="singlePay() === p.value ? 'btn-primary' : 'btn-outline'">
+                  <svg [lucideIcon]="p.icon" [size]="14"></svg> {{ p.label }}
+                </button>
+              }
+            </div>
+            <button (click)="confirm()" [disabled]="submitting() || !partialItems().length"
+                    class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px"
+                    [style.opacity]="!partialItems().length ? '0.5' : '1'">
+              @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> }
+              {{ submitting() ? '...'
+                 : partialAllSelected() ? 'Закрыть счёт и печать'
+                 : 'Чек на выбранных и печать' }}
+            </button>
+          </div>
+        }
       </div>
     }
   `
@@ -753,8 +841,10 @@ export class TablesPage implements OnInit, OnDestroy {
   checkout     = signal<Order | null>(null);
   checkoutStep = signal<'mode' | 'pay'>('mode');
   split        = signal(false);
+  partial      = signal(false);
   submitting   = signal(false);
   singlePay    = signal<PaymentMethod>('cash');
+  partialSel   = signal<Record<number, boolean>>({});
   private guestBillMap = signal<Record<number, number>>({});
   private billPayMap   = signal<Record<number, PaymentMethod>>({});
 
@@ -806,6 +896,15 @@ export class TablesPage implements OnInit, OnDestroy {
       const items = byGuest.get(guest)!;
       return { guest, items, total: items.reduce((s, i) => s + +i.subtotal, 0) };
     });
+  });
+
+  // Частичный расчёт: чек только на отмеченных гостей, стол остаётся открыт
+  partialItems = computed(() =>
+    this.checkoutGuestGroups().filter(g => this.partialSel()[g.guest]).flatMap(g => g.items));
+  partialTotal = computed(() => this.partialItems().reduce((s, i) => s + +i.subtotal, 0));
+  partialAllSelected = computed(() => {
+    const groups = this.checkoutGuestGroups();
+    return groups.length > 0 && groups.every(g => this.partialSel()[g.guest]);
   });
 
   splitBills = computed(() => {
@@ -1027,15 +1126,28 @@ export class TablesPage implements OnInit, OnDestroy {
     this.checkout.set(o);
     this.checkoutStep.set('mode');
     this.split.set(false);
+    this.partial.set(false);
     this.singlePay.set('cash');
+    this.partialSel.set({});
     this.guestBillMap.set({});
     this.billPayMap.set({});
     this.submitting.set(false);
   }
   closeCheckout() { this.checkout.set(null); this.checkoutStep.set('mode'); }
-  chooseSingle() { this.split.set(false); this.checkoutStep.set('pay'); }
+  chooseSingle() { this.split.set(false); this.partial.set(false); this.checkoutStep.set('pay'); }
+  choosePartial() {
+    this.partial.set(true);
+    this.split.set(false);
+    this.partialSel.set({});
+    this.singlePay.set('cash');
+    this.checkoutStep.set('pay');
+  }
+  togglePartialGuest(guest: number) {
+    this.partialSel.update(m => ({ ...m, [guest]: !m[guest] }));
+  }
   chooseSplit() {
     this.split.set(true);
+    this.partial.set(false);
     const gbm: Record<number, number> = {};
     const bpm: Record<number, PaymentMethod> = {};
     this.checkoutGuestGroups().forEach((grp, idx) => { gbm[grp.guest] = idx + 1; bpm[idx + 1] = 'cash'; });
@@ -1056,12 +1168,16 @@ export class TablesPage implements OnInit, OnDestroy {
 
   confirm() {
     const o = this.checkout();
-    if (!o || this.submitting() || !this.coItems().length) return;
+    const items = this.partial() ? this.partialItems() : this.coItems();
+    if (!o || this.submitting() || !items.length) return;
     this.submitting.set(true);
     const billsPayload = this.split()
       ? this.splitBills().map(b => ({ item_ids: b.items.map(i => i.id), payment_method: this.billPayOf(b.billNo) }))
-      : [{ item_ids: this.coItems().map(i => i.id), payment_method: this.singlePay() }];
-    const d = this.split() ? null : this.depositInfo();
+      : [{ item_ids: items.map(i => i.id), payment_method: this.singlePay() }];
+    // Депозит брони списываем только при полном закрытии стола одним чеком
+    const closesAll = !this.partial() || this.partialAllSelected();
+    const d = this.split() || !closesAll ? null : this.depositInfo();
+    const staysOpen = this.partial() && !this.partialAllSelected();
     this.orderApi.checkoutOrder(
       o.id, billsPayload,
       d ? +d.deposit_amount : undefined,
@@ -1070,7 +1186,9 @@ export class TablesPage implements OnInit, OnDestroy {
       next: res => {
         this.submitting.set(false);
         this.printer.printHardware(res.receipts);
-        this.toast.success(res.receipts.length > 1 ? 'Чеки сформированы' : 'Чек сформирован');
+        this.toast.success(staysOpen
+          ? 'Чек сформирован — стол остаётся открыт'
+          : res.receipts.length > 1 ? 'Чеки сформированы' : 'Чек сформирован');
         this.closeCheckout();
         this.load();
       },

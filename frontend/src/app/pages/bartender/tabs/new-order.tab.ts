@@ -70,7 +70,7 @@ const MENU_REFRESH_MS = 60_000;
                     <svg lucideGlassWater [size]="40" style="color:#f59e0b"></svg>
                   }
                   <span class="font-bold text-sm text-center leading-tight uppercase tracking-wide"
-                        style="color:#f1f5f9">{{ cat.name }}</span>
+                        style="color:#f1f5f9;word-break:break-word;max-width:100%">{{ cat.name }}</span>
                   <span class="text-xs" style="color:#64748b">{{ cat.items.length }} поз.</span>
                 </button>
               }
@@ -97,7 +97,7 @@ const MENU_REFRESH_MS = 60_000;
                       <span style="font-size:2.5rem;line-height:1;color:#f59e0b">✚</span>
                     }
                     <span class="font-bold text-sm text-center leading-tight uppercase tracking-wide"
-                          style="color:#f1f5f9">{{ group.name }}</span>
+                          style="color:#f1f5f9;word-break:break-word;max-width:100%">{{ group.name }}</span>
                     @if (group.items.length > 1) {
                       <span class="text-xs" style="color:#64748b">{{ group.items.length }} вар.</span>
                     } @else {
@@ -168,7 +168,7 @@ const MENU_REFRESH_MS = 60_000;
           @for (line of cartLines(); track line.item.id) {
             <div class="flex items-center gap-2 py-1.5" style="border-bottom:1px solid #1e293b">
               <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate">{{ line.item.name }}</p>
+                <p class="text-sm font-medium leading-tight" style="word-break:break-word">{{ line.item.name }}</p>
                 <p class="text-xs" style="color:#64748b">{{ line.item.price }} ₽</p>
               </div>
               <div class="flex items-center gap-1">
