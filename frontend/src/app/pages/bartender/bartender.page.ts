@@ -1,12 +1,13 @@
 import { Component, OnInit, OnDestroy, signal, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { OrderApi } from '../../entities/order';
 import { ShiftApi } from '../../entities/shift';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService, TouchKeyboardComponent } from '../../shared/ui';
 import { KitchenTicket } from '../../core/models';
 import {
-  LucideGlassWater, LucideUtensilsCrossed, LucideBell, LucideBellOff, LucideCalendar,
+  LucideGlassWater, LucideUtensilsCrossed, LucideBell, LucideBellOff, LucideCalendar, LucideSmartphone,
 } from '@lucide/angular';
 import { BarOrdersTab } from './tabs/orders.tab';
 import { BarKitchenMonitorTab } from './tabs/kitchen-monitor.tab';
@@ -20,9 +21,9 @@ type Tab = 'orders' | 'kitchen' | 'new' | 'resv';
 @Component({
   selector: 'app-bartender',
   standalone: true,
-  imports: [CommonModule, TouchKeyboardComponent,
+  imports: [CommonModule, RouterModule, TouchKeyboardComponent,
     BarOrdersTab, BarKitchenMonitorTab, BarNewOrderTab, BarReservationsTab,
-    LucideGlassWater, LucideUtensilsCrossed, LucideBell, LucideBellOff, LucideCalendar],
+    LucideGlassWater, LucideUtensilsCrossed, LucideBell, LucideBellOff, LucideCalendar, LucideSmartphone],
   template: `
     <div class="flex flex-col" style="height:100dvh;background:#0f172a;color:#f1f5f9">
 
@@ -77,6 +78,13 @@ type Tab = 'orders' | 'kitchen' | 'new' | 'resv';
               }
             </button>
           </div>
+
+          <!-- Мобильный интерфейс броней — показываем только на телефоне -->
+          <a routerLink="/bartender/reservations" title="Брони (мобильная версия)"
+             class="flex sm:hidden items-center justify-center rounded-xl"
+             style="background:#1e293b;min-width:48px;min-height:48px">
+            <svg lucideSmartphone [size]="20" style="color:#f59e0b"></svg>
+          </a>
 
           <button (click)="toggleSound()"
                   class="flex items-center justify-center rounded-xl"
