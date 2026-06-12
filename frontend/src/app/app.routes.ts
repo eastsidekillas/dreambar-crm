@@ -64,6 +64,12 @@ export const routes: Routes = [
 
   // ── Bartender ────────────────────────────────────────────────────
   {
+    // Мобильный интерфейс броней (телефон бармена), отдельно от барного терминала
+    path: 'bartender/reservations',
+    loadComponent: () => import('./pages/bartender/reservations-mobile.page').then(m => m.BartenderReservationsMobilePage),
+    canActivate: [roleGuard('bartender')],
+  },
+  {
     path: 'bartender',
     loadComponent: () => import('./pages/bartender/bartender.page').then(m => m.BartenderPage),
     canActivate: [roleGuard('bartender')],
