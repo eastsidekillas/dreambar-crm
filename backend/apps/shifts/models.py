@@ -16,6 +16,15 @@ class Shift(models.Model):
         ordering = ['-date']
         verbose_name = 'Смена'
         verbose_name_plural = 'Смены'
+        constraints = [
+            # Открытая смена может быть только одна — защита от дублей
+            # при повторном нажатии «Открыть смену» после обрыва связи
+            models.UniqueConstraint(
+                fields=['is_open'],
+                condition=models.Q(is_open=True),
+                name='only_one_open_shift',
+            ),
+        ]
 
     def __str__(self):
         return f"Смена {self.date} ({'открыта' if self.is_open else 'закрыта'})"

@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { AnalyticsApi } from '../../../entities/analytics';
 import { OrderApi } from '../../../entities/order';
 import { ShiftApi } from '../../../entities/shift';
+import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Shift, ShiftDetail, Receipt } from '../../../core/models';
 import {
   LucideDynamicIcon,
@@ -571,7 +572,7 @@ export class ShiftsComponent implements OnInit {
     return [...map.values()].sort((a, b) => b.total - a.total);
   });
 
-  constructor(private analyticsApi: AnalyticsApi, private orderApi: OrderApi, private shiftApi: ShiftApi) {}
+  constructor(private analyticsApi: AnalyticsApi, private orderApi: OrderApi, private shiftApi: ShiftApi, private toast: ToastService) {}
 
   ngOnInit() { this.load(); }
 
@@ -582,9 +583,24 @@ export class ShiftsComponent implements OnInit {
     });
   }
 
-  createShift()         { this.shiftApi.createShift({}).subscribe(() => this.load()); }
-  closeShift(s: Shift)  { this.shiftApi.closeShift(s.id).subscribe(() => this.load()); }
-  reopenShift(s: Shift) { this.shiftApi.reopenShift(s.id).subscribe(() => this.load()); }
+  createShift() {
+    this.shiftApi.createShift({}).subscribe({
+      next:  () => { this.toast.success('Смена открыта'); this.load(); },
+      error: err => this.toast.apiError(err, 'Не удалось открыть смену'),
+    });
+  }
+  closeShift(s: Shift) {
+    this.shiftApi.closeShift(s.id).subscribe({
+      next:  () => { this.toast.success('Смена закрыта'); this.load(); },
+      error: err => this.toast.apiError(err, 'Не удалось закрыть смену — она осталась открытой'),
+    });
+  }
+  reopenShift(s: Shift) {
+    this.shiftApi.reopenShift(s.id).subscribe({
+      next:  () => this.load(),
+      error: err => this.toast.apiError(err, 'Не удалось переоткрыть смену'),
+    });
+  }
 
   toggleDetail(shift: Shift) {
     if (this.openedId() === shift.id) { this.openedId.set(null); this.detail.set(null); return; }

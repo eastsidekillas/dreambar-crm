@@ -171,10 +171,17 @@ export class BartenderPage implements OnInit, OnDestroy {
     if (this.audioCtx?.state === 'suspended') this.audioCtx.resume();
   }
 
+  /** Запросы в полёте: пока не завершились, новый тик поллинга пропускается,
+   *  чтобы в медленной сети запросы не наслаивались друг на друга. */
+  private pollBusy = 0;
+
   load() {
+    if (this.pollBusy > 0) return;
+    this.pollBusy = 2;
     this.loading.set(true);
     this.orderApi.getKitchenOrders('bar').subscribe({
       next: d => {
+        this.pollBusy--;
         this.noShift.set(d.shift === null);
         this.active.set(d.active);
         this.ready.set(d.ready);
@@ -182,15 +189,17 @@ export class BartenderPage implements OnInit, OnDestroy {
         this.loading.set(false);
         this.detectNew(d.active);
       },
-      error: () => this.loading.set(false),
+      error: () => { this.pollBusy--; this.loading.set(false); },
     });
     this.orderApi.getKitchenOrders('kitchen').subscribe({
       next: d => {
+        this.pollBusy--;
         this.kitchenActive.set(d.active);
         this.kitchenReady.set(d.ready);
         const unseen = d.ready.filter(t => !this.kitchenReadySeenIds.has(t.order_id)).length;
         this.kitchenUnseenCount.set(unseen);
       },
+      error: () => { this.pollBusy--; },
     });
   }
 

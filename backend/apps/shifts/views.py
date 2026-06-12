@@ -1,3 +1,4 @@
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -10,6 +11,21 @@ from .serializers import ShiftSerializer
 class ShiftViewSet(viewsets.ModelViewSet):
     queryset = Shift.objects.all()
     serializer_class = ShiftSerializer
+
+    def create(self, request, *args, **kwargs):
+        """Идемпотентно: если открытая смена уже есть — возвращаем её, а не создаём вторую."""
+        existing = Shift.objects.filter(is_open=True).order_by('-opened_at').first()
+        if existing:
+            return Response(ShiftSerializer(existing).data, status=status.HTTP_200_OK)
+        try:
+            with transaction.atomic():
+                return super().create(request, *args, **kwargs)
+        except IntegrityError:
+            # Гонка двух устройств: сработал констрейнт only_one_open_shift
+            existing = Shift.objects.filter(is_open=True).order_by('-opened_at').first()
+            if existing:
+                return Response(ShiftSerializer(existing).data, status=status.HTTP_200_OK)
+            raise
 
     def perform_create(self, serializer):
         serializer.save(opened_by=self.request.user)

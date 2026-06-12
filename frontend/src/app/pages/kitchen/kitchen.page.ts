@@ -231,10 +231,16 @@ export class KitchenScreen implements OnInit, OnDestroy {
     if (this.audioCtx?.state === 'suspended') this.audioCtx.resume();
   }
 
+  /** Тик поллинга пропускается, пока предыдущий запрос не завершился. */
+  private pollBusy = false;
+
   load() {
+    if (this.pollBusy) return;
+    this.pollBusy = true;
     this.loading.set(true);
     this.orderApi.getKitchenOrders().subscribe({
       next: d => {
+        this.pollBusy = false;
         this.noShift.set(d.shift === null);
         this.active.set(d.active);
         this.ready.set(d.ready);
@@ -243,7 +249,7 @@ export class KitchenScreen implements OnInit, OnDestroy {
         this.loading.set(false);
         this.detectNewOrders(d.active);
       },
-      error: () => this.loading.set(false)
+      error: () => { this.pollBusy = false; this.loading.set(false); }
     });
   }
 

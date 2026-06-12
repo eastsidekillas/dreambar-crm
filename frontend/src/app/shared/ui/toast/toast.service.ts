@@ -35,6 +35,9 @@ export class ToastService {
 }
 
 export function extractApiError(err: any, fallback = 'Ошибка сервера'): string {
+  // Сетевые сбои: запрос не дошёл (status 0) или сервер не ответил вовремя
+  if (err?.name === 'TimeoutError') return 'Сервер не отвечает — проверьте связь и повторите';
+  if (err?.status === 0)            return 'Нет связи с сервером — проверьте Wi-Fi';
   const data = err?.error;
   if (!data) return err?.message || fallback;
   if (typeof data === 'string' && data.length < 300) return data;
