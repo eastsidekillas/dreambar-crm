@@ -8,7 +8,7 @@ backend/staticfiles/
 backend/media/
 
 # Secrets / env
-TEST.env
+.env
 backend/.env
 frontend/.env
 

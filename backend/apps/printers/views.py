@@ -157,7 +157,8 @@ def _agent_printer(request):
     if not key or not printer_id:
         return None
     return Printer.objects.filter(
-        pk=printer_id, agent_key=key, is_active=True, connection='agent',
+        pk=printer_id, agent_key=key, is_active=True,
+        connection__in=('agent', 'agent_atol'),
     ).first()
 
 
