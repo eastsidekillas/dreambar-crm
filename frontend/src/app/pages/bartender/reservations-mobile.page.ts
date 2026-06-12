@@ -23,8 +23,8 @@ const REFRESH_MS = 60_000;
     <div class="flex flex-col" style="height:100dvh;background:#0f172a;color:#f1f5f9">
 
       <!-- ── Шапка ─────────────────────────────────────────────────── -->
-      <header class="flex-shrink-0 px-4 py-3 flex items-center justify-between"
-              style="background:#0a0f1e;border-bottom:1px solid #1e293b">
+      <header class="flex-shrink-0 px-4 pb-3 flex items-center justify-between"
+              style="background:#0a0f1e;border-bottom:1px solid #1e293b;padding-top:calc(0.75rem + env(safe-area-inset-top, 0px))">
         <div class="flex items-center gap-2.5">
           <svg lucideCalendar [size]="22" style="color:#f59e0b"></svg>
           <div class="leading-tight">
@@ -147,8 +147,8 @@ const REFRESH_MS = 60_000;
     <!-- ── Форма: на весь экран ─────────────────────────────────────── -->
     @if (formOpen()) {
       <div class="fixed inset-0 z-50 flex flex-col" style="background:#0f172a;color:#f1f5f9">
-        <header class="flex-shrink-0 px-4 py-3 flex items-center justify-between"
-                style="background:#0a0f1e;border-bottom:1px solid #1e293b">
+        <header class="flex-shrink-0 px-4 pb-3 flex items-center justify-between"
+                style="background:#0a0f1e;border-bottom:1px solid #1e293b;padding-top:calc(0.75rem + env(safe-area-inset-top, 0px))">
           <p class="font-bold text-lg truncate">
             {{ editing() ? 'Бронь — ' + editing()!.name : 'Новая бронь' }}
           </p>
@@ -268,9 +268,14 @@ const REFRESH_MS = 60_000;
           }
         </div>
 
-        <div class="flex-shrink-0 p-3 safe-bottom" style="background:#0a0f1e;border-top:1px solid #1e293b">
+        <div class="flex-shrink-0 p-3 safe-bottom flex gap-2" style="background:#0a0f1e;border-top:1px solid #1e293b">
+          <button (click)="closeForm()"
+                  class="rounded-xl font-semibold px-5"
+                  style="background:#1e293b;color:#94a3b8;border:1px solid #334155;min-height:54px">
+            Закрыть
+          </button>
           <button (click)="save()" [disabled]="saving() || !form.name.trim() || !form.time_start"
-                  class="w-full rounded-xl font-bold"
+                  class="flex-1 rounded-xl font-bold"
                   [style.opacity]="!form.name.trim() || !form.time_start ? '0.5' : '1'"
                   style="background:#f59e0b;color:#0f172a;min-height:54px">
             {{ saving() ? 'Сохранение...' : (editing() ? 'Сохранить изменения' : 'Сохранить бронь') }}
