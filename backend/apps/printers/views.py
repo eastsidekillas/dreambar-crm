@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.db.models import Q
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.permissions import IsAdminUser, AllowAny
 from rest_framework.response import Response
@@ -149,6 +150,53 @@ class PrinterTestView(APIView):
             return Response({'ok': True})
         except Exception as e:
             return Response({'ok': False, 'error': str(e)})
+
+
+class PrinterAgentConfigView(APIView):
+    """Готовый config.ini для агента печати — скачать и положить рядом с .exe."""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, pk):
+        try:
+            printer = Printer.objects.get(pk=pk)
+        except Printer.DoesNotExist:
+            return Response({'detail': 'Не найден.'}, status=404)
+        if printer.connection not in ('agent', 'agent_atol'):
+            return Response({'detail': 'Принтер сетевой — агент и config.ini не нужны.'},
+                            status=400)
+
+        backend_url = request.build_absolute_uri('/api').rstrip('/')
+        lines = [
+            '; Конфигурация агента печати DreamBar — сгенерирована в админке.',
+            f'; Принтер: {printer.name}',
+            '; Положите файл рядом с dreambar-print-agent.exe и запустите агента.',
+            '[agent]',
+            f'backend_url = {backend_url}',
+            f'printer_id = {printer.pk}',
+            f'agent_key = {printer.agent_key}',
+            'poll_seconds = 2',
+        ]
+        if printer.connection == 'agent_atol':
+            lines += [
+                'mode = atol',
+                '; пусто — ККТ ищется по USB автоматически;',
+                '; либо укажите COM-порт из «Тест драйвера ККТ» (напр. COM4)',
+                'atol_com_file = ',
+                'atol_baud = 115200',
+                r'; пусто — стандартная установка ДТО 10; иначе путь к fptr10.dll',
+                'atol_library = ',
+            ]
+        else:
+            lines += [
+                'mode = windows',
+                '; имя принтера как в «Устройства и принтеры»; пусто — принтер по умолчанию',
+                'windows_printer = ',
+            ]
+
+        resp = HttpResponse('\n'.join(lines) + '\n',
+                            content_type='text/plain; charset=utf-8')
+        resp['Content-Disposition'] = 'attachment; filename="config.ini"'
+        return resp
 
 
 def _agent_printer(request):

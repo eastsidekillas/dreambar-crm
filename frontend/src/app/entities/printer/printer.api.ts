@@ -23,6 +23,9 @@ export class PrinterApi {
   testPrinter(id: number): Observable<{ ok: boolean; error?: string }> {
     return this.http.post<{ ok: boolean; error?: string }>(`${BASE}/printers/${id}/test/`, {});
   }
+  downloadAgentConfig(id: number): Observable<Blob> {
+    return this.http.get(`${BASE}/printers/${id}/agent-config/`, { responseType: 'blob' });
+  }
   getReceiptSettings(): Observable<ReceiptSettings> {
     return this.http.get<ReceiptSettings>(`${BASE}/printers/receipt-settings/`);
   }

@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    PrinterListView, PrinterDetailView, PrinterTestView,
+    PrinterListView, PrinterDetailView, PrinterTestView, PrinterAgentConfigView,
     AgentJobsView, AgentJobAckView, ReceiptSettingsView,
 )
 
@@ -9,6 +9,7 @@ urlpatterns = [
     path('printers/receipt-settings/',         ReceiptSettingsView.as_view(), name='receipt-settings'),
     path('printers/<int:pk>/',                 PrinterDetailView.as_view(),   name='printer-detail'),
     path('printers/<int:pk>/test/',            PrinterTestView.as_view(),     name='printer-test'),
+    path('printers/<int:pk>/agent-config/',    PrinterAgentConfigView.as_view(), name='printer-agent-config'),
     path('print/agent/jobs/',                  AgentJobsView.as_view(),       name='agent-jobs'),
     path('print/agent/jobs/<int:job_id>/ack/', AgentJobAckView.as_view(),     name='agent-job-ack'),
 ]

@@ -1,3 +1,5 @@
+import secrets
+
 from django.db import models
 
 
@@ -28,6 +30,12 @@ class Printer(models.Model):
         db_table = 'orders_printer'
         verbose_name = 'Принтер'
         verbose_name_plural = 'Принтеры'
+
+    def save(self, *args, **kwargs):
+        # агентскому принтеру ключ нужен всегда — генерируем, чтобы не вписывать руками
+        if self.connection in ('agent', 'agent_atol') and not self.agent_key:
+            self.agent_key = secrets.token_hex(16)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.name} ({self.get_connection_display()})"
