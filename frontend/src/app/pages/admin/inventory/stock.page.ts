@@ -1,8 +1,10 @@
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { forkJoin } from 'rxjs';
 import { InventoryApi } from '../../../entities/inventory';
-import { Product, InventoryMovement, MovementReason, PRODUCT_UNITS } from '../../../core/models';
+import { MenuApi } from '../../../entities/menu';
+import { Product, InventoryMovement, MovementReason, MenuItem, PRODUCT_UNITS } from '../../../core/models';
 import { BdTableComponent, BdTableColumn, BdDrawerComponent } from '../../../shared/ui';
 import {
   LucideSearch, LucidePackage, LucidePlus, LucideMinus, LucideClock, LucidePencil,
@@ -32,7 +34,11 @@ const REASON_LABELS: Record<MovementReason, string> = {
              class="field" style="padding-left:30px"
              placeholder="Поиск по названию товара..."/>
     </div>
-    <button (click)="openCreate()" class="btn btn-primary btn-sm ml-auto">+ Товар</button>
+    <div class="flex gap-2 ml-auto">
+      <button (click)="openFromMenu()" class="btn btn-ghost btn-sm"
+              style="border:1px solid var(--color-border)">Из меню</button>
+      <button (click)="openCreate()" class="btn btn-primary btn-sm">+ Товар</button>
+    </div>
   </div>
 
   @if (filtered().length) {
@@ -156,6 +162,51 @@ const REASON_LABELS: Record<MovementReason, string> = {
     </bd-drawer>
   }
 
+  <!-- ── Drawer: добавление товаров из меню ─────────────────────── -->
+  @if (fromMenuOpen()) {
+    <bd-drawer title="Добавить из меню" (closed)="fromMenuOpen.set(false)">
+      <div class="space-y-3">
+        <p class="text-xs" style="color:var(--color-muted)">
+          Для готовых позиций (бутылки, снеки): создаётся товар на складе в штуках
+          и рецептура «1 шт» — продажи будут списываться автоматически.
+          Показаны только позиции без рецептуры.
+        </p>
+        <input [ngModel]="menuSearch()" (ngModelChange)="menuSearch.set($event)"
+               class="field" placeholder="Поиск по меню..."/>
+        @if (fromMenuLoading()) {
+          <p class="text-sm" style="color:var(--color-muted)">Загрузка...</p>
+        } @else if (filteredMenuGroups().length) {
+          @for (g of filteredMenuGroups(); track g.name) {
+            <div>
+              <p class="section-title mb-1">{{ g.name }}</p>
+              @for (mi of g.items; track mi.id) {
+                <label class="flex items-center gap-2 py-1 text-sm" style="cursor:pointer">
+                  <input type="checkbox" [checked]="selectedMenuIds().has(mi.id)"
+                         (change)="toggleMenuItem(mi.id)"/>
+                  <span>{{ mi.name }}</span>
+                  @if (mi.volume) {
+                    <span class="text-xs" style="color:var(--color-muted)">{{ mi.volume }}</span>
+                  }
+                </label>
+              }
+            </div>
+          }
+        } @else {
+          <p class="text-sm" style="color:var(--color-muted)">
+            {{ menuSearch() ? 'Ничего не найдено' : 'У всех позиций меню рецептуры уже заполнены' }}
+          </p>
+        }
+        <div class="flex gap-2 pt-1">
+          <button (click)="addFromMenu()" class="btn btn-primary btn-sm"
+                  [disabled]="!selectedMenuIds().size || fromMenuSaving()">
+            {{ fromMenuSaving() ? 'Добавление...' : 'Добавить (' + selectedMenuIds().size + ')' }}
+          </button>
+          <button (click)="fromMenuOpen.set(false)" class="btn btn-ghost btn-sm">Отмена</button>
+        </div>
+      </div>
+    </bd-drawer>
+  }
+
   <!-- ── Drawer: создание / редактирование товара ───────────────── -->
   @if (formOpen()) {
     <bd-drawer [title]="formOpen() === 'create' ? 'Новый товар' : 'Редактировать товар'"
@@ -239,7 +290,27 @@ export class StockPage implements OnInit {
   movements        = signal<InventoryMovement[]>([]);
   movementsLoading = signal(false);
 
-  constructor(private inventoryApi: InventoryApi) {}
+  // ── Добавление из меню (drawer) ───────────────────────────────────
+  fromMenuOpen    = signal(false);
+  fromMenuLoading = signal(false);
+  fromMenuSaving  = signal(false);
+  menuSearch      = signal('');
+  unlinkedMenuItems = signal<MenuItem[]>([]);
+  selectedMenuIds   = signal<Set<number>>(new Set());
+
+  filteredMenuGroups = computed(() => {
+    const term = this.menuSearch().trim().toLowerCase();
+    const items = this.unlinkedMenuItems()
+      .filter(mi => !term || mi.name.toLowerCase().includes(term));
+    const groups = new Map<string, MenuItem[]>();
+    for (const mi of items) {
+      const key = mi.category_name || 'Без категории';
+      (groups.get(key) ?? groups.set(key, []).get(key)!).push(mi);
+    }
+    return [...groups.entries()].map(([name, list]) => ({ name, items: list }));
+  });
+
+  constructor(private inventoryApi: InventoryApi, private menuApi: MenuApi) {}
 
   ngOnInit() {
     this.inventoryApi.getProducts().subscribe(p => this.products.set(p));
@@ -317,6 +388,47 @@ export class StockPage implements OnInit {
         this.formOpen.set(null);
       });
     }
+  }
+
+  openFromMenu() {
+    this.fromMenuOpen.set(true);
+    this.fromMenuLoading.set(true);
+    this.menuSearch.set('');
+    this.selectedMenuIds.set(new Set());
+    forkJoin([this.menuApi.getMenuItems(), this.inventoryApi.getComponents()]).subscribe({
+      next: ([items, components]) => {
+        const linked = new Set(components.map(c => c.menu_item));
+        this.unlinkedMenuItems.set(items.filter(mi => mi.is_active && !linked.has(mi.id)));
+        this.fromMenuLoading.set(false);
+      },
+      error: () => this.fromMenuLoading.set(false),
+    });
+  }
+
+  toggleMenuItem(id: number) {
+    this.selectedMenuIds.update(s => {
+      const next = new Set(s);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  addFromMenu() {
+    const ids = [...this.selectedMenuIds()];
+    if (!ids.length) return;
+    this.fromMenuSaving.set(true);
+    this.inventoryApi.createProductsFromMenu(ids).subscribe({
+      next: created => {
+        this.products.update(list =>
+          [...list, ...created].sort((a, b) => a.name.localeCompare(b.name)));
+        this.fromMenuSaving.set(false);
+        this.fromMenuOpen.set(false);
+      },
+      error: e => {
+        alert(e.error?.detail ?? 'Ошибка');
+        this.fromMenuSaving.set(false);
+      },
+    });
   }
 
   toggleMovements(p: Product) {

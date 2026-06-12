@@ -37,6 +37,37 @@ class ProductViewSet(viewsets.ModelViewSet):
         )
         return Response(ProductSerializer(qs, many=True).data)
 
+    @action(detail=False, methods=['post'])
+    @transaction.atomic
+    def from_menu(self, request):
+        """POST {menu_item_ids: [..]} — создаёт товары склада из позиций меню
+        (готовая продукция: бутылки, снеки). Для каждой позиции: Product в штуках
+        + рецептура «1 шт», чтобы продажи сразу списывались со склада.
+        Позиции, у которых рецептура уже есть, пропускаются."""
+        from apps.menu.models import MenuItem
+
+        ids = request.data.get('menu_item_ids')
+        if not isinstance(ids, list) or not ids:
+            return Response({'detail': 'menu_item_ids — непустой список.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        items = MenuItem.objects.filter(pk__in=ids).prefetch_related('components')
+        created = []
+        for mi in items:
+            if mi.components.exists():
+                continue
+            product = Product.objects.create(
+                name=mi.name,
+                unit='шт',
+                pack_size=Decimal('1'),
+                purchase_price=mi.cost_price,
+            )
+            MenuItemComponent.objects.create(menu_item=mi, product=product, quantity=Decimal('1'))
+            created.append(product)
+
+        if not created:
+            return Response({'detail': 'У выбранных позиций рецептуры уже заполнены.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ProductSerializer(created, many=True).data, status=status.HTTP_201_CREATED)
+
 
 class ComponentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]
