@@ -9,13 +9,13 @@ import { ShiftApi } from '../../../entities/shift';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Shift } from '../../../core/models';
-import { LucideLogOut, LucideKeyRound } from '@lucide/angular';
+import { LucideLogOut, LucideKeyRound, LucideArrowLeftRight } from '@lucide/angular';
 import { ROLE_LABEL } from '../../../shared/lib/roles';
 
 @Component({
   selector: 'app-waiter-profile',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideLogOut, LucideKeyRound],
+  imports: [CommonModule, FormsModule, LucideLogOut, LucideKeyRound, LucideArrowLeftRight],
   styles: [`
     .profile-avatar {
       width: 64px; height: 64px; border-radius: 50%;
@@ -94,7 +94,16 @@ import { ROLE_LABEL } from '../../../shared/lib/roles';
         </div>
       </div>
 
-      <!-- ── Выход ─────────────────────────────────────── -->
+      <!-- ── Смена роли / выход ────────────────────────── -->
+      @if (auth.hasRoleChoice()) {
+        <button (click)="auth.switchRole()"
+                class="btn btn-full flex items-center justify-center gap-2"
+                style="background:var(--color-surface);color:var(--color-text);border:1.5px solid var(--color-border);min-height:48px"
+                title="Вернуться к выбору роли без выхода из аккаунта">
+          <svg lucideArrowLeftRight [size]="16"></svg> Сменить роль
+        </button>
+      }
+
       <button (click)="logout()"
               class="btn btn-full flex items-center justify-center gap-2"
               style="background:var(--color-red-bg);color:var(--color-red);border:none;min-height:48px"

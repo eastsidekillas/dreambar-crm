@@ -450,6 +450,8 @@ export class PinLoginPage implements OnInit, OnDestroy {
       next: tokens => {
         localStorage.setItem('access_token', tokens.access);
         localStorage.setItem('refresh_token', tokens.refresh);
+        // Новый вход — старый выбор роли не должен переживать авторизацию
+        this.auth.clearActiveRole();
         this.auth.fetchProfile().subscribe(user => {
           this.loading.set(false);
           if (user.must_change_password) {
