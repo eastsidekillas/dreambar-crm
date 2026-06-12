@@ -75,9 +75,9 @@ import { tableChips } from './bar-ui';
                      [style.background]="itemBg(it.kitchen_status)"
                      [style.opacity]="it.kitchen_status === 'ready' ? '0.5' : '1'">
                   <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="text-xl font-bold" style="color:#f59e0b">{{ it.quantity }}×</span>
-                      <span class="font-semibold truncate">{{ it.name }}</span>
+                    <div class="flex items-baseline gap-2">
+                      <span class="text-xl font-bold flex-shrink-0" style="color:#f59e0b">{{ it.quantity }}×</span>
+                      <span class="font-semibold leading-tight" style="word-break:break-word">{{ it.name }}</span>
                     </div>
                     @if (it.volume) {
                       <p class="text-xs mt-0.5" style="color:#94a3b8">{{ it.volume }}</p>
