@@ -5,5 +5,3 @@ pyserial>=3.5                            # режим serial (COM-порт)
 python-escpos>=3.1                       # режим usb (libusb)
 pyusb>=1.2                               # режим usb
 pyinstaller>=6.0                         # только для сборки .exe
-# режим atol: libfptr10 НЕ ставится через pip — файл libfptr10.py берётся из
-# дистрибутива «Драйвер ККТ 10» АТОЛ (bindings/python) и кладётся рядом с агентом.

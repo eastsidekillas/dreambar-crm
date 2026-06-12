@@ -87,7 +87,7 @@ class ReceiptSettingsView(APIView):
                 return Response({'detail': 'Заголовок чека не может быть пустым.'}, status=400)
             rs.title = title[:50]
         if 'subtitle' in data:
-            rs.subtitle = str(data['subtitle']).strip()[:100]
+            rs.subtitle = str(data['subtitle']).strip()[:500]
         if 'footer' in data:
             rs.footer = str(data['footer']).strip()[:100]
         if 'qr_data' in data:
@@ -161,7 +161,7 @@ class PrinterAgentConfigView(APIView):
             printer = Printer.objects.get(pk=pk)
         except Printer.DoesNotExist:
             return Response({'detail': 'Не найден.'}, status=404)
-        if printer.connection not in ('agent', 'agent_atol'):
+        if printer.connection != 'agent':
             return Response({'detail': 'Принтер сетевой — агент и config.ini не нужны.'},
                             status=400)
 
@@ -175,23 +175,10 @@ class PrinterAgentConfigView(APIView):
             f'printer_id = {printer.pk}',
             f'agent_key = {printer.agent_key}',
             'poll_seconds = 2',
+            'mode = windows',
+            '; имя принтера как в «Устройства и принтеры»; пусто — принтер по умолчанию',
+            'windows_printer = ',
         ]
-        if printer.connection == 'agent_atol':
-            lines += [
-                'mode = atol',
-                '; пусто — ККТ ищется по USB автоматически;',
-                '; либо укажите COM-порт из «Тест драйвера ККТ» (напр. COM4)',
-                'atol_com_file = ',
-                'atol_baud = 115200',
-                r'; пусто — стандартная установка ДТО 10; иначе путь к fptr10.dll',
-                'atol_library = ',
-            ]
-        else:
-            lines += [
-                'mode = windows',
-                '; имя принтера как в «Устройства и принтеры»; пусто — принтер по умолчанию',
-                'windows_printer = ',
-            ]
 
         resp = HttpResponse('\n'.join(lines) + '\n',
                             content_type='text/plain; charset=utf-8')
@@ -205,8 +192,7 @@ def _agent_printer(request):
     if not key or not printer_id:
         return None
     return Printer.objects.filter(
-        pk=printer_id, agent_key=key, is_active=True,
-        connection__in=('agent', 'agent_atol'),
+        pk=printer_id, agent_key=key, is_active=True, connection='agent',
     ).first()
 
 
