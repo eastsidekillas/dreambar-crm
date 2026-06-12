@@ -75,6 +75,8 @@ const STATION_LABEL: Record<string, string> = {
                   <p class="text-xs mt-0.5" style="color:var(--color-muted)">
                     @if (p.connection === 'network') {
                       <svg lucideGlobe [size]="12" class="inline-block mr-1"></svg>Ethernet · {{ p.host }}:{{ p.port }} · {{ p.width }} симв.
+                    } @else if (p.connection === 'agent_atol') {
+                      <svg lucideUsb [size]="12" class="inline-block mr-1"></svg>АТОЛ ККТ (агент) · ключ: {{ p.agent_key || '—' }} · {{ p.width }} симв.
                     } @else {
                       <svg lucideUsb [size]="12" class="inline-block mr-1"></svg>USB-агент · ключ: {{ p.agent_key || '—' }} · {{ p.width }} симв.
                     }
@@ -266,7 +268,18 @@ const STATION_LABEL: Record<string, string> = {
                       [class]="form.connection === 'agent' ? 'btn-primary' : 'btn-outline'">
                 <svg lucideUsb [size]="14"></svg> USB-агент
               </button>
+              <button (click)="form.connection = 'agent_atol'"
+                      class="btn btn-sm flex items-center gap-1" style="flex:1"
+                      [class]="form.connection === 'agent_atol' ? 'btn-primary' : 'btn-outline'">
+                <svg lucideUsb [size]="14"></svg> АТОЛ ККТ
+              </button>
             </div>
+            @if (form.connection === 'agent_atol') {
+              <p class="text-xs mt-1" style="color:var(--color-muted)">
+                Фискальный регистратор АТОЛ (20Ф, 22Ф...) через агент с Драйвером ККТ 10.
+                Чеки печатаются нефискальным документом. Для ленты 57 мм ставьте ширину 32.
+              </p>
+            }
           </div>
 
           <!-- Network fields -->
@@ -284,7 +297,7 @@ const STATION_LABEL: Record<string, string> = {
           }
 
           <!-- Agent key -->
-          @if (form.connection === 'agent') {
+          @if (form.connection !== 'network') {
             <div>
               <label class="section-title block mb-1.5">Ключ агента</label>
               <input [(ngModel)]="form.agent_key" class="field"

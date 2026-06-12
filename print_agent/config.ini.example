@@ -10,7 +10,7 @@ agent_key = ЗАМЕНИТЕ_секрет
 ; Период опроса заданий, секунд
 poll_seconds = 2
 
-; Способ печати: windows | serial | usb | raw
+; Способ печати: windows | serial | usb | raw | atol
 mode = windows
 
 ; mode = windows: имя принтера как в «Устройства и принтеры».
@@ -27,3 +27,11 @@ windows_printer = ATOL RP-326
 
 ; mode = raw (Linux): путь к устройству
 ; raw_path = /dev/usb/lp0
+
+; mode = atol — ККТ АТОЛ (20Ф, 22Ф, 30Ф...) через Драйвер ККТ 10 (ДТО 10).
+; В админке у принтера должен быть тип «АТОЛ ККТ через локальный агент».
+; Пустой atol_com_file = поиск по USB автоматически (рекомендуется).
+; atol_com_file = COM4
+; atol_baud = 115200
+; Путь к fptr10.dll / libfptr10.so; пусто — стандартное расположение ДТО
+; atol_library =

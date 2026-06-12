@@ -545,7 +545,7 @@ export interface DeletedOrderItem {
   kitchen_status: string;
 }
 
-export type PrinterConnection = 'network' | 'agent';
+export type PrinterConnection = 'network' | 'agent' | 'agent_atol';
 
 export interface ReceiptSettings {
   title: string;

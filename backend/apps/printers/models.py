@@ -3,8 +3,9 @@ from django.db import models
 
 class Printer(models.Model):
     CONNECTIONS = [
-        ('network', 'Ethernet (raw, порт 9100)'),
-        ('agent',   'USB через локальный агент'),
+        ('network',    'Ethernet (raw, порт 9100)'),
+        ('agent',      'USB через локальный агент'),
+        ('agent_atol', 'АТОЛ ККТ через локальный агент (ДТО 10)'),
     ]
     STATIONS = [
         ('',       'Любые чеки'),
