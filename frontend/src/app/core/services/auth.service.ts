@@ -1,8 +1,8 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { switchMap, tap } from 'rxjs/operators';
-import { Observable } from 'rxjs';
+import { map, switchMap, tap } from 'rxjs/operators';
+import { Observable, throwError } from 'rxjs';
 import { TokenResponse, User, Role } from '../models';
 
 import { environment } from '../../../environments/environment';
@@ -29,6 +29,16 @@ export class AuthService {
         this.clearActiveRole();
       }),
       switchMap(() => this.fetchProfile())
+    );
+  }
+
+  /** Обновляет access-токен по refresh-токену (вызывается интерцептором на 401). */
+  refreshAccessToken(): Observable<string> {
+    const refresh = localStorage.getItem('refresh_token');
+    if (!refresh) return throwError(() => new Error('Нет refresh-токена'));
+    return this.http.post<{ access: string }>(`${API}/auth/token/refresh/`, { refresh }).pipe(
+      tap(r => localStorage.setItem('access_token', r.access)),
+      map(r => r.access),
     );
   }
 

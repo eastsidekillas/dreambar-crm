@@ -158,7 +158,10 @@ export class WaiterShell implements OnInit {
   }
 
   openShift() {
-    this.shiftApi.createShift({}).subscribe({ next: s => this.shift.set(s) });
+    this.shiftApi.createShift({}).subscribe({
+      next: s => this.shift.set(s),
+      error: err => this.toast.apiError(err, 'Не удалось открыть смену'),
+    });
   }
 
   onSubmitOrder(payload: CartSubmit) {

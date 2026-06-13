@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import Product, MenuItemComponent, InventoryMovement, PurchaseOrder, PurchaseOrderItem
+from .models import (
+    Product, MenuItemComponent, InventoryMovement, PurchaseOrder, PurchaseOrderItem,
+    ReceiptImport,
+)
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -78,3 +81,13 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
 
     def get_total(self, obj):
         return float(sum(i.qty_received * i.unit_price for i in obj.items.all()))
+
+class ReceiptImportSerializer(serializers.ModelSerializer):
+    status_label = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model  = ReceiptImport
+        fields = ['id', 'qr', 'hash', 'status', 'status_label', 'error', 'store',
+                  'total', 'purchased_at', 'result', 'purchase', 'created_at']
+        read_only_fields = ['hash', 'status', 'error', 'store', 'total',
+                            'purchased_at', 'result', 'purchase', 'created_at']

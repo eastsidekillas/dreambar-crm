@@ -1,16 +1,45 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, effect } from '@angular/core';
 import { MenuItem, Order } from '../../core/models';
 
 /** Строка корзины. guestNo: 0 — общая позиция, 1..N — конкретный гость. */
 export interface CartItem { item: MenuItem; qty: number; guestNo: number; }
 
+const CART_KEY = 'waiter_cart';
+
 @Injectable({ providedIn: 'root' })
 export class CartService {
-  private _items = signal<CartItem[]>([]);
+  private _items = signal<CartItem[]>(this.restore());
 
   /** Если задано — корзина пополняет существующую посадку, а не создаёт новую. */
-  private _target = signal<Order | null>(null);
+  private _target = signal<Order | null>(this.restoreTarget());
   readonly target = this._target.asReadonly();
+
+  constructor() {
+    // Набранный заказ переживает перезагрузку страницы / выгрузку вкладки телефоном
+    effect(() => {
+      const items = this._items();
+      const target = this._target();
+      try {
+        if (items.length) {
+          localStorage.setItem(CART_KEY, JSON.stringify({ items, target }));
+        } else {
+          localStorage.removeItem(CART_KEY);
+        }
+      } catch { /* квота localStorage — не критично */ }
+    });
+  }
+
+  private restore(): CartItem[] {
+    try {
+      return JSON.parse(localStorage.getItem(CART_KEY) || '{}').items ?? [];
+    } catch { return []; }
+  }
+
+  private restoreTarget(): Order | null {
+    try {
+      return JSON.parse(localStorage.getItem(CART_KEY) || '{}').target ?? null;
+    } catch { return null; }
+  }
 
   readonly items    = this._items.asReadonly();
   readonly total    = computed(() => this._items().reduce((s, c) => s + c.item.price * c.qty, 0));

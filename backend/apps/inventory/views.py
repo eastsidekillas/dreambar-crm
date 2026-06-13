@@ -11,12 +11,16 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 
 from apps.orders.models import OrderItem
-from .models import Product, MenuItemComponent, InventoryMovement, PurchaseOrder, PurchaseOrderItem
+from .models import (
+    Product, MenuItemComponent, InventoryMovement, PurchaseOrder, PurchaseOrderItem,
+    ReceiptImport, ReceiptItemMapping,
+)
 from .serializers import (
     ProductSerializer, ComponentSerializer, InventoryMovementSerializer,
-    PurchaseOrderSerializer, PurchaseOrderItemSerializer,
+    PurchaseOrderSerializer, PurchaseOrderItemSerializer, ReceiptImportSerializer,
 )
 from .services import adjust_stock
+from . import codeqr
 
 
 class ProductViewSet(viewsets.ModelViewSet):
@@ -371,3 +375,150 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+class ReceiptImportViewSet(viewsets.ModelViewSet):
+    """Импорт кассовых чеков из магазина: QR → состав чека → закупка на склад."""
+    permission_classes = [IsAdminUser]
+    serializer_class   = ReceiptImportSerializer
+    http_method_names  = ['get', 'post', 'delete']
+
+    def get_queryset(self):
+        return ReceiptImport.objects.select_related('purchase').all()
+
+    def create(self, request, *args, **kwargs):
+        """Принимает {qr} или {fn, fd, fp, total, ts} и отправляет чек на проверку."""
+        qr = (request.data.get('qr') or '').strip()
+        try:
+            if qr:
+                h = codeqr.add_qr(qr)
+            else:
+                required = ['fn', 'fd', 'fp', 'total', 'ts']
+                if not all(request.data.get(k) for k in required):
+                    return Response({'detail': 'Передайте qr или реквизиты чека (fn, fd, fp, total, ts).'}, status=400)
+                h = codeqr.add_requisites(
+                    request.data['fn'], request.data['fd'], request.data['fp'],
+                    request.data['total'], request.data['ts'],
+                )
+        except codeqr.CodeQrError as e:
+            return Response({'detail': str(e)}, status=400)
+
+        # Один и тот же чек дважды не приходуем
+        dup = ReceiptImport.objects.filter(hash=h).exclude(status='error').first()
+        if dup:
+            return Response({'detail': f'Этот чек уже загружен (№{dup.pk}, {dup.get_status_display()}).',
+                             'existing_id': dup.pk}, status=409)
+
+        imp = ReceiptImport.objects.create(qr=qr, hash=h, created_by=request.user)
+        return Response(ReceiptImportSerializer(imp).data, status=201)
+
+    @action(detail=True, methods=['post'])
+    def poll(self, request, pk=None):
+        """Опрашивает сервис проверки; когда чек готов — отдаёт позиции с подсказками сопоставления."""
+        imp = self.get_object()
+        if imp.status in ('wait', 'process'):
+            try:
+                data = codeqr.info(imp.hash)
+            except codeqr.CodeQrError as e:
+                return Response({'detail': str(e)}, status=502)
+            imp.status = data.get('status') or 'wait'
+            imp.error  = data.get('error') or ''
+            if imp.status == 'done':
+                result = data.get('result') or {}
+                imp.result       = result
+                imp.store        = (result.get('user') or '').replace('"', '').strip()
+                imp.total        = Decimal(str(data.get('s', '0')).replace(' ', '') or 0)
+                imp.purchased_at = str(data.get('t') or '')
+            imp.save()
+
+        return Response(self._detail_payload(imp))
+
+    @action(detail=True, methods=['get'])
+    def detail_lines(self, request, pk=None):
+        """Позиции чека с подсказками сопоставления (для уже загруженного чека)."""
+        return Response(self._detail_payload(self.get_object()))
+
+    def _detail_payload(self, imp):
+        payload = ReceiptImportSerializer(imp).data
+        if imp.status in ('done', 'applied') and imp.result:
+            names = [i.get('name', '') for i in imp.result.get('items', [])]
+            mappings = {m.receipt_name: m.product_id
+                        for m in ReceiptItemMapping.objects.filter(receipt_name__in=names)}
+            payload['lines'] = [{
+                'name':     i.get('name', ''),
+                'quantity': i.get('quantity', 0),
+                'price':    i.get('price', 0),
+                'sum':      i.get('sum', 0),
+                'product':  mappings.get(i.get('name', '')),
+            } for i in imp.result.get('items', [])]
+        return payload
+
+    @action(detail=True, methods=['post'])
+    def apply(self, request, pk=None):
+        """Оприходовать выбранные позиции чека: создаёт закупку и увеличивает остатки.
+
+        body: {lines: [{name, quantity, price, product, remember}]}
+        quantity — количество из чека (упаковок/кг), price — цена за единицу из чека.
+        Остаток увеличивается на quantity × pack_size товара.
+        """
+        imp = self.get_object()
+        if imp.status == 'applied':
+            return Response({'detail': 'Чек уже оприходован.'}, status=400)
+        if imp.status != 'done':
+            return Response({'detail': 'Чек ещё не проверен.'}, status=400)
+
+        lines = [l for l in request.data.get('lines', []) if l.get('product')]
+        if not lines:
+            return Response({'detail': 'Не выбрано ни одной позиции для оприходования.'}, status=400)
+
+        products = Product.objects.in_bulk([l['product'] for l in lines])
+
+        with transaction.atomic():
+            order = PurchaseOrder.objects.create(
+                status='received',
+                store=imp.store or 'Магазин',
+                created_by=request.user,
+                received_at=timezone.now(),
+                notes=f'Импорт чека №{imp.pk} от {imp.purchased_at}',
+            )
+            # Несколько строк чека могут указывать на один товар — объединяем
+            merged = {}  # product_id -> {'qty_units': Decimal, 'cost': Decimal, 'packs': Decimal}
+            for l in lines:
+                p = products.get(l['product'])
+                if not p:
+                    continue
+                packs = Decimal(str(l.get('quantity') or 0))
+                price = Decimal(str(l.get('price') or 0))
+                if packs <= 0:
+                    continue
+                m = merged.setdefault(p.pk, {'qty_units': Decimal(0), 'cost': Decimal(0), 'packs': Decimal(0)})
+                m['qty_units'] += packs * p.pack_size
+                m['cost']      += packs * price
+                m['packs']     += packs
+
+                if l.get('remember') and l.get('name'):
+                    ReceiptItemMapping.objects.update_or_create(
+                        receipt_name=l['name'][:300], defaults={'product': p},
+                    )
+
+            for pid, m in merged.items():
+                p = products[pid]
+                # цена за упаковку — средневзвешенная по строкам чека
+                pack_price = (m['cost'] / m['packs']).quantize(Decimal('0.01')) if m['packs'] else Decimal(0)
+                PurchaseOrderItem.objects.create(
+                    order=order, product=p,
+                    qty_ordered=m['qty_units'], qty_received=m['qty_units'],
+                    unit_price=pack_price,
+                )
+                adjust_stock(p, delta=m['qty_units'], reason='manual_in',
+                             user=request.user, note=f'Чек {imp.store} (импорт №{imp.pk})')
+                p.purchase_price = pack_price
+                p.save(update_fields=['purchase_price'])
+
+            imp.status   = 'applied'
+            imp.purchase = order
+            imp.save(update_fields=['status', 'purchase'])
+
+        return Response({
+            'import': ReceiptImportSerializer(imp).data,
+            'purchase': PurchaseOrderSerializer(order).data,
+        })

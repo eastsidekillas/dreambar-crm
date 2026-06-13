@@ -945,7 +945,17 @@ export class TablesPage implements OnInit, OnDestroy {
   }
   ngOnDestroy() { if (this.pollTimer) clearInterval(this.pollTimer); }
 
-  load() { this.orderApi.getActiveOrders().subscribe(o => this.orders.set(o)); }
+  /** Тик поллинга пропускается, пока предыдущий запрос не завершился. */
+  private pollBusy = false;
+
+  load() {
+    if (this.pollBusy) return;
+    this.pollBusy = true;
+    this.orderApi.getActiveOrders().subscribe({
+      next: o => { this.pollBusy = false; this.orders.set(o); },
+      error: () => { this.pollBusy = false; },
+    });
+  }
 
   // ── Table helpers ─────────────────────────────────────────────────
   /** Parse order table_number which may be "5+6" for merged tables. */

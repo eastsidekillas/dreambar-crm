@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   Product, MenuItemComponent, ConsumptionRow, InventoryMovement, MovementReason,
-  PurchaseOrder, PurchaseOrderItem, StockReport,
+  PurchaseOrder, PurchaseOrderItem, StockReport, ReceiptImport, ReceiptImportLine,
 } from '../../core/models';
 import { API_BASE as BASE, Paginated, unpage } from '../../shared/api';
 
@@ -101,5 +101,17 @@ export class InventoryApi {
   }
   deletePurchaseOrder(id: number): Observable<void> {
     return this.http.delete<void>(`${BASE}/inventory/purchases/${id}/`);
+  }
+
+  // ── Импорт чеков магазина (QR → закупка) ─────────────────────────
+  createReceiptImport(qr: string): Observable<ReceiptImport> {
+    return this.http.post<ReceiptImport>(`${BASE}/inventory/receipt-imports/`, { qr });
+  }
+  pollReceiptImport(id: number): Observable<ReceiptImport> {
+    return this.http.post<ReceiptImport>(`${BASE}/inventory/receipt-imports/${id}/poll/`, {});
+  }
+  applyReceiptImport(id: number, lines: ReceiptImportLine[]): Observable<{ import: ReceiptImport; purchase: PurchaseOrder }> {
+    return this.http.post<{ import: ReceiptImport; purchase: PurchaseOrder }>(
+      `${BASE}/inventory/receipt-imports/${id}/apply/`, { lines });
   }
 }

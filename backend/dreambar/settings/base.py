@@ -5,8 +5,15 @@ from datetime import timedelta
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 try:
-    from dotenv import load_dotenv
+    from dotenv import load_dotenv, dotenv_values
     load_dotenv(BASE_DIR / '.env')
+    # Из корневого .env (его читает docker-compose) точечно берём только ключи
+    # сервиса проверки чеков — остальные переменные (БД и пр.) не затягиваем,
+    # чтобы локальный запуск без докера оставался на sqlite.
+    _root_vals = dotenv_values(BASE_DIR.parent / '.env')
+    for _k in ('CODE_QR_API_KEY', 'CODE_QR_BASE_URL'):
+        if _root_vals.get(_k) and _k not in os.environ:
+            os.environ[_k] = _root_vals[_k]
 except ImportError:
     pass
 
@@ -32,6 +39,10 @@ def env_list(key, default=None):
 SECRET_KEY = env('DJANGO_SECRET_KEY', 'django-insecure-dev-only-change-me')
 DEBUG = env_bool('DEBUG', False)
 ALLOWED_HOSTS = env_list('ALLOWED_HOSTS', ['localhost', '127.0.0.1'])
+
+# Сервис проверки кассовых чеков (импорт закупок по QR)
+CODE_QR_BASE_URL = env('CODE_QR_BASE_URL', 'https://code-qr.ru/api')
+CODE_QR_API_KEY  = env('CODE_QR_API_KEY', '')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
