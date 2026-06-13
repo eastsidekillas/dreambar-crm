@@ -1,14 +1,20 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, effect } from '@angular/core';
 import { MenuItem, Order } from '../../core/models';
 
 /** Строка корзины. guestNo: 0 — общая позиция, 1..N — конкретный гость. */
 export interface CartItem { item: MenuItem; qty: number; guestNo: number; }
 
+const ITEMS_KEY = 'dreambar_cart_items';
+
 @Injectable({ providedIn: 'root' })
 export class CartService {
-  private _items = signal<CartItem[]>([]);
+  private _items = signal<CartItem[]>(this.loadItems());
 
-  /** Если задано — корзина пополняет существующую посадку, а не создаёт новую. */
+  /**
+   * Если задано — корзина пополняет существующую посадку, а не создаёт новую.
+   * НЕ персистится: после перезагрузки режим дозаказа сбрасывается, чтобы
+   * случайно не дописать в закрытый/устаревший стол.
+   */
   private _target = signal<Order | null>(null);
   readonly target = this._target.asReadonly();
 
@@ -16,6 +22,11 @@ export class CartService {
   readonly total    = computed(() => this._items().reduce((s, c) => s + c.item.price * c.qty, 0));
   readonly count    = computed(() => this._items().reduce((s, c) => s + c.qty, 0));
   readonly hasItems = computed(() => this._items().length > 0);
+
+  constructor() {
+    // Персистим позиции корзины, чтобы они пережили перезагрузку/потерю сети.
+    effect(() => this.save(ITEMS_KEY, this._items()));
+  }
 
   setTarget(order: Order | null): void { this._target.set(order); }
 
@@ -55,4 +66,23 @@ export class CartService {
   }
 
   clear(): void { this._items.set([]); this._target.set(null); }
+
+  // ── Персистентность ───────────────────────────────────────────────
+  private loadItems(): CartItem[] {
+    try {
+      const raw = localStorage.getItem(ITEMS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }
+
+  private save(key: string, value: unknown): void {
+    try {
+      if (value == null || (Array.isArray(value) && value.length === 0)) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, JSON.stringify(value));
+      }
+    } catch { /* квота переполнена — игнорируем */ }
+  }
 }

@@ -5,6 +5,8 @@ import { forkJoin, of } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { ApiService } from '../../core/services/api.service';
 import { CartService } from '../../features/cart/cart.service';
+import { NetworkService } from '../../core/services/network.service';
+import { OutboxService, CartLikeItem } from '../../core/services/outbox.service';
 import { CartDrawerComponent, CartSubmit } from '../../widgets/cart-drawer/cart-drawer.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { Shift } from '../../core/models';
@@ -109,6 +111,8 @@ export class WaiterShell implements OnInit {
 
   cart = inject(CartService);
   auth = inject(AuthService);
+  private net = inject(NetworkService);
+  private outbox = inject(OutboxService);
 
   /** Bartenders & waiters take orders; wardrobe only sells tickets. */
   canOrder = computed(() => {
@@ -156,12 +160,34 @@ export class WaiterShell implements OnInit {
     this.api.createShift({}).subscribe({ next: s => this.shift.set(s) });
   }
 
+  /** Позиции корзины в формате офлайн-очереди. */
+  private cartItems(): CartLikeItem[] {
+    return this.cart.items().map(c => ({
+      menu_item: c.item.id,
+      menu_item_name: c.item.name,
+      menu_item_type: c.item.category_type,
+      quantity: c.qty,
+      unit_price: c.item.price,
+      guest_no: c.guestNo,
+    }));
+  }
+
   onSubmitOrder(payload: CartSubmit) {
     const target = this.cart.target();
-    if (target) { this.appendToSession(target.id); return; }
+    if (target) { this.appendToSession(target); return; }
 
     const s = this.shift();
     if (!s) { this.toast.error('Нет открытой смены'); this.drawerRef?.resetSubmitting(); return; }
+
+    // Офлайн — сразу в очередь.
+    if (!this.net.online()) {
+      this.outbox.queueCreate({ shift: s.id, table_number: payload.table, guests: payload.guests, notes: '', items: this.cartItems() });
+      this.afterSubmit();
+      this.toast.warn('Нет сети — стол сохранён, синхронизируется при подключении');
+      this.router.navigate(['/waiter/tables']);
+      return;
+    }
+
     // Новая посадка: заказ остаётся ОТКРЫТЫМ, пока компания сидит за столом.
     this.api.createOrder({
       shift: s.id, table_number: payload.table, guests: payload.guests, notes: '',
@@ -172,20 +198,63 @@ export class WaiterShell implements OnInit {
         this.toast.success('Стол открыт');
         this.router.navigate(['/waiter/tables']);
       },
-      error: () => { this.drawerRef?.resetSubmitting(); this.toast.error('Ошибка при открытии стола'); }
+      error: (err) => {
+        if (err?.status === 0) {
+          // Сеть пропала на лету — не теряем заказ.
+          this.outbox.queueCreate({ shift: s.id, table_number: payload.table, guests: payload.guests, notes: '', items: this.cartItems() });
+          this.afterSubmit();
+          this.toast.warn('Нет сети — стол сохранён, синхронизируется при подключении');
+          this.router.navigate(['/waiter/tables']);
+        } else {
+          this.drawerRef?.resetSubmitting();
+          this.toast.error('Ошибка при открытии стола');
+        }
+      }
     });
   }
 
   /** Дозаказ: добавляем позиции корзины в уже открытую посадку. */
-  private appendToSession(orderId: number) {
-    const calls = this.cart.items().map(c => this.api.addItemToOrder(orderId, c.item.id, c.qty, c.guestNo));
+  private appendToSession(target: { id: number; table_number: string }) {
+    const items = this.cartItems();
+
+    // Дозаказ к офлайн-столу (ещё не синхронизирован) — дописываем в его очередь.
+    if (this.outbox.isOfflineId(target.id)) {
+      const ok = this.outbox.addToOfflineOrder(target.id, target.table_number, items);
+      this.afterSubmit();
+      this.toast.warn(ok
+        ? 'Нет сети — добавлено, синхронизируется при подключении'
+        : 'Стол уже отправлен — откройте его в списке и добавьте позиции заново');
+      this.router.navigate(['/waiter/tables']);
+      return;
+    }
+
+    // Офлайн — в очередь дозаказов.
+    if (!this.net.online()) {
+      this.outbox.queueAdd(target.id, target.table_number, items);
+      this.afterSubmit();
+      this.toast.warn('Нет сети — добавлено, синхронизируется при подключении');
+      this.router.navigate(['/waiter/tables']);
+      return;
+    }
+
+    const calls = this.cart.items().map(c => this.api.addItemToOrder(target.id, c.item.id, c.qty, c.guestNo));
     forkJoin(calls.length ? calls : [of(null)]).subscribe({
       next: () => {
         this.afterSubmit();
         this.toast.success('Добавлено к столу');
         this.router.navigate(['/waiter/tables']);
       },
-      error: () => { this.drawerRef?.resetSubmitting(); this.toast.error('Ошибка при добавлении'); }
+      error: (err) => {
+        if (err?.status === 0) {
+          this.outbox.queueAdd(target.id, target.table_number, items);
+          this.afterSubmit();
+          this.toast.warn('Нет сети — добавлено, синхронизируется при подключении');
+          this.router.navigate(['/waiter/tables']);
+        } else {
+          this.drawerRef?.resetSubmitting();
+          this.toast.error('Ошибка при добавлении');
+        }
+      }
     });
   }
 

@@ -155,6 +155,8 @@ export interface OrderItem {
   guest_no: number;
   receipt: number | null;
   kitchen_status: 'new' | 'cooking' | 'ready';
+  /** Локальная позиция, ещё не отправленная на сервер (офлайн-очередь). */
+  _pending?: boolean;
 }
 
 export interface ReceiptItem {
@@ -217,6 +219,10 @@ export interface Order {
   receipts: Receipt[];
   total: number;
   is_paid: boolean;
+  /** Стол открыт офлайн и ещё не синхронизирован с сервером. */
+  _offline?: boolean;
+  /** Синхронизация офлайн-стола отклонена сервером. */
+  _syncError?: boolean;
 }
 
 export type ReservationStatus = 'pending' | 'confirmed' | 'arrived' | 'completed' | 'cancelled';
