@@ -88,6 +88,16 @@ def render_receipt(receipt, width: int = 48, copy_label: str = "") -> bytes:
     out += BOLD_ON + DOUBLE_ON
     out += _line("ИТОГО", _money(receipt.total) + " руб", width // 2)
     out += DOUBLE_OFF + BOLD_OFF
+    if receipt.deposit_amount and Decimal(str(receipt.deposit_amount)) > 0:
+        dep_label = {"cash": "нал", "transfer": "перевод"}.get(receipt.deposit_method, "")
+        out += _line("Депозит" + (f" ({dep_label})" if dep_label else ""),
+                     "-" + _money(receipt.deposit_amount) + " руб", width)
+        due = Decimal(str(receipt.total)) - Decimal(str(receipt.deposit_amount))
+        out += BOLD_ON + DOUBLE_ON
+        out += _line("К оплате", _money(max(due, Decimal(0))) + " руб", width // 2)
+        out += DOUBLE_OFF + BOLD_OFF
+        if due < 0:
+            out += _line("Возврат", _money(-due) + " руб", width)
     out += _line("Оплата", receipt.get_payment_method_display(), width)
     out += _enc("-" * width) + FEED
     out += ALIGN_CENTER + _enc("Спасибо за визит!") + FEED
