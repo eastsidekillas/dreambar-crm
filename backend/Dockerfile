@@ -4,12 +4,20 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    POETRY_VERSION=2.2.1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_NO_INTERACTION=1 \
     DJANGO_SETTINGS_MODULE=dreambar.settings.prod
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Poetry как менеджер зависимостей (источник правды — pyproject.toml + poetry.lock)
+RUN pip install "poetry==${POETRY_VERSION}"
+
+# Сначала только манифесты — слой с зависимостями кэшируется отдельно от кода.
+# Ставим в системный python (virtualenvs.create=false), без самого пакета проекта и без dev-группы.
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --only main --no-root
 
 # Код проекта
 COPY . .
