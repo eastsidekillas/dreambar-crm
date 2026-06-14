@@ -1,7 +1,9 @@
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password, check_password
 from django.db.models import Q, Sum, F
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny
+
+from apps.users.permissions_matrix import RequirePerm, Perm, has_perm
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
@@ -69,7 +71,7 @@ class UserProfileListView(APIView):
 
 class EmployeeDetailView(APIView):
     """PATCH /employees/<id>/ — редактировать роль, имя, пароль, статус."""
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.EMPLOYEE_MANAGE)]
 
     def patch(self, request, user_id):
         try:
@@ -120,7 +122,7 @@ class EmployeeDetailView(APIView):
         })
 
     def delete(self, request, user_id):
-        if not request.user.is_staff:
+        if not has_perm(request.user, Perm.EMPLOYEE_MANAGE):
             return Response({'detail': 'Недостаточно прав.'}, status=403)
         if request.user.id == user_id:
             return Response({'detail': 'Нельзя удалить себя.'}, status=400)
@@ -133,7 +135,7 @@ class EmployeeDetailView(APIView):
 
 
 class EmployeeActivityView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.EMPLOYEE_MANAGE)]
 
     def get(self, request):
         shift_id = request.query_params.get('shift')
@@ -190,7 +192,7 @@ class EmployeeActivityView(APIView):
 
 
 class EmployeeOrdersView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.EMPLOYEE_MANAGE)]
 
     def get(self, request):
         user_id  = request.query_params.get('user_id')

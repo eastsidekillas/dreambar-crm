@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.shifts.models import Shift
+from apps.users.permissions_matrix import HasPerm, Perm
 from .models import EntryTicket
 from .serializers import EntryTicketSerializer
 
@@ -11,6 +12,13 @@ class EntryTicketViewSet(viewsets.ModelViewSet):
     queryset = EntryTicket.objects.select_related('created_by', 'shift')
     serializer_class = EntryTicketSerializer
     filterset_fields = ['shift']
+
+    def get_permissions(self):
+        # Просмотр и продажа билетов — официант/гардероб/админ.
+        if self.action in ('list', 'retrieve', 'create', 'bulk_create'):
+            return [HasPerm(Perm.TICKET_SELL)]
+        # Правка/удаление билета (финансовая запись) — только админ.
+        return [HasPerm(Perm.TICKET_MANAGE)]
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

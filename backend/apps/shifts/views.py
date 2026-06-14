@@ -2,8 +2,10 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.users.permissions_matrix import HasPerm, Perm
 from .models import Shift
 from .serializers import ShiftSerializer
 
@@ -11,6 +13,21 @@ from .serializers import ShiftSerializer
 class ShiftViewSet(viewsets.ModelViewSet):
     queryset = Shift.objects.all()
     serializer_class = ShiftSerializer
+
+    def get_permissions(self):
+        # Чтение (список/деталь/текущая смена) — любому залогиненному:
+        # официантам, кухне, гардеробу нужно знать открытую смену.
+        if self.action in ('list', 'retrieve', 'current'):
+            return [IsAuthenticated()]
+        # Запись — по матрице прав. update/partial_update/destroy не перечислены
+        # → попадают в дефолт SHIFT_REOPEN, т.е. только админ (раньше это мог
+        # сделать любой залогиненный — это и была дыра: правка/удаление смены).
+        need = {
+            'create': Perm.SHIFT_OPEN,
+            'close':  Perm.SHIFT_CLOSE,
+            'reopen': Perm.SHIFT_REOPEN,
+        }
+        return [HasPerm(need.get(self.action, Perm.SHIFT_REOPEN))]
 
     def create(self, request, *args, **kwargs):
         """Идемпотентно: если открытая смена уже есть — возвращаем её, а не создаём вторую."""
@@ -54,8 +71,7 @@ class ShiftViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def reopen(self, request, pk=None):
-        if not request.user.is_staff:
-            return Response({'detail': 'Недостаточно прав.'}, status=status.HTTP_403_FORBIDDEN)
+        # Доступ ограничен HasPerm(SHIFT_REOPEN) в get_permissions() — только админ.
         if Shift.objects.filter(is_open=True).exists():
             return Response({'detail': 'Уже есть открытая смена.'}, status=status.HTTP_400_BAD_REQUEST)
         shift = self.get_object()

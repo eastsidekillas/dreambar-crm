@@ -4,7 +4,9 @@ from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
 from django.utils import timezone
-from rest_framework.permissions import IsAdminUser, AllowAny
+from rest_framework.permissions import AllowAny
+
+from apps.users.permissions_matrix import RequirePerm, Perm
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -36,7 +38,7 @@ def _serialize_printer(p: Printer) -> dict:
 
 
 class PrinterListView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.PRINTER_MANAGE)]
 
     def get(self, request):
         return Response([_serialize_printer(p) for p in Printer.objects.all().order_by('name')])
@@ -62,7 +64,7 @@ class PrinterListView(APIView):
 
 class ReceiptSettingsView(APIView):
     """GET/PATCH настроек внешнего вида чека (одна запись)."""
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.PRINTER_MANAGE)]
 
     @staticmethod
     def _serialize(rs: ReceiptSettings) -> dict:
@@ -101,7 +103,7 @@ class ReceiptSettingsView(APIView):
 
 
 class PrinterDetailView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.PRINTER_MANAGE)]
 
     def _get(self, pk):
         try:
@@ -138,7 +140,7 @@ class PrinterDetailView(APIView):
 
 
 class PrinterTestView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.PRINTER_MANAGE)]
 
     def post(self, request, pk):
         try:
@@ -154,7 +156,7 @@ class PrinterTestView(APIView):
 
 class PrinterAgentConfigView(APIView):
     """Готовый config.ini для агента печати — скачать и положить рядом с .exe."""
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.PRINTER_MANAGE)]
 
     def get(self, request, pk):
         try:

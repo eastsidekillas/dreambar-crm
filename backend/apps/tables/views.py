@@ -1,6 +1,8 @@
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+from apps.users.permissions_matrix import HasPerm, Perm
 from .models import Zone, Table
 from .serializers import ZoneSerializer, TableSerializer, natural_key
 
@@ -22,7 +24,7 @@ class ZoneViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
             return [IsAuthenticated()]
-        return [IsAdminUser()]
+        return [HasPerm(Perm.TABLE_MANAGE)]
 
 
 class TableViewSet(viewsets.ModelViewSet):
@@ -32,7 +34,7 @@ class TableViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
             return [IsAuthenticated()]
-        return [IsAdminUser()]
+        return [HasPerm(Perm.TABLE_MANAGE)]
 
     def get_queryset(self):
         qs = Table.objects.select_related('zone')

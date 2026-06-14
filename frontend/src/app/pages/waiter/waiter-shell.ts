@@ -5,6 +5,8 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, RouterOutlet, Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { Perm } from '../../shared/lib/permissions';
 import { OrderApi } from '../../entities/order';
 import { ShiftApi } from '../../entities/shift';
 import { CartService } from '../../features/cart/cart.service';
@@ -118,12 +120,10 @@ export class WaiterShell implements OnInit {
 
   cart = inject(CartService);
   auth = inject(AuthService);
+  private perm = inject(PermissionService);
 
-  /** Bartenders & waiters take orders; wardrobe only sells tickets. */
-  canOrder = computed(() => {
-    const r = this.auth.role();
-    return r === 'waiter' || r === 'bartender' || r === 'admin';
-  });
+  /** Кто может вести заказы — по праву из матрицы (официант/бармен/админ; гардероб — нет). */
+  canOrder = computed(() => this.perm.can(Perm.ORDER_CREATE));
 
   roleLabel = computed(() => ROLE_LABEL[this.auth.role() ?? ''] ?? '');
 
@@ -147,7 +147,10 @@ export class WaiterShell implements OnInit {
 
   ngOnInit() {
     this.loadShift();
-    if (!this.auth.user()?.role) this.auth.fetchProfile().subscribe();
+    // role или permissions могут отсутствовать у уже залогиненных планшетов
+    // (профиль закэширован до появления прав в /auth/me) — тогда подтягиваем свежий.
+    const u = this.auth.user();
+    if (!u?.role || !u?.permissions) this.auth.fetchProfile().subscribe();
   }
 
   loadShift() {
