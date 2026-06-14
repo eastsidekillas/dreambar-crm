@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.users.permissions_matrix import HasPerm, Perm
 from .models import Reservation
 from .serializers import ReservationSerializer
 
@@ -9,6 +10,13 @@ from .serializers import ReservationSerializer
 class ReservationViewSet(viewsets.ModelViewSet):
     serializer_class = ReservationSerializer
     filterset_fields = ['date', 'status']
+
+    def get_permissions(self):
+        # Чтение — официант (занятость столов), бармен, админ.
+        if self.action in ('list', 'retrieve'):
+            return [HasPerm(Perm.RESERVATION_VIEW)]
+        # Создание/правка/отмена/удаление/депозит — бармен и админ.
+        return [HasPerm(Perm.RESERVATION_MANAGE)]
 
     def get_queryset(self):
         qs = Reservation.objects.select_related('created_by', 'table', 'table__zone')

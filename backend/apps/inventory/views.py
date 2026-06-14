@@ -8,7 +8,9 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
+
+from apps.users.permissions_matrix import HasPerm, RequirePerm, Perm
 
 from apps.orders.models import OrderItem
 from .models import (
@@ -30,7 +32,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('list', 'retrieve', 'low_stock'):
             return [IsAuthenticated()]
-        return [IsAdminUser()]
+        return [HasPerm(Perm.INVENTORY_MANAGE)]
 
     @action(detail=False, methods=['get'])
     def low_stock(self, request):
@@ -74,7 +76,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 
 class ComponentViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.INVENTORY_MANAGE)]
     serializer_class   = ComponentSerializer
     filterset_fields   = ['menu_item']
 
@@ -83,7 +85,7 @@ class ComponentViewSet(viewsets.ModelViewSet):
 
 
 class InventoryMovementViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.INVENTORY_MANAGE)]
     serializer_class   = InventoryMovementSerializer
     filterset_fields   = ['product', 'reason', 'shift']
 
@@ -166,7 +168,7 @@ class InventoryMovementViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class ConsumptionView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.INVENTORY_MANAGE)]
 
     def get(self, request):
         date_from = request.query_params.get('date_from')
@@ -233,7 +235,7 @@ class StockReportView(APIView):
     Суммы движений считаются по текущей цене за единицу товара
     (purchase_price / pack_size) — историческая цена в движениях не хранится.
     """
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.INVENTORY_MANAGE)]
 
     def get(self, request):
         from apps.receipts.models import Receipt
@@ -293,7 +295,7 @@ class StockReportView(APIView):
 
 
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.INVENTORY_MANAGE)]
     serializer_class   = PurchaseOrderSerializer
 
     def get_queryset(self):
@@ -378,7 +380,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
 class ReceiptImportViewSet(viewsets.ModelViewSet):
     """Импорт кассовых чеков из магазина: QR → состав чека → закупка на склад."""
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.INVENTORY_MANAGE)]
     serializer_class   = ReceiptImportSerializer
     http_method_names  = ['get', 'post', 'delete']
 

@@ -4,12 +4,14 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from apps.shifts.models import Shift
 from apps.receipts.models import Receipt
 from apps.printers.models import Printer
 from apps.audit.models import DeletedOrderItem
+from apps.users.permissions_matrix import HasPerm, Perm, has_perm
 from ..models import Order, OrderItem
 from ..serializers import OrderSerializer, OrderCreateSerializer, OrderItemCreateSerializer, ReceiptSerializer
 from apps.printers.services import printing
@@ -45,6 +47,24 @@ class OrderViewSet(viewsets.ModelViewSet):
     )
     filterset_fields = ['shift', 'status', 'waiter']
 
+    def get_permissions(self):
+        # Заказы ведут только официант/бармен/админ. Кухня и гардероб сюда не ходят.
+        return [HasPerm(Perm.ORDER_CREATE)]
+
+    def get_queryset(self):
+        # Стандартные list/retrieve/update/destroy: не-админ видит только свои заказы
+        # (чужой по прямому id → 404). active/my_orders строят свой queryset и сюда не попадают.
+        qs = super().get_queryset()
+        if not has_perm(self.request.user, Perm.ORDER_VIEW_ALL):
+            qs = qs.filter(waiter=self.request.user)
+        return qs
+
+    def _check_order_access(self, order):
+        """Действие над заказом разрешено только его официанту; админ (ORDER_EDIT_ANY) — над любым."""
+        user = self.request.user
+        if order.waiter_id != user.id and not has_perm(user, Perm.ORDER_EDIT_ANY):
+            raise PermissionDenied('Это заказ другого сотрудника.')
+
     def get_serializer_class(self):
         if self.action == 'create':
             return OrderCreateSerializer
@@ -62,6 +82,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'deposit_amount не может быть отрицательным.'}, status=status.HTTP_400_BAD_REQUEST)
         with transaction.atomic():
             order = Order.objects.select_for_update().get(pk=pk)
+            self._check_order_access(order)
             if order.status != 'open':
                 return Response({'detail': 'Заказ уже закрыт или отменён.'}, status=status.HTTP_400_BAD_REQUEST)
             unpaid = list(order.items.filter(receipt__isnull=True))
@@ -84,6 +105,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             order = Order.objects.select_for_update().get(pk=pk)
+            self._check_order_access(order)
             if order.status != 'open':
                 return Response({'detail': 'Заказ уже закрыт или отменён.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -141,6 +163,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     def cancel(self, request, pk=None):
         with transaction.atomic():
             order = Order.objects.select_for_update().get(pk=pk)
+            self._check_order_access(order)
             if order.status != 'open':
                 return Response({'detail': 'Заказ уже закрыт или отменён.'}, status=status.HTTP_400_BAD_REQUEST)
             if order.receipts.exists():
@@ -155,6 +178,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             order = Order.objects.select_for_update().get(pk=pk)
+            self._check_order_access(order)
             if order.status != 'open':
                 return Response({'detail': 'Нельзя добавить в закрытый заказ.'}, status=status.HTTP_400_BAD_REQUEST)
             serializer.save(order=order)
@@ -164,6 +188,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     def remove_item(self, request, pk=None, item_id=None):
         with transaction.atomic():
             order = Order.objects.select_for_update().get(pk=pk)
+            self._check_order_access(order)
             if order.status != 'open':
                 return Response({'detail': 'Нельзя изменить закрытый заказ.'}, status=status.HTTP_400_BAD_REQUEST)
             try:
@@ -196,6 +221,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Некорректный номер гостя.'}, status=status.HTTP_400_BAD_REQUEST)
         with transaction.atomic():
             order = Order.objects.select_for_update().get(pk=pk)
+            self._check_order_access(order)
             if order.status != 'open':
                 return Response({'detail': 'Нельзя изменить закрытый заказ.'}, status=status.HTTP_400_BAD_REQUEST)
             try:
@@ -223,6 +249,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Укажите номер стола'}, status=status.HTTP_400_BAD_REQUEST)
         with transaction.atomic():
             order = Order.objects.select_for_update().get(pk=pk)
+            self._check_order_access(order)
             if order.status != 'open':
                 return Response({'detail': 'Заказ не открыт'}, status=status.HTTP_400_BAD_REQUEST)
             order.table_number = table_number
@@ -239,7 +266,7 @@ class ReceiptViewSet(viewsets.ReadOnlyModelViewSet):
         qs = Receipt.objects.select_related('waiter', 'waiter__profile', 'shift').prefetch_related(
             'items__menu_item__category'
         )
-        if not self.request.user.is_staff:
+        if not has_perm(self.request.user, Perm.ORDER_VIEW_ALL):
             qs = qs.filter(waiter=self.request.user)
         return qs
 

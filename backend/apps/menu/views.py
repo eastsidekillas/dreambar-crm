@@ -4,9 +4,10 @@ from django.db import transaction
 from django.db.models import ProtectedError
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.users.permissions_matrix import HasPerm, Perm, has_perm
 from .models import Menu, MenuSection, MenuCategory, MenuItem, ModifierGroup, Modifier, MenuItemModifierGroup
 from .serializers import (
     MenuSerializer,
@@ -18,13 +19,6 @@ from .serializers import (
 _PROTECTED_MSG = 'Нельзя удалить: позиция используется в заказах. Деактивируйте её (is_active=false).'
 
 
-def _is_staff_or_bartender(user):
-    if user.is_staff:
-        return True
-    profile = getattr(user, 'profile', None)
-    return profile and profile.role in ('bartender', 'admin')
-
-
 class MenuViewSet(viewsets.ModelViewSet):
     queryset         = Menu.objects.all()
     serializer_class = MenuSerializer
@@ -32,7 +26,7 @@ class MenuViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy', 'activate', 'duplicate',
                            'export', 'import_menu']:
-            return [IsAdminUser()]
+            return [HasPerm(Perm.MENU_MANAGE)]
         return [IsAuthenticated()]
 
     @action(detail=True, methods=['post'])
@@ -167,7 +161,7 @@ class MenuSectionViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminUser()]
+            return [HasPerm(Perm.MENU_MANAGE)]
         return [IsAuthenticated()]
 
 
@@ -197,7 +191,7 @@ class MenuCategoryViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy', 'reorder']:
-            return [IsAdminUser()]
+            return [HasPerm(Perm.MENU_MANAGE)]
         return [IsAuthenticated()]
 
     @action(detail=False, methods=['post'])
@@ -218,13 +212,15 @@ class MenuItemViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = MenuItem.objects.select_related('category__section__menu')
-        if not self.request.user.is_staff:
+        if not has_perm(self.request.user, Perm.MENU_MANAGE):
             qs = qs.filter(is_active=True)
         return qs
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy', 'reorder']:
-            return [IsAdminUser()]
+            return [HasPerm(Perm.MENU_MANAGE)]
+        if self.action == 'toggle_stock':
+            return [HasPerm(Perm.MENU_TOGGLE_STOCK)]
         return [IsAuthenticated()]
 
     def destroy(self, request, *args, **kwargs):
@@ -240,8 +236,7 @@ class MenuItemViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def toggle_stock(self, request, pk=None):
-        if not _is_staff_or_bartender(request.user):
-            return Response({'detail': 'Недостаточно прав.'}, status=403)
+        # Доступ ограничен HasPerm(MENU_TOGGLE_STOCK) в get_permissions() — бармен и админ.
         item = self.get_object()
         item.is_out_of_stock = not item.is_out_of_stock
         item.save(update_fields=['is_out_of_stock'])

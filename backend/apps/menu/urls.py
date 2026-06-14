@@ -1,10 +1,10 @@
 from django.db.models import ProtectedError
 from django.urls import path, include
 from rest_framework import viewsets, status
-from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.routers import DefaultRouter
 
+from apps.users.permissions_matrix import RequirePerm, Perm
 from .views import MenuViewSet, MenuSectionViewSet, MenuCategoryViewSet, MenuItemViewSet
 from .models import ModifierGroup, Modifier, MenuItemModifierGroup
 from .serializers import ModifierGroupSerializer, ModifierSerializer, MenuItemModifierGroupSerializer
@@ -13,13 +13,13 @@ _PROTECTED_MSG = 'Нельзя удалить: модификатор испол
 
 
 class ModifierGroupViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.MENU_MANAGE)]
     queryset           = ModifierGroup.objects.prefetch_related('modifiers').all()
     serializer_class   = ModifierGroupSerializer
 
 
 class ModifierViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.MENU_MANAGE)]
     queryset           = Modifier.objects.select_related('group').all()
     serializer_class   = ModifierSerializer
     filterset_fields   = ['group', 'is_active']
@@ -32,7 +32,7 @@ class ModifierViewSet(viewsets.ModelViewSet):
 
 
 class MenuItemModifierGroupViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.MENU_MANAGE)]
     serializer_class   = MenuItemModifierGroupSerializer
     filterset_fields   = ['menu_item']
 

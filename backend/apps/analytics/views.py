@@ -5,7 +5,9 @@ from django.db.models.functions import TruncDate, TruncMonth, ExtractHour
 from django.utils.timezone import get_current_timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
+
+from apps.users.permissions_matrix import RequirePerm, Perm
 
 from apps.orders.models import Shift, Order, OrderItem, EntryTicket, Receipt
 
@@ -159,7 +161,7 @@ PAY_LABELS = {'cash': 'Наличные', 'card': 'Карта', 'transfer': 'П�
 
 
 class ShiftDetailView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.ANALYTICS_FINANCE)]
 
     def get(self, request, shift_id):
         from django.contrib.auth.models import User
@@ -255,7 +257,7 @@ class ShiftDetailView(APIView):
 
 
 class SalesReportView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.ANALYTICS_FINANCE)]
 
     def get(self, request):
         date_from = request.query_params.get('date_from')
@@ -360,7 +362,7 @@ class SalesReportView(APIView):
 
 
 class ForecastView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePerm(Perm.ANALYTICS_FINANCE)]
 
     WEEKDAY_NAMES = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье']
 

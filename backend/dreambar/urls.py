@@ -5,6 +5,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.users.permissions_matrix import permissions_for
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -24,6 +26,9 @@ def me(request):
         'allowed_roles': allowed if len(allowed) > 1 else [],
         'has_pin': bool(profile.pin_hash) if profile else False,
         'must_change_password': profile.must_change_password if profile else False,
+        # Эффективные права по матрице. Фронт использует их для UX (скрыть кнопку);
+        # реальная защита — на backend. Старый фронт это поле просто игнорирует.
+        'permissions': sorted(permissions_for(u)),
     })
 
 

@@ -58,6 +58,8 @@ export interface User {
   allowed_roles?: Role[];
   has_pin?: boolean;
   must_change_password?: boolean;
+  /** Эффективные права по матрице ролей (с backend). '*' = полный доступ (админ). */
+  permissions?: string[];
 }
 
 export interface Employee {
