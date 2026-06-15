@@ -457,7 +457,7 @@ export class PrintersPage implements OnInit {
 
     req.subscribe({
       next: () => { this.saving.set(false); this.closeForm(); this.load(); },
-      error: ()  => this.saving.set(false),
+      error: err => { this.toast.apiError(err, 'Не удалось сохранить принтер'); this.saving.set(false); },
     });
   }
 
@@ -469,7 +469,7 @@ export class PrintersPage implements OnInit {
     this.saving.set(true);
     this.printerApi.deletePrinter(p.id).subscribe({
       next: () => { this.saving.set(false); this.deleteTarget.set(null); this.load(); },
-      error: ()  => this.saving.set(false),
+      error: err => { this.toast.apiError(err, 'Не удалось удалить принтер'); this.saving.set(false); },
     });
   }
 

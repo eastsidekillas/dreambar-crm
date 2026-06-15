@@ -79,7 +79,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     'admin': {WILDCARD},
     'waiter': {
         Perm.ORDER_CREATE,
-        Perm.SHIFT_OPEN, Perm.SHIFT_CLOSE,
+        # смену официант не открывает и не закрывает — это делает бармен/гардероб/админ
         Perm.TICKET_SELL,
         Perm.RESERVATION_VIEW,   # столы официанта показывают занятость/инфо по броням
     },
@@ -95,7 +95,6 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     },
     'wardrobe': {
         Perm.TICKET_SELL,
-        Perm.SHIFT_OPEN,   # гардеробщик может прийти первым и открыть смену (есть кнопка в UI)
     },
 }
 
@@ -157,6 +156,8 @@ class HasPerm(BasePermission):
             need = {'reopen': Perm.SHIFT_REOPEN, 'create': Perm.SHIFT_OPEN}
             return [HasPerm(need.get(self.action, Perm.SHIFT_CLOSE))]
     """
+
+    message = 'Недостаточно прав для этого действия.'
 
     def __init__(self, perm: str | None = None):
         self.perm = perm

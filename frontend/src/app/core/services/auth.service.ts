@@ -9,6 +9,7 @@ import { environment } from '../../../environments/environment';
 
 const API = environment.apiBase;
 const ACTIVE_ROLE_KEY = 'active_role';
+const UNLOCK_KEY = 'app_unlocked';     // sessionStorage: снимается при закрытии/сворачивании
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -57,6 +58,14 @@ export class AuthService {
     );
   }
 
+  /** Незалогиненного ведём на экран PIN — вход по чистому PIN опознаёт сотрудника. */
+  entryRoute(): string { return '/pin'; }
+
+  // ── Блокировка приложения (PIN при каждом открытии/возврате) ───────
+  isUnlocked(): boolean { return sessionStorage.getItem(UNLOCK_KEY) === '1'; }
+  markUnlocked(): void  { sessionStorage.setItem(UNLOCK_KEY, '1'); }
+  lock(): void          { sessionStorage.removeItem(UNLOCK_KEY); }
+
   /** Есть ли из чего выбирать: больше одной роли или бармен (терминал + брони). */
   hasRoleChoice(): boolean {
     const allowed = this.user()?.allowed_roles ?? [];
@@ -94,13 +103,15 @@ export class AuthService {
     }
   }
 
+  /** Выход = блокировка: чистим токены, но ПОМНИМ пользователей устройства → экран PIN. */
   logout() {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     this.clearActiveRole();
+    this.lock();
     this.user.set(null);
-    this.router.navigate(['/pin']);
+    this.router.navigate([this.entryRoute()]);
   }
 
   getToken(): string | null  { return localStorage.getItem('access_token'); }

@@ -184,14 +184,14 @@ export class BarOrdersTab {
     item.kitchen_status = status;
     this.orderApi.setKitchenItemStatus(item.id, status).subscribe({
       next: () => { if (status === 'ready') this.changed.emit(); },
-      error: () => this.changed.emit(),
+      error: err => { this.toast.apiError(err, 'Не удалось изменить статус'); this.changed.emit(); },
     });
   }
 
   markAllReady(t: KitchenTicket) {
     this.orderApi.markKitchenOrderReady(t.order_id, 'bar').subscribe({
       next: () => this.changed.emit(),
-      error: () => this.changed.emit(),
+      error: err => { this.toast.apiError(err, 'Не удалось отметить готовность'); this.changed.emit(); },
     });
   }
 

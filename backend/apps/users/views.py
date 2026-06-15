@@ -14,6 +14,30 @@ from apps.orders.models import Order, OrderItem, EntryTicket, Shift, DeletedOrde
 from apps.orders.serializers import OrderSerializer
 
 
+def _profiles_with_pin(pin, exclude_user_id=None):
+    """Активные сотрудники, чей PIN совпадает.
+
+    PIN хранится солёным хэшем — ищем перебором активных сотрудников с PIN.
+    Для небольшого штата это дёшево; при росте заменить на индексируемый lookup.
+    """
+    qs = UserProfile.objects.select_related('user').filter(
+        user__is_active=True).exclude(pin_hash='')
+    if exclude_user_id is not None:
+        qs = qs.exclude(user_id=exclude_user_id)
+    return [p for p in qs if check_password(pin, p.pin_hash)]
+
+
+def pin_is_taken(pin, exclude_user_id):
+    """Занят ли PIN другим сотрудником (для уникальности при установке)."""
+    return bool(_profiles_with_pin(pin, exclude_user_id))
+
+
+def pin_owner(pin):
+    """Сотрудник по PIN при чистом входе. None если не найден ИЛИ неоднозначно (дубль)."""
+    matches = _profiles_with_pin(pin)
+    return matches[0] if len(matches) == 1 else None
+
+
 class UserProfileListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -102,6 +126,11 @@ class EmployeeDetailView(APIView):
         if 'pin' in request.data:
             profile, _ = UserProfile.objects.get_or_create(user=user)
             pin = str(request.data['pin']).strip()
+            if pin:
+                if not pin.isdigit() or len(pin) != 4:
+                    return Response({'detail': 'PIN должен состоять из 4 цифр.'}, status=400)
+                if pin_is_taken(pin, exclude_user_id=user.id):
+                    return Response({'detail': 'Этот PIN уже занят другим сотрудником.'}, status=400)
             profile.pin_hash = make_password(pin) if pin else ''
             profile.save(update_fields=['pin_hash'])
 
@@ -268,6 +297,10 @@ class MyPinView(APIView):
             if not check_password(current, profile.pin_hash):
                 return Response({'detail': 'Текущий PIN неверный.'}, status=400)
 
+        # PIN должен быть уникальным — по нему опознаём сотрудника при чистом входе
+        if pin_is_taken(pin, exclude_user_id=request.user.id):
+            return Response({'detail': 'Этот PIN уже занят. Выберите другой.'}, status=400)
+
         profile.pin_hash = make_password(pin)
         profile.save(update_fields=['pin_hash'])
         return Response({'detail': 'PIN обновлён.', 'has_pin': True})
@@ -278,7 +311,10 @@ class PinLoginThrottle(AnonRateThrottle):
 
 
 class PinLoginView(APIView):
-    """POST {user_id, pin} → JWT-токены."""
+    """POST {pin} → JWT-токены (сотрудник опознаётся по PIN).
+
+    Поддерживает и явный {user_id, pin} (старый путь) для совместимости.
+    """
     permission_classes = [AllowAny]
     throttle_classes = [PinLoginThrottle]
 
@@ -286,20 +322,24 @@ class PinLoginView(APIView):
         user_id = request.data.get('user_id')
         pin     = str(request.data.get('pin', '')).strip()
 
-        if not user_id or not pin:
-            return Response({'detail': 'Укажите user_id и pin.'}, status=400)
+        if not pin:
+            return Response({'detail': 'Укажите PIN.'}, status=400)
 
-        try:
-            user = User.objects.select_related('profile').get(pk=user_id, is_active=True)
-        except User.DoesNotExist:
-            return Response({'detail': 'Сотрудник не найден.'}, status=404)
-
-        profile = getattr(user, 'profile', None)
-        if not profile or not profile.pin_hash:
-            return Response({'detail': 'PIN не установлен. Обратитесь к администратору.'}, status=400)
-
-        if not check_password(pin, profile.pin_hash):
-            return Response({'detail': 'Неверный PIN.'}, status=401)
+        if user_id:
+            # Явный сотрудник (старый путь)
+            try:
+                user = User.objects.select_related('profile').get(pk=user_id, is_active=True)
+            except User.DoesNotExist:
+                return Response({'detail': 'Сотрудник не найден.'}, status=404)
+            profile = getattr(user, 'profile', None)
+            if not profile or not profile.pin_hash or not check_password(pin, profile.pin_hash):
+                return Response({'detail': 'Неверный PIN.'}, status=401)
+        else:
+            # Чистый вход: опознаём по PIN
+            owner = pin_owner(pin)
+            if not owner:
+                return Response({'detail': 'Неверный PIN.'}, status=401)
+            user = owner.user
 
         refresh = RefreshToken.for_user(user)
         return Response({
