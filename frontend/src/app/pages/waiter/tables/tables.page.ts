@@ -109,22 +109,16 @@ const POLL_MS = 10_000;
         }
       }
 
-      <!-- ══ ACTIONS BAR ═════════════════════════════════════════════ -->
-      <div class="flex gap-2">
-        <button (click)="openNewTable()" class="btn btn-primary" style="flex:1;height:44px;font-size:0.9rem">
-          ＋ Открыть стол
-          @if (myOrders().length) {
-            <span class="text-xs font-normal opacity-70">· {{ myOrders().length }}</span>
-          }
-        </button>
-        @if (todayReservations().length) {
+      <!-- ══ ACTIONS BAR — стол открывается тапом по свободному столу в сетке ══ -->
+      @if (todayReservations().length) {
+        <div class="flex gap-2">
           <button (click)="resvSheet.set(true)"
-                  class="flex items-center gap-1.5 px-3 rounded-xl font-semibold text-sm flex-shrink-0"
+                  class="flex items-center gap-1.5 px-3 rounded-xl font-semibold text-sm"
                   style="background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;height:44px">
-            <svg lucideCalendar [size]="16"></svg> {{ todayReservations().length }}
+            <svg lucideCalendar [size]="16"></svg> Брони на сегодня · {{ todayReservations().length }}
           </button>
-        }
-      </div>
+        </div>
+      }
 
       <!-- ══ MY ORDERS ═══════════════════════════════════════════════ -->
       @for (o of myOrders(); track o.id) {
