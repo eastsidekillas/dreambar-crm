@@ -17,12 +17,11 @@ import { EditOrderModal } from './edit-order-modal';
 import { ReservationsSheet } from './reservations-sheet';
 import { MoveTableSheet } from './move-table-sheet';
 import { NewTableSheet } from './new-table-sheet';
+import { OrderCard } from './order-card';
 import {
   LucideDynamicIcon,
-  LucideCalendar, LucideUsers, LucideMessageCircle,
-  LucideBanknote, LucideCreditCard,
-  LucideCheck, LucideClock, LucideX, LucideReceipt, LucidePencil,
-  LucidePlus, LucideArrowLeftRight, LucideUserMinus,
+  LucideCalendar, LucideUsers, LucideCreditCard,
+  LucideCheck, LucideX, LucideReceipt, LucideUserMinus,
   LucideUtensilsCrossed,
 } from '@lucide/angular';
 
@@ -31,11 +30,10 @@ const POLL_MS = 10_000;
 @Component({
   selector: 'app-tables-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideDynamicIcon, EditOrderModal, ReservationsSheet, MoveTableSheet, NewTableSheet,
-    LucideCalendar, LucideUsers, LucideMessageCircle,
-    LucideBanknote, LucideCreditCard,
-    LucideCheck, LucideClock, LucideX, LucideReceipt, LucidePencil,
-    LucidePlus, LucideArrowLeftRight, LucideUserMinus,
+  imports: [CommonModule, FormsModule, LucideDynamicIcon, EditOrderModal, ReservationsSheet,
+    MoveTableSheet, NewTableSheet, OrderCard,
+    LucideCalendar, LucideUsers, LucideCreditCard,
+    LucideCheck, LucideX, LucideReceipt, LucideUserMinus,
     LucideUtensilsCrossed],
   template: `
     <div class="space-y-3 pb-4">
@@ -127,150 +125,10 @@ const POLL_MS = 10_000;
 
       <!-- ══ MY ORDERS ═══════════════════════════════════════════════ -->
       @for (o of myOrders(); track o.id) {
-        <div class="overflow-hidden" [id]="'order-' + o.id"
-             style="background:white;border:1px solid var(--color-border);border-radius:12px">
-
-          <div class="flex items-center justify-between px-3 py-2.5"
-               style="background:var(--color-gold-light);border-bottom:1px solid var(--color-gold-mid)">
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="font-bold text-base truncate">{{ o.table_number || 'Стол' }}</span>
-              @if (o.guests) {
-                <span class="text-xs flex items-center gap-0.5 flex-shrink-0" style="color:var(--color-muted)">· <svg lucideUsers [size]="12"></svg> {{ o.guests }}</span>
-              }
-              @if (readyCount(o) > 0) {
-                <span class="flex-shrink-0 px-1.5 py-0.5 rounded-full text-xs font-bold animate-pulse flex items-center gap-0.5"
-                      style="background:#16a34a;color:white"><svg lucideCheck [size]="10"></svg> {{ readyCount(o) }}</span>
-              }
-              <button (click)="openEdit(o)" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded"
-                      style="color:var(--color-muted)"><svg lucidePencil [size]="14"></svg></button>
-            </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <span class="text-xs" style="color:var(--color-muted)">{{ elapsed(o) }}</span>
-              <span class="font-bold text-sm" style="color:var(--color-gold-hover)">
-                {{ unpaidTotal(o) | number:'1.0-0' }} ₽
-              </span>
-            </div>
-          </div>
-
-          @if (o.notes) {
-            <div class="px-3 py-2 text-xs flex items-start gap-1.5"
-                 style="background:#fffbeb;border-bottom:1px solid var(--color-gold-mid);color:#92400e">
-              <svg lucideMessageCircle [size]="12" class="flex-shrink-0 mt-0.5"></svg><span>{{ o.notes }}</span>
-            </div>
-          }
-
-          @if (orderReservation(o)) {
-            @let r = orderReservation(o)!;
-            <div class="px-3 py-2 text-xs flex items-center gap-1.5"
-                 style="background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1d4ed8">
-              <svg lucideCalendar [size]="12" class="flex-shrink-0"></svg>
-              <span class="font-medium">{{ r.name }}</span>
-              <span style="color:#3b82f6">{{ r.time_start }}</span>
-              <span class="flex items-center gap-0.5">· <svg lucideUsers [size]="12"></svg> {{ r.guests_count }}</span>
-              @if (+r.deposit_amount > 0) {
-                <span class="ml-auto font-medium flex items-center gap-0.5"><svg lucideBanknote [size]="12"></svg> {{ +r.deposit_amount | number:'1.0-0' }} ₽</span>
-              }
-            </div>
-          }
-
-          @if (unpaidItems(o).length) {
-            @for (grp of guestGroups(o); track grp.guest) {
-              <div class="px-3 py-2" style="border-bottom:1px solid var(--color-border)">
-                <div class="flex items-center justify-between mb-1">
-                  <span class="section-title">{{ guestLabel(grp.guest) }}</span>
-                  <span class="text-xs font-bold" style="color:var(--color-gold-hover)">
-                    {{ grp.total | number:'1.0-0' }} ₽
-                  </span>
-                </div>
-                @for (item of grp.items; track item.id) {
-                  <div class="flex items-center gap-2 py-0.5">
-                    <span class="flex-1 text-sm truncate">{{ item.menu_item_name }}</span>
-                    <span class="text-xs" style="color:var(--color-muted)">× {{ item.quantity }}</span>
-                    @if (item.kitchen_status === 'ready') {
-                      <svg lucideCheck [size]="12" style="color:#16a34a;flex-shrink:0"></svg>
-                    } @else if (item.kitchen_status === 'cooking') {
-                      <svg lucideClock [size]="12" style="color:var(--color-amber);flex-shrink:0"></svg>
-                    }
-                    @if (confirmDeleteItem() === item.id) {
-                      <button (click)="removeItem(o, item)"
-                              class="text-xs font-bold px-1.5 py-0.5 rounded"
-                              style="background:#ef4444;color:white">Да</button>
-                      <button (click)="confirmDeleteItem.set(null)"
-                              class="text-xs px-1.5 py-0.5 rounded"
-                              style="background:var(--color-bg);color:var(--color-muted);border:1px solid var(--color-border)">Нет</button>
-                    } @else {
-                      <button (click)="askDeleteItem(item)"
-                              class="w-5 h-5 flex items-center justify-center rounded text-xs flex-shrink-0"
-                              style="color:var(--color-muted)"><svg lucideX [size]="12"></svg></button>
-                    }
-                  </div>
-                }
-              </div>
-            }
-          } @else {
-            <div class="px-3 py-3 text-xs text-center"
-                 style="color:var(--color-muted);border-bottom:1px solid var(--color-border)">
-              Все позиции оплачены
-            </div>
-          }
-
-          @if (o.receipts.length) {
-            <div class="flex flex-wrap gap-1 px-3 py-2" style="border-bottom:1px solid var(--color-border)">
-              @for (r of o.receipts; track r.id) {
-                <button (click)="reprint(r)" class="badge badge-green flex items-center gap-1" style="cursor:pointer">
-                  <svg lucideReceipt [size]="12"></svg> {{ r.code }} · {{ r.total | number:'1.0-0' }} ₽
-                </button>
-              }
-            </div>
-          }
-
-          @if (isEmpty(o)) {
-            <!-- Пустой стол: ничего не заказали → можно освободить -->
-            <div style="display:grid;grid-template-columns:1fr 1fr">
-              @if (confirmFree() === o.id) {
-                <button (click)="freeTable(o)"
-                        class="flex items-center justify-center gap-1 py-3 font-bold text-sm"
-                        style="border-right:1px solid var(--color-border);background:#ef4444;color:white">
-                  <svg lucideX [size]="14"></svg> Удалить стол
-                </button>
-                <button (click)="confirmFree.set(null)"
-                        class="flex items-center justify-center py-3 font-medium text-sm"
-                        style="color:var(--color-muted)">Отмена</button>
-              } @else {
-                <button (click)="addMore(o)"
-                        class="flex items-center justify-center gap-1 py-3 font-semibold text-sm"
-                        style="border-right:1px solid var(--color-border);color:var(--color-text)">
-                  <svg lucidePlus [size]="14"></svg> Дозаказ
-                </button>
-                <button (click)="askFreeTable(o)"
-                        class="flex items-center justify-center gap-1 py-3 font-medium text-sm"
-                        style="color:var(--color-red)">
-                  <svg lucideX [size]="14"></svg> Освободить
-                </button>
-              }
-            </div>
-          } @else {
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr">
-              <button (click)="addMore(o)"
-                      class="flex items-center justify-center gap-1 py-3 font-semibold text-sm"
-                      style="border-right:1px solid var(--color-border);color:var(--color-text)">
-                <svg lucidePlus [size]="14"></svg> Дозаказ
-              </button>
-              <button (click)="openMoveSheet(o)"
-                      class="flex items-center justify-center gap-1 py-3 font-medium text-sm"
-                      style="border-right:1px solid var(--color-border);color:var(--color-muted)">
-                <svg lucideArrowLeftRight [size]="14"></svg> Пересадить
-              </button>
-              <button (click)="openCheckout(o)" [disabled]="!unpaidItems(o).length"
-                      class="flex items-center justify-center gap-1 py-3 font-bold text-sm"
-                      [style]="unpaidItems(o).length
-                        ? 'background:var(--color-gold);color:white'
-                        : 'color:var(--color-muted)'">
-                <svg lucideCreditCard [size]="14"></svg> Счёт
-              </button>
-            </div>
-          }
-        </div>
+        <order-card [order]="o" [reservation]="orderReservation(o)"
+                    (edit)="openEdit(o)" (addMore)="addMore(o)" (move)="openMoveSheet(o)"
+                    (checkout)="openCheckout(o)" (removeItem)="removeItem(o, $event)"
+                    (free)="freeTable(o)" (reprint)="reprint($event)" />
       }
 
       @if (!myOrders().length && !zones().length) {
@@ -660,22 +518,16 @@ export class TablesPage implements OnInit, OnDestroy {
   private guestBillMap = signal<Record<number, number>>({});
   private billPayMap   = signal<Record<number, PaymentMethod>>({});
 
-  confirmDeleteItem = signal<number | null>(null);
-  confirmFree       = signal<number | null>(null);
   private pollTimer?: ReturnType<typeof setInterval>;
 
   // ── Computed ─────────────────────────────────────────────────────
   currentUserId = computed(() => this.auth.user()?.id);
-
-  myOrders    = computed(() => this.orders().filter(o => o.waiter === this.currentUserId()));
-  otherOrders = computed(() => this.orders().filter(o => o.waiter !== this.currentUserId()));
+  myOrders = computed(() => this.orders().filter(o => o.waiter === this.currentUserId()));
 
   filteredZones = computed(() => {
     const id = this.selectedZoneId();
     return id === null ? this.zones() : this.zones().filter(z => z.id === id);
   });
-
-  allTables = computed(() => this.zones().flatMap(z => z.tables));
 
   resvSorted = computed(() =>
     [...this.todayReservations()]
@@ -924,29 +776,14 @@ export class TablesPage implements OnInit, OnDestroy {
     });
   }
 
-  // ── Item actions ──────────────────────────────────────────────────
-  askDeleteItem(item: OrderItem) { this.confirmDeleteItem.set(item.id); }
+  // ── Item / order actions (по событиям из order-card) ──────────────
   removeItem(o: Order, item: OrderItem) {
-    this.confirmDeleteItem.set(null);
     this.orderApi.removeItemFromOrder(o.id, item.id).subscribe({
       next: updated => this.replaceOrder(updated),
       error: () => this.toast.error('Не удалось удалить позицию'),
     });
   }
-  moveItem(o: Order, item: OrderItem, guest: number) {
-    if (item.guest_no === guest) return;
-    this.orderApi.setItemGuest(o.id, item.id, guest).subscribe({
-      next: updated => this.replaceOrder(updated),
-      error: () => this.toast.error('Не удалось перенести позицию'),
-    });
-  }
-
-  // ── Free empty table ─────────────────────────────────────────────
-  /** Стол пустой — по нему ничего не заказывали (нет позиций и чеков). */
-  isEmpty(o: Order): boolean { return o.items.length === 0 && o.receipts.length === 0; }
-  askFreeTable(o: Order) { this.confirmFree.set(o.id); }
   freeTable(o: Order) {
-    this.confirmFree.set(null);
     this.orderApi.deleteOrder(o.id).subscribe({
       next: () => {
         this.orders.update(list => list.filter(x => x.id !== o.id));
@@ -957,23 +794,7 @@ export class TablesPage implements OnInit, OnDestroy {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────
-  firstName(name: string): string { return name?.split(' ')[0] ?? ''; }
   guestLabel(guest: number): string { return guest === 0 ? 'Общий' : 'Гость ' + guest; }
-  guestOptions(o: Order): number[] {
-    const used = this.unpaidItems(o).reduce((m, i) => Math.max(m, i.guest_no), 0);
-    const n = Math.max(o.guests ?? 0, used);
-    return [0, ...Array.from({ length: n }, (_, i) => i + 1)];
-  }
-  guestGroups(o: Order): { guest: number; items: OrderItem[]; total: number }[] {
-    const byGuest = new Map<number, OrderItem[]>();
-    for (const it of this.unpaidItems(o)) {
-      (byGuest.get(it.guest_no) ?? byGuest.set(it.guest_no, []).get(it.guest_no)!).push(it);
-    }
-    return [...byGuest.keys()].sort((a, b) => a - b).map(guest => {
-      const items = byGuest.get(guest)!;
-      return { guest, items, total: items.reduce((s, i) => s + +i.subtotal, 0) };
-    });
-  }
 
   unpaidItems(o: Order): OrderItem[] { return o.items.filter(i => i.receipt == null); }
   unpaidTotal(o: Order): number { return this.unpaidItems(o).reduce((s, i) => s + +i.subtotal, 0); }
