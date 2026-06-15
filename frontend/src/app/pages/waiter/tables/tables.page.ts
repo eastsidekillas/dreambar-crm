@@ -225,25 +225,52 @@ const POLL_MS = 10_000;
             </div>
           }
 
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr">
-            <button (click)="addMore(o)"
-                    class="flex items-center justify-center gap-1 py-3 font-semibold text-sm"
-                    style="border-right:1px solid var(--color-border);color:var(--color-text)">
-              <svg lucidePlus [size]="14"></svg> Дозаказ
-            </button>
-            <button (click)="openMoveSheet(o)"
-                    class="flex items-center justify-center gap-1 py-3 font-medium text-sm"
-                    style="border-right:1px solid var(--color-border);color:var(--color-muted)">
-              <svg lucideArrowLeftRight [size]="14"></svg> Пересадить
-            </button>
-            <button (click)="openCheckout(o)" [disabled]="!unpaidItems(o).length"
-                    class="flex items-center justify-center gap-1 py-3 font-bold text-sm"
-                    [style]="unpaidItems(o).length
-                      ? 'background:var(--color-gold);color:white'
-                      : 'color:var(--color-muted)'">
-              <svg lucideCreditCard [size]="14"></svg> Счёт
-            </button>
-          </div>
+          @if (isEmpty(o)) {
+            <!-- Пустой стол: ничего не заказали → можно освободить -->
+            <div style="display:grid;grid-template-columns:1fr 1fr">
+              @if (confirmFree() === o.id) {
+                <button (click)="freeTable(o)"
+                        class="flex items-center justify-center gap-1 py-3 font-bold text-sm"
+                        style="border-right:1px solid var(--color-border);background:#ef4444;color:white">
+                  <svg lucideX [size]="14"></svg> Удалить стол
+                </button>
+                <button (click)="confirmFree.set(null)"
+                        class="flex items-center justify-center py-3 font-medium text-sm"
+                        style="color:var(--color-muted)">Отмена</button>
+              } @else {
+                <button (click)="addMore(o)"
+                        class="flex items-center justify-center gap-1 py-3 font-semibold text-sm"
+                        style="border-right:1px solid var(--color-border);color:var(--color-text)">
+                  <svg lucidePlus [size]="14"></svg> Дозаказ
+                </button>
+                <button (click)="askFreeTable(o)"
+                        class="flex items-center justify-center gap-1 py-3 font-medium text-sm"
+                        style="color:var(--color-red)">
+                  <svg lucideX [size]="14"></svg> Освободить
+                </button>
+              }
+            </div>
+          } @else {
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr">
+              <button (click)="addMore(o)"
+                      class="flex items-center justify-center gap-1 py-3 font-semibold text-sm"
+                      style="border-right:1px solid var(--color-border);color:var(--color-text)">
+                <svg lucidePlus [size]="14"></svg> Дозаказ
+              </button>
+              <button (click)="openMoveSheet(o)"
+                      class="flex items-center justify-center gap-1 py-3 font-medium text-sm"
+                      style="border-right:1px solid var(--color-border);color:var(--color-muted)">
+                <svg lucideArrowLeftRight [size]="14"></svg> Пересадить
+              </button>
+              <button (click)="openCheckout(o)" [disabled]="!unpaidItems(o).length"
+                      class="flex items-center justify-center gap-1 py-3 font-bold text-sm"
+                      [style]="unpaidItems(o).length
+                        ? 'background:var(--color-gold);color:white'
+                        : 'color:var(--color-muted)'">
+                <svg lucideCreditCard [size]="14"></svg> Счёт
+              </button>
+            </div>
+          }
         </div>
       }
 
@@ -849,6 +876,7 @@ export class TablesPage implements OnInit, OnDestroy {
   private billPayMap   = signal<Record<number, PaymentMethod>>({});
 
   confirmDeleteItem = signal<number | null>(null);
+  confirmFree       = signal<number | null>(null);
   private pollTimer?: ReturnType<typeof setInterval>;
 
   // ── Computed ─────────────────────────────────────────────────────
@@ -1220,6 +1248,21 @@ export class TablesPage implements OnInit, OnDestroy {
     this.orderApi.setItemGuest(o.id, item.id, guest).subscribe({
       next: updated => this.replaceOrder(updated),
       error: () => this.toast.error('Не удалось перенести позицию'),
+    });
+  }
+
+  // ── Free empty table ─────────────────────────────────────────────
+  /** Стол пустой — по нему ничего не заказывали (нет позиций и чеков). */
+  isEmpty(o: Order): boolean { return o.items.length === 0 && o.receipts.length === 0; }
+  askFreeTable(o: Order) { this.confirmFree.set(o.id); }
+  freeTable(o: Order) {
+    this.confirmFree.set(null);
+    this.orderApi.deleteOrder(o.id).subscribe({
+      next: () => {
+        this.orders.update(list => list.filter(x => x.id !== o.id));
+        this.toast.success('Стол освобождён');
+      },
+      error: err => this.toast.apiError(err, 'Не удалось освободить стол'),
     });
   }
 

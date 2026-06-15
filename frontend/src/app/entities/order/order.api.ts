@@ -56,6 +56,10 @@ export class OrderApi {
   cancelOrder(orderId: number): Observable<Order> {
     return this.http.post<Order>(`${BASE}/orders/${orderId}/cancel/`, {});
   }
+  /** Удалить пустой стол (заказ без позиций) — освободить его. */
+  deleteOrder(orderId: number): Observable<void> {
+    return this.http.delete<void>(`${BASE}/orders/${orderId}/`);
+  }
   moveOrderTable(orderId: number, tableNumber: string): Observable<Order> {
     return this.http.post<Order>(`${BASE}/orders/${orderId}/move_table/`, { table_number: tableNumber });
   }

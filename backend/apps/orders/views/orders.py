@@ -73,6 +73,17 @@ class OrderViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(waiter=self.request.user)
 
+    def destroy(self, request, *args, **kwargs):
+        """Освободить стол можно, только если по нему ничего не заказывали (пустой открытый заказ)."""
+        order = self.get_object()   # get_queryset ограничивает не-админа своими заказами → чужой 404
+        if order.status != 'open':
+            return Response({'detail': 'Освободить можно только открытый стол.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if order.items.exists() or order.receipts.exists():
+            return Response({'detail': 'На столе есть заказ — стол нельзя удалить.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):
         payment_method = request.data.get('payment_method', 'cash')
