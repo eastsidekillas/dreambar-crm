@@ -12,8 +12,9 @@ export class EmployeeApi {
   getStaffList(): Observable<StaffMember[]> {
     return this.http.get<StaffMember[]>(`${BASE}/auth/staff/`);
   }
-  pinLogin(userId: number, pin: string): Observable<TokenResponse> {
-    return this.http.post<TokenResponse>(`${BASE}/auth/pin/`, { user_id: userId, pin });
+  /** Чистый вход: сотрудник опознаётся по PIN, без выбора имени. */
+  pinLogin(pin: string): Observable<TokenResponse> {
+    return this.http.post<TokenResponse>(`${BASE}/auth/pin/`, { pin });
   }
   setEmployeePin(userId: number, pin: string): Observable<any> {
     return this.http.patch(`${BASE}/employees/${userId}/`, { pin });

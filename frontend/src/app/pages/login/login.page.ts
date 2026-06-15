@@ -81,6 +81,7 @@ export class LoginPage {
     this.auth.login(this.username, this.password).subscribe({
       next: user => {
         this.loading.set(false);
+        this.auth.markUnlocked();
         if (user.must_change_password) {
           this.router.navigateByUrl('/welcome');
         } else if (this.auth.needsRoleSelect()) {
