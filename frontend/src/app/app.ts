@@ -36,20 +36,14 @@ export class App implements OnInit {
   private router = inject(Router);
 
   /** Авто-блокировка по бездействию (важно для всегда-открытого бармен-POS). */
-  private readonly IDLE_LOCK_MS = 5 * 60 * 1000;
+  private readonly IDLE_LOCK_MS = 60 * 60 * 1000;   // 1 час
   private idleTimer: any;
 
   ngOnInit() {
-    // Свернули/ушли в фон — блокируем. Вернулись — если сессия жива, требуем PIN.
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        this.auth.lock();
-      } else if (this.auth.isLoggedIn() && !this.auth.isUnlocked()) {
-        this.router.navigate(['/pin']);
-      }
-    });
-
-    // Бездействие N минут → блокировка (терминал возвращается к PIN, как в iiko).
+    // PIN при сворачивании/смене вкладки НЕ требуем (неудобно). Блокировка только при
+    // ЗАКРЫТИИ: флаг разблокировки в sessionStorage снимается при закрытии вкладки/приложения,
+    // поэтому холодный старт → /pin (см. guards). Сворачивание/фон сессию не сбрасывают.
+    // Дополнительно — авто-лок по бездействию (для всегда-открытого бармен-POS).
     const reset = () => this.resetIdle();
     ['pointerdown', 'keydown', 'touchstart'].forEach(ev =>
       window.addEventListener(ev, reset, { passive: true }));
