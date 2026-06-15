@@ -13,6 +13,7 @@ import { CartService } from '../../../features/cart/cart.service';
 import { ReceiptPrintService } from '../../../features/receipt/receipt-print.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Order, OrderItem, PaymentMethod, Receipt, ReservationInfo, Zone, Reservation } from '../../../core/models';
+import { EditOrderModal } from './edit-order-modal';
 import {
   LucideDynamicIcon,
   LucideCalendar, LucideUsers, LucideMessageCircle, LucideArmchair,
@@ -27,7 +28,7 @@ const POLL_MS = 10_000;
 @Component({
   selector: 'app-tables-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideDynamicIcon,
+  imports: [CommonModule, FormsModule, LucideDynamicIcon, EditOrderModal,
     LucideCalendar, LucideUsers, LucideMessageCircle, LucideArmchair,
     LucideBanknote, LucideCreditCard,
     LucideCheck, LucideClock, LucideX, LucideReceipt, LucidePencil,
@@ -432,34 +433,8 @@ const POLL_MS = 10_000;
     }
 
     <!-- ── Edit table modal ───────────────────────────────────────── -->
-    @if (editOrder()) {
-      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closeEdit()"></div>
-      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
-           style="background:white;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
-        <div class="flex justify-center pt-3 pb-1 cursor-pointer" (click)="closeEdit()">
-          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
-        </div>
-        <div class="flex items-center justify-between px-4 py-3"
-             style="border-bottom:1px solid var(--color-border)">
-          <h2 class="font-bold text-base flex items-center gap-2"><svg lucidePencil [size]="16"></svg> Изменить стол</h2>
-          <button (click)="closeEdit()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
-        </div>
-        <div class="px-4 py-4 space-y-3">
-          <div>
-            <label class="section-title block mb-1.5">Гостей</label>
-            <input [(ngModel)]="editGuests" type="number" min="0" class="field" style="height:44px" />
-          </div>
-          <div>
-            <label class="section-title block mb-1.5">Комментарий</label>
-            <textarea [(ngModel)]="editNotes" placeholder="Аллергия, пожелания…"
-                      class="field" rows="2" style="resize:none"></textarea>
-          </div>
-          <button (click)="saveEdit()" [disabled]="saving()"
-                  class="btn btn-primary btn-full" style="height:48px">
-            {{ saving() ? '...' : 'Сохранить' }}
-          </button>
-        </div>
-      </div>
+    @if (editOrder(); as eo) {
+      <edit-order-modal [order]="eo" (saved)="onEditSaved($event)" (closed)="closeEdit()" />
     }
 
     <!-- ── Move table sheet ───────────────────────────────────────── -->
@@ -847,9 +822,6 @@ export class TablesPage implements OnInit, OnDestroy {
 
   // edit modal
   editOrder  = signal<Order | null>(null);
-  editGuests: number | null = null;
-  editNotes  = '';
-  saving     = signal(false);
 
   // reservations sheet
   resvSheet = signal(false);
@@ -1099,26 +1071,9 @@ export class TablesPage implements OnInit, OnDestroy {
   }
 
   // ── Edit order ────────────────────────────────────────────────────
-  openEdit(o: Order) {
-    this.editGuests = o.guests || null;
-    this.editNotes  = o.notes || '';
-    this.editOrder.set(o);
-  }
+  openEdit(o: Order) { this.editOrder.set(o); }
   closeEdit() { this.editOrder.set(null); }
-
-  saveEdit() {
-    const o = this.editOrder();
-    if (!o || this.saving()) return;
-    this.saving.set(true);
-    this.orderApi.updateOrder(o.id, {
-      table_number: o.table_number,
-      guests: this.editGuests || 0,
-      notes: this.editNotes.trim(),
-    }).subscribe({
-      next: updated => { this.replaceOrder(updated); this.saving.set(false); this.closeEdit(); },
-      error: () => { this.saving.set(false); this.toast.error('Не удалось сохранить'); },
-    });
-  }
+  onEditSaved(updated: Order) { this.replaceOrder(updated); this.closeEdit(); }
 
   // ── Move table ────────────────────────────────────────────────────
   openMoveSheet(o: Order) {
