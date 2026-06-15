@@ -6,6 +6,7 @@ import { InventoryApi } from '../../../entities/inventory';
 import { MenuApi } from '../../../entities/menu';
 import { Product, InventoryMovement, MovementReason, MenuItem, PRODUCT_UNITS } from '../../../core/models';
 import { BdTableComponent, BdTableColumn, BdDrawerComponent } from '../../../shared/ui';
+import { ToastService } from '../../../shared/ui/toast/toast.service';
 import {
   LucideSearch, LucidePackage, LucidePlus, LucideMinus, LucideClock, LucidePencil,
 } from '@lucide/angular';
@@ -310,7 +311,8 @@ export class StockPage implements OnInit {
     return [...groups.entries()].map(([name, list]) => ({ name, items: list }));
   });
 
-  constructor(private inventoryApi: InventoryApi, private menuApi: MenuApi) {}
+  constructor(private inventoryApi: InventoryApi, private menuApi: MenuApi,
+              private toast: ToastService) {}
 
   ngOnInit() {
     this.inventoryApi.getProducts().subscribe(p => this.products.set(p));
@@ -425,7 +427,7 @@ export class StockPage implements OnInit {
         this.fromMenuOpen.set(false);
       },
       error: e => {
-        alert(e.error?.detail ?? 'Ошибка');
+        this.toast.apiError(e, 'Не удалось создать товары из меню');
         this.fromMenuSaving.set(false);
       },
     });

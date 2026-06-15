@@ -67,7 +67,7 @@ export class ReceiptPrintService {
 
     const w = window.open('', '_blank', 'width=360,height=640');
     if (!w) {
-      alert('Разрешите всплывающие окна, чтобы напечатать чек.');
+      this.toast.warn('Разрешите всплывающие окна, чтобы напечатать чек.');
       return;
     }
     w.document.open();

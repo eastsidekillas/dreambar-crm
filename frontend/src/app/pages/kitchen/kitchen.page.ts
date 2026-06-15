@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, signal, inject, HostListener } from '@ang
 import { CommonModule } from '@angular/common';
 import { OrderApi } from '../../entities/order';
 import { AuthService } from '../../core/services/auth.service';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 import { KitchenTicket, KitchenItem, KitchenStatus } from '../../core/models';
 import {
   LucideChefHat, LucideBell, LucideBellOff,
@@ -200,6 +201,7 @@ const REFRESH_MS = 8000;
 export class KitchenScreen implements OnInit, OnDestroy {
   private orderApi = inject(OrderApi);
   auth = inject(AuthService);
+  private toast = inject(ToastService);
 
   active     = signal<KitchenTicket[]>([]);
   ready      = signal<KitchenTicket[]>([]);
@@ -302,7 +304,7 @@ export class KitchenScreen implements OnInit, OnDestroy {
     item.kitchen_status = status;                  // optimistic
     this.orderApi.setKitchenItemStatus(item.id, status).subscribe({
       next: () => { if (status === 'ready') this.load(); },
-      error: () => this.load()
+      error: err => { this.toast.apiError(err, 'Не удалось изменить статус'); this.load(); }
     });
   }
 
@@ -310,7 +312,7 @@ export class KitchenScreen implements OnInit, OnDestroy {
     this.active.update(list => list.filter(x => x.order_id !== t.order_id)); // optimistic
     this.orderApi.markKitchenOrderReady(t.order_id, 'kitchen').subscribe({
       next: () => this.load(),
-      error: () => this.load()
+      error: err => { this.toast.apiError(err, 'Не удалось отметить готовность'); this.load(); }
     });
   }
 
@@ -321,7 +323,7 @@ export class KitchenScreen implements OnInit, OnDestroy {
     for (const it of t.items) {
       this.orderApi.setKitchenItemStatus(it.id, 'cooking').subscribe({
         next: () => { if (--pending === 0) this.load(); },
-        error: () => this.load()
+        error: err => { this.toast.apiError(err, 'Не удалось вернуть в работу'); this.load(); }
       });
     }
   }

@@ -279,7 +279,7 @@ export class PurchasesPage implements OnInit {
     this.creating.set(true);
     this.inventoryApi.createPurchaseFromLowStock().subscribe({
       next:  order => { this.orders.update(o => [order, ...o]); this.creating.set(false); },
-      error: (e)   => { alert(e.error?.detail ?? 'Ошибка'); this.creating.set(false); },
+      error: (e)   => { this.toast.apiError(e, 'Не удалось создать закупку'); this.creating.set(false); },
     });
   }
 
