@@ -136,6 +136,7 @@ export class WaiterShell implements OnInit {
   tabs = computed<Tab[]>(() => {
     const order   = { path: '/waiter/order',   label: 'Меню',       icon: LucideClipboardList };
     const tables  = { path: '/waiter/tables',  label: 'Столы',      icon: LucideUtensilsCrossed };
+    const orders  = { path: '/waiter/orders',  label: 'Заказы',     icon: LucideReceipt };
     const tickets = { path: '/waiter/tickets', label: 'Билеты',     icon: LucideTicket };
     const history = { path: '/waiter/history', label: 'Чеки',       icon: LucideReceipt };
     const profile = { path: '/waiter/profile', label: 'Профиль',    icon: LucideCircleUserRound };
@@ -143,8 +144,8 @@ export class WaiterShell implements OnInit {
 
     switch (this.auth.role()) {
       case 'wardrobe':  return [tickets, history, profile];
-      case 'admin':     return [tables, order, tickets, history, admin];
-      default:          return [tables, order, history, profile]; // waiter, bartender
+      case 'admin':     return [tables, order, tickets, orders, admin];
+      default:          return [tables, order, orders, profile]; // waiter, bartender
     }
   });
 
