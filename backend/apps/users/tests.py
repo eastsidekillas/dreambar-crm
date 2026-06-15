@@ -23,11 +23,13 @@ class PermissionsMatrixTest(TestCase):
     def test_role_permission_sets(self):
         self.assertEqual(permissions_for_role('kitchen'),
                          {Perm.KITCHEN_VIEW, Perm.KITCHEN_UPDATE})
-        self.assertIn(Perm.SHIFT_OPEN, permissions_for_role('waiter'))
+        self.assertNotIn(Perm.SHIFT_OPEN, permissions_for_role('waiter'))   # официант не открывает смену
         self.assertIn(Perm.TICKET_SELL, permissions_for_role('waiter'))
         self.assertIn(Perm.RESERVATION_MANAGE, permissions_for_role('bartender'))
-        # Гардероб может открыть смену (есть кнопка в UI), но не управлять меню
-        self.assertIn(Perm.SHIFT_OPEN, permissions_for_role('wardrobe'))
+        self.assertIn(Perm.SHIFT_OPEN, permissions_for_role('bartender'))
+        # Смену открывают только бармен/админ — гардероб продаёт билеты, но смену не открывает
+        self.assertNotIn(Perm.SHIFT_OPEN, permissions_for_role('wardrobe'))
+        self.assertIn(Perm.TICKET_SELL, permissions_for_role('wardrobe'))
         self.assertNotIn(Perm.MENU_MANAGE, permissions_for_role('wardrobe'))
         # Неизвестная роль — пустой набор, не падаем
         self.assertEqual(permissions_for_role('does_not_exist'), set())
@@ -40,8 +42,10 @@ class PermissionsMatrixTest(TestCase):
 
     def test_waiter_is_scoped(self):
         u = make_user('w', 'waiter')
-        self.assertTrue(has_perm(u, Perm.SHIFT_OPEN))
         self.assertTrue(has_perm(u, Perm.ORDER_CREATE))
+        self.assertTrue(has_perm(u, Perm.TICKET_SELL))
+        self.assertFalse(has_perm(u, Perm.SHIFT_OPEN))     # смену официант не открывает
+        self.assertFalse(has_perm(u, Perm.SHIFT_CLOSE))    # и не закрывает
         self.assertFalse(has_perm(u, Perm.MENU_MANAGE))
         self.assertFalse(has_perm(u, Perm.SHIFT_REOPEN))   # переоткрытие — только админ
         self.assertFalse(has_perm(u, Perm.ORDER_EDIT_ANY)) # чужие заказы — только админ

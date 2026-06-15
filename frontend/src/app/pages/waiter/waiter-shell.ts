@@ -42,8 +42,10 @@ interface Tab { path: string; label: string; icon: LucideIconInput; }
               <span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background:var(--color-green)"></span>
               {{ formatDate(shift()!.date) }}
             </span>
-          } @else {
+          } @else if (canOpenShift()) {
             <button (click)="openShift()" class="btn btn-primary btn-sm">Открыть смену</button>
+          } @else {
+            <span class="text-xs" style="color:var(--color-muted)">Смена не открыта</span>
           }
         </div>
 
@@ -124,6 +126,9 @@ export class WaiterShell implements OnInit {
 
   /** Кто может вести заказы — по праву из матрицы (официант/бармен/админ; гардероб — нет). */
   canOrder = computed(() => this.perm.can(Perm.ORDER_CREATE));
+
+  /** Кто может открыть смену (бармен/админ). В этом интерфейсе — только если зашёл админ. */
+  canOpenShift = computed(() => this.perm.can(Perm.SHIFT_OPEN));
 
   roleLabel = computed(() => ROLE_LABEL[this.auth.role() ?? ''] ?? '');
 

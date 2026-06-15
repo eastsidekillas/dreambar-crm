@@ -20,6 +20,7 @@ class ShiftPermissionsTest(APITestCase):
         self.admin    = User.objects.create_superuser('admin', 'a@a.ru', 'p')
         self.waiter   = make_user('waiter',   'waiter')
         self.wardrobe = make_user('wardrobe', 'wardrobe')
+        self.barman   = make_user('barman',   'bartender')
         self.kitchen  = make_user('kitchen',  'kitchen')
 
     # ── Чтение доступно всем залогиненным ──────────────────────────────────
@@ -29,29 +30,37 @@ class ShiftPermissionsTest(APITestCase):
         r = self.client.get('/api/shifts/current/')
         self.assertEqual(r.status_code, 200)
 
-    # ── Открытие смены: floor-роли могут, кухня — нет ──────────────────────
-    def test_open_allowed_for_waiter_and_wardrobe(self):
-        for user in (self.waiter, self.wardrobe):
+    # ── Открытие смены: только бармен/админ; официант, гардероб, кухня — нет
+    def test_open_allowed_for_bartender(self):
+        Shift.objects.all().delete()
+        self.client.force_authenticate(self.barman)
+        r = self.client.post('/api/shifts/', {}, format='json')
+        self.assertIn(r.status_code, (200, 201))
+
+    def test_open_denied_for_non_managers(self):
+        for user in (self.waiter, self.wardrobe, self.kitchen):
             Shift.objects.all().delete()
             self.client.force_authenticate(user)
             r = self.client.post('/api/shifts/', {}, format='json')
-            self.assertIn(r.status_code, (200, 201), msg=f'{user.username}: {r.status_code}')
+            self.assertEqual(r.status_code, 403, msg=user.username)
+            self.assertFalse(Shift.objects.exists())
 
-    def test_open_denied_for_kitchen(self):
-        Shift.objects.all().delete()
-        self.client.force_authenticate(self.kitchen)
-        r = self.client.post('/api/shifts/', {}, format='json')
-        self.assertEqual(r.status_code, 403)
-        self.assertFalse(Shift.objects.exists())
-
-    # ── Закрытие смены: официант может, кухня — нет ────────────────────────
-    def test_close_allowed_for_waiter(self):
+    # ── Закрытие смены: бармен может; официант и кухня — нет ───────────────
+    def test_close_allowed_for_bartender(self):
         s = Shift.objects.create()
-        self.client.force_authenticate(self.waiter)
+        self.client.force_authenticate(self.barman)
         r = self.client.post(f'/api/shifts/{s.id}/close/')
         self.assertEqual(r.status_code, 200)
         s.refresh_from_db()
         self.assertFalse(s.is_open)
+
+    def test_close_denied_for_waiter(self):
+        s = Shift.objects.create()
+        self.client.force_authenticate(self.waiter)
+        r = self.client.post(f'/api/shifts/{s.id}/close/')
+        self.assertEqual(r.status_code, 403)
+        s.refresh_from_db()
+        self.assertTrue(s.is_open)
 
     def test_close_denied_for_kitchen(self):
         s = Shift.objects.create()

@@ -29,7 +29,10 @@ class OrderAccessTest(APITestCase):
     # ── Матрица: кто вообще допущен к заказам ──────────────────────────────
     def test_kitchen_cannot_list_orders(self):
         self.client.force_authenticate(self.kitchen)
-        self.assertEqual(self.client.get('/api/orders/').status_code, 403)
+        r = self.client.get('/api/orders/')
+        self.assertEqual(r.status_code, 403)
+        # 403 по правам отдаёт русское сообщение (а не дефолтный английский DRF)
+        self.assertEqual(r.data['detail'], 'Недостаточно прав для этого действия.')
 
     def test_kitchen_cannot_create_order(self):
         self.client.force_authenticate(self.kitchen)
