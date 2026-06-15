@@ -73,7 +73,8 @@ const POLL_MS = 10_000;
 
                   <button (click)="onTableTap(t.number)"
                           class="rounded-xl p-2.5 text-center transition-all active:scale-95 w-full"
-                          [style]="tableCardStyle(status)">
+                          [style]="tableCardStyle(status)"
+                          [style.box-shadow]="isReadyTable(t.number) ? '0 0 0 2.5px #16a34a' : null">
                     <p class="font-bold text-sm leading-none">{{ t.number }}</p>
 
                     @if (status === 'free') {
@@ -1013,6 +1014,12 @@ export class TablesPage implements OnInit, OnDestroy {
     if (status === 'reserved')
       return 'background:#eff6ff;border:1.5px solid #93c5fd';
     return 'background:var(--color-surface2);border:1px solid var(--color-border)';
+  }
+
+  /** Свой занятый стол, где есть готовые к подаче блюда — подсветить, чтобы официант подошёл. */
+  isReadyTable(num: string): boolean {
+    const o = this.tableOrder(num);
+    return !!o && o.waiter === this.currentUserId() && this.readyCount(o) > 0;
   }
 
   onTableTap(tableNum: string) {

@@ -1,25 +1,26 @@
-import type { LucideIconInput } from '@lucide/angular';
 import { Component, OnInit, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MenuApi } from '../../../entities/menu';
 import { CartService } from '../../../features/cart/cart.service';
 import { MenuByCategory, MenuItem } from '../../../core/models';
+import { catMeta } from '../../../shared/lib/menu-meta';
+import { MenuItemCard } from './menu-item-card';
 import {
-  LucideDynamicIcon,
-  LucideGlassWater, LucideUtensilsCrossed, LucideWind,
+  LucideDynamicIcon, LucideUtensilsCrossed,
   LucideSearch, LucideSearchSlash, LucideX, LucideClock, LucideUsers,
 } from '@lucide/angular';
 
-const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: LucideIconInput }> = {
-  bar:     { color: 'var(--color-bar)',     bg: 'var(--color-bar-bg)',     icon: LucideGlassWater },
-  kitchen: { color: 'var(--color-kitchen)', bg: 'var(--color-kitchen-bg)', icon: LucideUtensilsCrossed },
-  hookah:  { color: 'var(--color-hookah)',  bg: 'var(--color-hookah-bg)',  icon: LucideWind },
-};
+// Верхний уровень меню — секции (станции). Порядок фиксированный.
+const SECTION_META: { type: string; label: string }[] = [
+  { type: 'bar',     label: 'Бар' },
+  { type: 'kitchen', label: 'Кухня' },
+  { type: 'hookah',  label: 'Кальян' },
+];
 
 @Component({
   selector: 'app-order-page',
   standalone: true,
-  imports: [CommonModule, LucideDynamicIcon, LucideSearch, LucideSearchSlash, LucideX, LucideClock, LucideUsers, LucideUtensilsCrossed],
+  imports: [CommonModule, MenuItemCard, LucideDynamicIcon, LucideSearch, LucideSearchSlash, LucideX, LucideClock, LucideUsers, LucideUtensilsCrossed],
   template: `
     <div>
       @if (cart.target(); as t) {
@@ -87,33 +88,7 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: LucideIco
               </div>
               <div class="grid grid-cols-2 gap-2.5">
                 @for (item of group.items; track item.id) {
-                  <div class="menu-card" [class.in-cart]="cart.qty(item.id, activeGuest()) > 0"
-                       [class.out-of-stock]="item.is_out_of_stock"
-                       (click)="!item.is_out_of_stock && add(item)">
-                    @if (item.is_out_of_stock) {
-                      <span class="absolute top-2 right-2 text-xs font-bold px-1.5 py-0.5 rounded"
-                            style="background:#fee2e2;color:#dc2626">Нет</span>
-                    } @else if (cart.qty(item.id, activeGuest()) > 0) {
-                      <span class="absolute top-2 right-2 flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white"
-                            style="background:var(--color-gold)">
-                        {{ cart.qty(item.id, activeGuest()) }}
-                      </span>
-                    }
-                    <span class="inline-flex items-center gap-1 text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded-full"
-                          [style.color]="meta(group.cat.station_type).color"
-                          [style.background]="meta(group.cat.station_type).bg">
-                      <svg [lucideIcon]="meta(group.cat.station_type).icon" [size]="12"></svg>
-                    </span>
-                    <p class="font-semibold text-sm leading-tight mb-0.5" style="color:var(--color-text)">
-                      {{ item.name }}
-                    </p>
-                    @if (item.volume) {
-                      <p class="text-xs mb-1" style="color:var(--color-muted)">{{ item.volume }}</p>
-                    }
-                    <p class="text-base font-bold mt-auto pt-1" style="color:var(--color-gold-hover)">
-                      {{ item.price | number:'1.0-0' }} ₽
-                    </p>
-                  </div>
+                  <menu-item-card [item]="item" [guest]="activeGuest()" />
                 }
               </div>
             </div>
@@ -130,9 +105,25 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: LucideIco
       <!-- ── BROWSE BY CATEGORY ─────────────────────────── -->
       @if (!isSearching()) {
 
+        <!-- Section tabs (станции) — верхний уровень группировки -->
+        @if (sections().length > 1) {
+          <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-2" style="scrollbar-width:none">
+            @for (s of sections(); track s.type) {
+              <button (click)="selectSection(s.type)"
+                      class="flex-shrink-0 flex items-center gap-1.5 rounded-xl font-bold"
+                      style="min-height:44px;padding:0 16px;font-size:0.9rem"
+                      [style.background]="selectedSection() === s.type ? meta(s.type).color : 'var(--color-bg)'"
+                      [style.color]="selectedSection() === s.type ? 'white' : 'var(--color-muted)'"
+                      [style.border]="'1.5px solid ' + (selectedSection() === s.type ? meta(s.type).color : 'var(--color-border)')">
+                <svg [lucideIcon]="meta(s.type).icon" [size]="16"></svg> {{ s.label }}
+              </button>
+            }
+          </div>
+        }
+
         <!-- Category tabs — touch-sized -->
         <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-4" style="scrollbar-width:none">
-          @for (cat of categories(); track cat.id) {
+          @for (cat of visibleCategories(); track cat.id) {
             <button (click)="selectCat(cat.id)"
                     class="cat-chip flex-shrink-0 flex items-center gap-1"
                     style="min-height:44px;padding:0 16px;font-size:0.875rem"
@@ -147,44 +138,7 @@ const CAT_TYPE_META: Record<string, { color: string; bg: string; icon: LucideIco
 
           <div class="grid grid-cols-2 gap-2.5">
             @for (item of current()!.items; track item.id) {
-              <div class="menu-card" [class.in-cart]="cart.qty(item.id, activeGuest()) > 0"
-                   [class.out-of-stock]="item.is_out_of_stock"
-                   (click)="!item.is_out_of_stock && add(item)">
-
-                @if (item.is_out_of_stock) {
-                  <span class="absolute top-2 right-2 text-xs font-bold px-1.5 py-0.5 rounded"
-                        style="background:#fee2e2;color:#dc2626">Нет</span>
-                } @else if (cart.qty(item.id, activeGuest()) > 0) {
-                  <span class="absolute top-2 right-2 flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white"
-                        style="background:var(--color-gold)">
-                    {{ cart.qty(item.id, activeGuest()) }}
-                  </span>
-                }
-
-                <span class="inline-flex items-center gap-1 text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded-full"
-                      [style.color]="meta(current()!.station_type).color"
-                      [style.background]="meta(current()!.station_type).bg">
-                  <svg [lucideIcon]="meta(current()!.station_type).icon" [size]="12"></svg>
-                </span>
-
-                <p class="font-semibold text-sm leading-tight mb-0.5" style="color:var(--color-text)">
-                  {{ item.name }}
-                </p>
-
-                @if (item.volume) {
-                  <p class="text-xs mb-1" style="color:var(--color-muted)">{{ item.volume }}</p>
-                }
-
-                @if (item.description) {
-                  <p class="text-xs leading-snug mb-1" style="color:var(--color-light);font-style:italic">
-                    {{ item.description }}
-                  </p>
-                }
-
-                <p class="text-base font-bold mt-auto pt-1" style="color:var(--color-gold-hover)">
-                  {{ item.price | number:'1.0-0' }} ₽
-                </p>
-              </div>
+              <menu-item-card [item]="item" [guest]="activeGuest()" [showDescription]="true" />
             }
           </div>
         }
@@ -203,6 +157,7 @@ export class OrderPage implements OnInit {
   cart = inject(CartService);
 
   menuByCategory = signal<MenuByCategory[]>([]);
+  selectedSection = signal<string | null>(null);   // station_type выбранной секции
   selectedCatId  = signal<number | null>(null);
   searchQuery    = signal('');
 
@@ -210,6 +165,20 @@ export class OrderPage implements OnInit {
   private extraGuests = signal(0);
 
   categories  = computed(() => this.menuByCategory());
+  /** Секции, реально присутствующие в меню, в фиксированном порядке. */
+  sections    = computed(() => {
+    const present = new Set<string>(this.menuByCategory().map(c => c.station_type));
+    const known   = SECTION_META.filter(s => present.has(s.type));
+    const extra   = [...present]
+      .filter(t => !SECTION_META.some(s => s.type === t))
+      .map(t => ({ type: t, label: t }));
+    return [...known, ...extra];
+  });
+  /** Категории только выбранной секции. */
+  visibleCategories = computed(() => {
+    const sec = this.selectedSection();
+    return sec ? this.menuByCategory().filter(c => c.station_type === sec) : this.menuByCategory();
+  });
   current     = computed(() => this.menuByCategory().find(c => c.id === this.selectedCatId()) ?? null);
   isSearching = computed(() => !!this.searchQuery().trim());
 
@@ -240,9 +209,18 @@ export class OrderPage implements OnInit {
   ngOnInit() {
     this.menuApi.getMenuByCategory().subscribe(data => {
       this.menuByCategory.set(data);
-      if (data.length) this.selectedCatId.set(data[0].id);
+      if (data.length) {
+        this.selectedSection.set(data[0].station_type);   // первая секция
+        this.selectedCatId.set(data[0].id);               // первая категория в ней
+      }
     });
     this.activeGuest.set(this.cart.target()?.guests ? 1 : 0);
+  }
+
+  selectSection(type: string) {
+    this.selectedSection.set(type);
+    const first = this.menuByCategory().find(c => c.station_type === type);
+    if (first) this.selectedCatId.set(first.id);
   }
 
   onSearch(event: Event) {
@@ -258,9 +236,7 @@ export class OrderPage implements OnInit {
     this.activeGuest.set(next);
   }
 
-  meta(type: string): { color: string; bg: string; icon: LucideIconInput } {
-    return CAT_TYPE_META[type] ?? { color: 'var(--color-muted)', bg: 'var(--color-bg)', icon: LucideGlassWater };
-  }
+  meta(type: string) { return catMeta(type); }
 
   catChipClass(cat: MenuByCategory): string {
     const active = this.selectedCatId() === cat.id;
