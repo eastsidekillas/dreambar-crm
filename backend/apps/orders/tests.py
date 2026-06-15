@@ -103,6 +103,27 @@ class OrderAccessTest(APITestCase):
         self.assertEqual(self.client.delete(f'/api/orders/{self.order.id}/').status_code, 404)
         self.assertTrue(Order.objects.filter(id=self.order.id).exists())
 
+    # ── Освобождение пустого стола (ничего не заказывали) ─────────────────
+    def test_delete_empty_table_frees_it(self):
+        self.client.force_authenticate(self.alice)
+        r = self.client.delete(f'/api/orders/{self.order.id}/')
+        self.assertEqual(r.status_code, 204)
+        self.assertFalse(Order.objects.filter(id=self.order.id).exists())
+
+    def test_delete_table_with_items_rejected(self):
+        from apps.menu.models import Menu, MenuSection, MenuCategory, MenuItem
+        from apps.orders.models import OrderItem
+        menu = Menu.objects.create(name='M')
+        sec  = MenuSection.objects.create(menu=menu, name='S', station_type='bar')
+        cat  = MenuCategory.objects.create(section=sec, name='C')
+        item = MenuItem.objects.create(category=cat, name='Cola', price=100)
+        OrderItem.objects.create(order=self.order, menu_item=item, unit_price=100, quantity=1)
+
+        self.client.force_authenticate(self.alice)
+        r = self.client.delete(f'/api/orders/{self.order.id}/')
+        self.assertEqual(r.status_code, 400)
+        self.assertTrue(Order.objects.filter(id=self.order.id).exists())   # стол не удалён
+
     def test_list_filtered_to_own(self):
         Order.objects.create(shift=self.shift, waiter=self.bob, table_number='7')
         self.client.force_authenticate(self.alice)
