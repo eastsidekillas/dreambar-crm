@@ -14,13 +14,16 @@ import { ReceiptPrintService } from '../../../features/receipt/receipt-print.ser
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Order, OrderItem, PaymentMethod, Receipt, ReservationInfo, Zone, Reservation } from '../../../core/models';
 import { EditOrderModal } from './edit-order-modal';
+import { ReservationsSheet } from './reservations-sheet';
+import { MoveTableSheet } from './move-table-sheet';
+import { NewTableSheet } from './new-table-sheet';
 import {
   LucideDynamicIcon,
-  LucideCalendar, LucideUsers, LucideMessageCircle, LucideArmchair,
-  LucideBanknote, LucideCreditCard, LucideSmartphone,
+  LucideCalendar, LucideUsers, LucideMessageCircle,
+  LucideBanknote, LucideCreditCard,
   LucideCheck, LucideClock, LucideX, LucideReceipt, LucidePencil,
   LucidePlus, LucideArrowLeftRight, LucideUserMinus,
-  LucideUtensilsCrossed, LucideTriangleAlert,
+  LucideUtensilsCrossed,
 } from '@lucide/angular';
 
 const POLL_MS = 10_000;
@@ -28,12 +31,12 @@ const POLL_MS = 10_000;
 @Component({
   selector: 'app-tables-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideDynamicIcon, EditOrderModal,
-    LucideCalendar, LucideUsers, LucideMessageCircle, LucideArmchair,
+  imports: [CommonModule, FormsModule, LucideDynamicIcon, EditOrderModal, ReservationsSheet, MoveTableSheet, NewTableSheet,
+    LucideCalendar, LucideUsers, LucideMessageCircle,
     LucideBanknote, LucideCreditCard,
     LucideCheck, LucideClock, LucideX, LucideReceipt, LucidePencil,
     LucidePlus, LucideArrowLeftRight, LucideUserMinus,
-    LucideUtensilsCrossed, LucideTriangleAlert],
+    LucideUtensilsCrossed],
   template: `
     <div class="space-y-3 pb-4">
 
@@ -280,156 +283,14 @@ const POLL_MS = 10_000;
 
     <!-- ── Reservations sheet ────────────────────────────────────────── -->
     @if (resvSheet()) {
-      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="resvSheet.set(false)"></div>
-      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
-           style="background:white;max-height:80dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
-        <div class="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer" (click)="resvSheet.set(false)">
-          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
-        </div>
-        <div class="flex items-center justify-between px-4 py-3 flex-shrink-0"
-             style="border-bottom:1px solid var(--color-border)">
-          <h2 class="font-bold text-base flex items-center gap-2"><svg lucideCalendar [size]="16"></svg> Брони на сегодня</h2>
-          <button (click)="resvSheet.set(false)" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
-        </div>
-        <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-          @for (r of resvSorted(); track r.id) {
-            <div class="flex items-start gap-3 px-3 py-2.5 rounded-xl"
-                 [style]="resvCardStyle(r.status)">
-              <div class="flex-shrink-0 text-center" style="min-width:48px">
-                <p class="font-bold text-sm leading-none">{{ fmtTime(r.time_start) }}</p>
-                @if (r.time_end) {
-                  <p class="text-xs mt-0.5" style="color:var(--color-muted)">{{ fmtTime(r.time_end) }}</p>
-                }
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <p class="font-semibold text-sm">{{ r.name }}</p>
-                  <span class="text-xs px-1.5 py-0.5 rounded-full font-medium"
-                        [style]="resvBadgeStyle(r.status)">{{ resvLabel(r.status) }}</span>
-                </div>
-                <div class="flex items-center gap-2 mt-0.5 text-xs flex-wrap" style="color:var(--color-muted)">
-                  @if (r.table_number) {
-                    <span class="font-medium flex items-center gap-0.5" style="color:var(--color-text)"><svg lucideArmchair [size]="12"></svg> {{ r.table_number }}</span>
-                  } @else {
-                    <span class="flex items-center gap-0.5" style="color:#f59e0b"><svg lucideTriangleAlert [size]="12"></svg> Стол не назначен</span>
-                  }
-                  <span class="flex items-center gap-0.5"><svg lucideUsers [size]="12"></svg> {{ r.guests_count }}</span>
-                  @if (+r.deposit_amount > 0) {
-                    <span class="flex items-center gap-0.5" [style.color]="r.deposit_paid ? '#16a34a' : '#92400e'">
-                      <svg lucideBanknote [size]="12"></svg> {{ +r.deposit_amount | number:'1.0-0' }} ₽ {{ r.deposit_paid ? '✓' : '...' }}
-                    </span>
-                  }
-                </div>
-                @if (r.wishes) {
-                  <p class="text-xs mt-0.5 truncate flex items-center gap-0.5" style="color:var(--color-muted)"><svg lucideMessageCircle [size]="12"></svg> {{ r.wishes }}</p>
-                }
-              </div>
-            </div>
-          }
-        </div>
-      </div>
+      <reservations-sheet [reservations]="resvSorted()" (closed)="resvSheet.set(false)" />
     }
 
     <!-- ── New table dialog ───────────────────────────────────────── -->
     @if (newTable()) {
-      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closeNewTable()"></div>
-      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
-           style="background:white;max-height:88dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
-        <div class="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer" (click)="closeNewTable()">
-          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
-        </div>
-        <div class="flex items-center justify-between px-4 py-3 flex-shrink-0"
-             style="border-bottom:1px solid var(--color-border)">
-          <h2 class="font-bold text-base flex items-center gap-2"><svg lucideUtensilsCrossed [size]="16"></svg> Открыть стол</h2>
-          <button (click)="closeNewTable()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
-        </div>
-        <div class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-
-          <!-- Table selection -->
-          <div>
-            <div class="flex items-center justify-between mb-2">
-              <label class="section-title">Стол / зона</label>
-              @if (ntSelectedTables.length > 1) {
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                      style="background:var(--color-gold);color:white">
-                  {{ ntSelectedTables.join('+') }}
-                </span>
-              }
-            </div>
-
-            @if (allTables().length) {
-              <!-- Multi-select grid -->
-              <div class="space-y-3">
-                @for (z of zones(); track z.id) {
-                  @if (z.tables.length) {
-                    <div>
-                      <p class="text-xs font-medium mb-1.5" style="color:var(--color-muted)">{{ z.name }}</p>
-                      <div class="grid gap-1.5" style="grid-template-columns:repeat(auto-fill,minmax(72px,1fr))">
-                        @for (t of z.tables; track t.id) {
-                          @let occupied = tableStatus(t.number) === 'occupied';
-                          @let sel = ntSelectedTables.includes(t.number);
-                          <button (click)="onTableSelect(t.number)"
-                                  [disabled]="occupied"
-                                  class="rounded-xl py-2 px-1 text-center transition-all"
-                                  [style]="occupied
-                                    ? 'background:var(--color-surface2);opacity:0.4;cursor:not-allowed'
-                                    : sel
-                                      ? 'background:var(--color-gold);color:white;border:2px solid var(--color-gold)'
-                                      : 'background:var(--color-surface2);border:2px solid transparent'">
-                            <p class="font-bold text-sm leading-none">{{ t.number }}</p>
-                            <p class="text-xs mt-0.5">
-                              {{ occupied ? 'занят' : sel ? '✓ выбран' : t.seats + ' мест' }}
-                            </p>
-                          </button>
-                        }
-                      </div>
-                    </div>
-                  }
-                }
-              </div>
-
-              @if (ntSelectedTables.length > 1) {
-                <p class="text-xs mt-2 text-center font-medium" style="color:var(--color-gold-hover)">
-                  Объединённый стол: {{ ntSelectedTables.join('+') }}
-                </p>
-              }
-            } @else {
-              <input [(ngModel)]="ntTableFallback" placeholder="Стол 5, VIP-1, Бар"
-                     class="field" style="height:44px" />
-            }
-          </div>
-
-          <!-- Reservation badge (single table) -->
-          @if (ntSelectedTables.length === 1 && tableReservation(ntSelectedTables[0])) {
-            @let resv = tableReservation(ntSelectedTables[0])!;
-            <div class="rounded-xl px-3 py-2.5" style="background:#eff6ff;border:1px solid #bfdbfe">
-              <p class="text-xs font-semibold mb-0.5 flex items-center gap-1" style="color:#1d4ed8"><svg lucideCalendar [size]="12"></svg> Бронь на этом столе</p>
-              <p class="text-sm font-medium">{{ resv.name }} · {{ resv.time_start }}</p>
-              <p class="text-xs flex items-center gap-0.5" style="color:#3b82f6"><svg lucideUsers [size]="12"></svg> {{ resv.guests_count }}
-                @if (+resv.deposit_amount > 0) { · Депозит {{ +resv.deposit_amount | number:'1.0-0' }} ₽ }
-              </p>
-              @if (resv.wishes) {
-                <p class="text-xs mt-0.5" style="color:var(--color-muted)">{{ resv.wishes }}</p>
-              }
-            </div>
-          }
-
-          <div>
-            <label class="section-title block mb-1.5">Гостей</label>
-            <input [(ngModel)]="ntGuests" type="number" min="0" class="field" style="height:44px" />
-          </div>
-          <div>
-            <label class="section-title block mb-1.5">Комментарий</label>
-            <textarea [(ngModel)]="ntNotes" placeholder="Аллергия, пожелания…"
-                      class="field" rows="2" style="resize:none"></textarea>
-          </div>
-          <button (click)="createTable()"
-                  [disabled]="creating() || (!ntSelectedTables.length && !ntTableFallback.trim())"
-                  class="btn btn-primary btn-full" style="height:48px">
-            {{ creating() ? '...' : 'Открыть стол → меню' }}
-          </button>
-        </div>
-      </div>
+      <new-table-sheet [zones]="zones()" [occupied]="occupiedSet()" [reservations]="todayReservations()"
+                       [prefill]="ntPrefill()" [shiftId]="shiftId"
+                       (created)="onCreated($event)" (closed)="closeNewTable()" />
     }
 
     <!-- ── Edit table modal ───────────────────────────────────────── -->
@@ -438,64 +299,9 @@ const POLL_MS = 10_000;
     }
 
     <!-- ── Move table sheet ───────────────────────────────────────── -->
-    @if (moveOrder()) {
-      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closeMoveSheet()"></div>
-      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
-           style="background:white;max-height:80dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
-        <div class="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer" (click)="closeMoveSheet()">
-          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
-        </div>
-        <div class="flex items-center justify-between px-4 py-3 flex-shrink-0"
-             style="border-bottom:1px solid var(--color-border)">
-          <div>
-            <h2 class="font-bold text-base flex items-center gap-2"><svg lucideArrowLeftRight [size]="16"></svg> Пересадить</h2>
-            <p class="text-xs" style="color:var(--color-muted)">Текущий: {{ moveOrder()!.table_number }}</p>
-          </div>
-          <button (click)="closeMoveSheet()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
-        </div>
-        <div class="flex-1 overflow-y-auto px-4 py-4">
-          <!-- Move multi-select: can also merge with another table -->
-          <p class="text-xs mb-3" style="color:var(--color-muted)">
-            Выберите один или несколько столов для объединения
-          </p>
-          @if (allTables().length) {
-            @for (z of zones(); track z.id) {
-              @if (z.tables.length) {
-                <p class="text-xs font-semibold mb-2 mt-1" style="color:var(--color-muted)">{{ z.name }}</p>
-                <div class="grid gap-2 mb-3" style="grid-template-columns:repeat(auto-fill,minmax(80px,1fr))">
-                  @for (t of z.tables; track t.id) {
-                    @let currentTables = moveOrder()!.table_number.split('+').map(s => s.trim());
-                    @let isCurrent = currentTables.includes(t.number);
-                    @let isSel = moveSelectedTables.includes(t.number);
-                    @let busyByOther = tableStatus(t.number) === 'occupied' && !isCurrent;
-                    <button [disabled]="busyByOther || moveSaving()"
-                            (click)="onMoveSelect(t.number)"
-                            class="rounded-xl p-2.5 text-center transition-all"
-                            [style]="busyByOther
-                              ? 'background:var(--color-surface2);opacity:0.35;cursor:not-allowed'
-                              : isSel
-                                ? 'background:var(--color-gold);color:white'
-                                : 'background:var(--color-bg);border:1px solid var(--color-border)'">
-                      <p class="font-bold text-sm">{{ t.number }}</p>
-                      <p class="text-xs">{{ busyByOther ? 'занят' : isSel ? '✓' : 'свободен' }}</p>
-                    </button>
-                  }
-                </div>
-              }
-            }
-            @if (moveSelectedTables.length) {
-              <div class="sticky bottom-0 pt-3" style="background:white">
-                <button (click)="doMoveTable()" [disabled]="moveSaving()"
-                        class="btn btn-primary btn-full" style="height:48px">
-                  {{ moveSaving() ? '...' : 'Пересадить → ' + moveSelectedTables.join('+') }}
-                </button>
-              </div>
-            }
-          } @else {
-            <p class="text-center py-6" style="color:var(--color-muted)">Столы не настроены</p>
-          }
-        </div>
-      </div>
+    @if (moveOrder(); as mo) {
+      <move-table-sheet [order]="mo" [zones]="zones()" [occupiedByOthers]="moveOccupied()"
+                        (moved)="onMoved($event)" (closed)="closeMoveSheet()" />
     }
 
     <!-- ── Checkout modal ──────────────────────────────────────────── -->
@@ -812,13 +618,9 @@ export class TablesPage implements OnInit, OnDestroy {
   selectedZoneId    = signal<number | null>(null);
 
   // new table dialog
-  private shiftId: number | null = null;
-  newTable         = signal(false);
-  creating         = signal(false);
-  ntSelectedTables: string[] = [];
-  ntTableFallback  = '';
-  ntGuests: number | null = null;
-  ntNotes  = '';
+  shiftId: number | null = null;   // доступен из шаблона для new-table-sheet
+  newTable  = signal(false);
+  ntPrefill = signal<string[]>([]);   // предвыбранные столы при открытии шторки
 
   // edit modal
   editOrder  = signal<Order | null>(null);
@@ -827,9 +629,25 @@ export class TablesPage implements OnInit, OnDestroy {
   resvSheet = signal(false);
 
   // move table sheet
-  moveOrder        = signal<Order | null>(null);
-  moveSelectedTables: string[] = [];
-  moveSaving       = signal(false);
+  moveOrder = signal<Order | null>(null);
+  /** Номера столов, занятых ДРУГИМИ заказами — для шторки пересадки. */
+  moveOccupied = computed<Set<string>>(() => {
+    const o = this.moveOrder();
+    const occ = new Set<string>();
+    if (!o) return occ;
+    const mine = new Set(this.orderTables(o));
+    for (const ord of this.orders())
+      for (const t of this.orderTables(ord))
+        if (!mine.has(t)) occ.add(t);
+    return occ;
+  });
+  /** Все занятые столы — для шторки открытия (нельзя открыть занятый). */
+  occupiedSet = computed<Set<string>>(() => {
+    const s = new Set<string>();
+    for (const ord of this.orders())
+      for (const t of this.orderTables(ord)) s.add(t);
+    return s;
+  });
 
   // checkout modal
   checkout     = signal<Order | null>(null);
@@ -1008,66 +826,17 @@ export class TablesPage implements OnInit, OnDestroy {
 
   fmtTime(t: string): string { return t?.slice(0, 5) ?? ''; }
 
-  private static RESV_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
-    pending:   { label: 'Ожидает',      color: '#92400e', bg: '#fffbeb', border: '#fcd34d' },
-    confirmed: { label: 'Подтверждена', color: '#1e40af', bg: '#eff6ff', border: '#93c5fd' },
-    arrived:   { label: 'Пришли',       color: '#166534', bg: '#f0fdf4', border: '#86efac' },
-    completed: { label: 'Завершена',    color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb' },
-    cancelled: { label: 'Отменена',     color: '#991b1b', bg: '#fef2f2', border: '#fca5a5' },
-  };
-
-  resvCardStyle(status: string): string {
-    const m = TablesPage.RESV_META[status] ?? TablesPage.RESV_META['pending'];
-    return `background:${m.bg};border:1px solid ${m.border}`;
-  }
-  resvBadgeStyle(status: string): string {
-    const m = TablesPage.RESV_META[status] ?? TablesPage.RESV_META['pending'];
-    return `background:${m.border};color:${m.color}`;
-  }
-  resvLabel(status: string): string {
-    return TablesPage.RESV_META[status]?.label ?? status;
-  }
-
   // ── New table ─────────────────────────────────────────────────────
   openNewTable(prefilledTable = '') {
-    this.ntSelectedTables = prefilledTable ? [prefilledTable] : [];
-    this.ntTableFallback  = '';
-    this.ntGuests  = null;
-    this.ntNotes   = '';
-    this.creating.set(false);
+    this.ntPrefill.set(prefilledTable ? [prefilledTable] : []);
     this.newTable.set(true);
   }
   closeNewTable() { this.newTable.set(false); }
 
-  onTableSelect(tableNum: string) {
-    if (this.tableStatus(tableNum) === 'occupied') return;
-    const idx = this.ntSelectedTables.indexOf(tableNum);
-    if (idx >= 0) {
-      this.ntSelectedTables = this.ntSelectedTables.filter(t => t !== tableNum);
-    } else {
-      this.ntSelectedTables = [...this.ntSelectedTables, tableNum];
-    }
-  }
-
-  createTable() {
-    const tableNumber = this.ntSelectedTables.length
-      ? this.ntSelectedTables.join('+')
-      : this.ntTableFallback.trim();
-    if (this.creating() || !tableNumber) return;
-    if (!this.shiftId) { this.toast.error('Нет открытой смены'); return; }
-    this.creating.set(true);
-    this.orderApi.createOrder({
-      shift: this.shiftId, table_number: tableNumber,
-      guests: this.ntGuests || 0, notes: this.ntNotes.trim(), items: [],
-    }).subscribe({
-      next: order => {
-        this.creating.set(false);
-        this.cart.setTarget(order);
-        this.newTable.set(false);
-        this.router.navigate(['/waiter/order']);
-      },
-      error: () => { this.creating.set(false); this.toast.error('Не удалось открыть стол'); },
-    });
+  onCreated(order: Order) {
+    this.cart.setTarget(order);
+    this.newTable.set(false);
+    this.router.navigate(['/waiter/order']);
   }
 
   // ── Edit order ────────────────────────────────────────────────────
@@ -1076,44 +845,9 @@ export class TablesPage implements OnInit, OnDestroy {
   onEditSaved(updated: Order) { this.replaceOrder(updated); this.closeEdit(); }
 
   // ── Move table ────────────────────────────────────────────────────
-  openMoveSheet(o: Order) {
-    this.moveSelectedTables = this.orderTables(o);
-    this.moveOrder.set(o);
-  }
-  closeMoveSheet() { this.moveOrder.set(null); this.moveSelectedTables = []; }
-
-  onMoveSelect(tableNum: string) {
-    const o = this.moveOrder();
-    if (!o) return;
-    const currentTables = this.orderTables(o);
-    const isCurrent = currentTables.includes(tableNum);
-    const busyByOther = this.tableStatus(tableNum) === 'occupied' && !isCurrent;
-    if (busyByOther) return;
-
-    const idx = this.moveSelectedTables.indexOf(tableNum);
-    if (idx >= 0) {
-      this.moveSelectedTables = this.moveSelectedTables.filter(t => t !== tableNum);
-    } else {
-      this.moveSelectedTables = [...this.moveSelectedTables, tableNum];
-    }
-  }
-
-  doMoveTable() {
-    const o = this.moveOrder();
-    if (!o || this.moveSaving() || !this.moveSelectedTables.length) return;
-    const newTableNumber = this.moveSelectedTables.join('+');
-    if (newTableNumber === o.table_number) { this.closeMoveSheet(); return; }
-    this.moveSaving.set(true);
-    this.orderApi.moveOrderTable(o.id, newTableNumber).subscribe({
-      next: updated => {
-        this.replaceOrder(updated);
-        this.moveSaving.set(false);
-        this.closeMoveSheet();
-        this.toast.success(`Стол → ${newTableNumber}`);
-      },
-      error: err => { this.moveSaving.set(false); this.toast.apiError(err, 'Ошибка пересадки'); },
-    });
-  }
+  openMoveSheet(o: Order) { this.moveOrder.set(o); }
+  closeMoveSheet() { this.moveOrder.set(null); }
+  onMoved(updated: Order) { this.replaceOrder(updated); this.closeMoveSheet(); }
 
   // ── Checkout ──────────────────────────────────────────────────────
   openCheckout(o: Order) {
