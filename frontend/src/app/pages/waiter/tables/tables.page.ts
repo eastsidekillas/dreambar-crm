@@ -1,821 +1,103 @@
-import type { LucideIconInput } from '@lucide/angular';
-import { PAY_OPTIONS } from '../../../shared/lib/payments';
 import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { OrderApi } from '../../../entities/order';
 import { ReservationApi } from '../../../entities/reservation';
 import { ShiftApi } from '../../../entities/shift';
-import { TableApi } from '../../../entities/table';
+import { TableApi, tableSegments } from '../../../entities/table';
 import { AuthService } from '../../../core/services/auth.service';
-import { CartService } from '../../../features/cart/cart.service';
-import { ReceiptPrintService } from '../../../features/receipt/receipt-print.service';
-import { ToastService } from '../../../shared/ui/toast/toast.service';
-import { Order, OrderItem, PaymentMethod, Receipt, ReservationInfo, Zone, Reservation } from '../../../core/models';
-import {
-  LucideDynamicIcon,
-  LucideCalendar, LucideUsers, LucideMessageCircle, LucideArmchair,
-  LucideBanknote, LucideCreditCard, LucideSmartphone,
-  LucideCheck, LucideClock, LucideX, LucideReceipt, LucidePencil,
-  LucidePlus, LucideArrowLeftRight, LucideUserMinus,
-  LucideUtensilsCrossed, LucideTriangleAlert,
-} from '@lucide/angular';
+import { RefreshService } from '../../../core/services/refresh.service';
+import { Order, Zone, Reservation, VenueTable } from '../../../core/models';
+import { WaiterViewService } from '../waiter-view.service';
+import { ReservationsSheet } from './reservations-sheet';
+import { NewTableSheet } from './new-table-sheet';
+import { TableTile } from './table-tile';
+import { bill } from '../../../entities/order';
+import { LucideCalendar, LucideUtensilsCrossed, LucidePlus } from '@lucide/angular';
 
 const POLL_MS = 10_000;
 
+/** План зала: сетка столов со статусами. Управление заказами — на странице «Заказы». */
 @Component({
   selector: 'app-tables-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideDynamicIcon,
-    LucideCalendar, LucideUsers, LucideMessageCircle, LucideArmchair,
-    LucideBanknote, LucideCreditCard,
-    LucideCheck, LucideClock, LucideX, LucideReceipt, LucidePencil,
-    LucidePlus, LucideArrowLeftRight, LucideUserMinus,
-    LucideUtensilsCrossed, LucideTriangleAlert],
+  imports: [CommonModule, ReservationsSheet, NewTableSheet, TableTile,
+    LucideCalendar, LucideUtensilsCrossed, LucidePlus],
   template: `
     <div class="space-y-3 pb-4">
 
-      <!-- ══ ZONE GRID ═══════════════════════════════════════════════ -->
+      <h1 class="text-xl font-bold px-0.5 pt-0.5">Заказы</h1>
+
+      <!-- ══ ZONE GRID (свободные столы скрыты — открытие через «+») ════ -->
       @if (zones().length) {
-        <!-- Zone tabs -->
-        <div class="flex gap-2 overflow-x-auto pb-0.5" style="scrollbar-width:none">
-          <button (click)="selectedZoneId.set(null)"
-                  class="flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium"
-                  [style]="selectedZoneId() === null
-                    ? 'background:var(--color-gold);color:white'
-                    : 'background:var(--color-surface2);color:var(--color-muted)'">
-            Все
-          </button>
-          @for (z of zones(); track z.id) {
-            <button (click)="selectedZoneId.set(z.id)"
-                    class="flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium"
-                    [style]="selectedZoneId() === z.id
-                      ? 'background:' + z.color + ';color:white'
-                      : 'background:var(--color-surface2);color:var(--color-muted)'">
-              {{ z.name }}
-            </button>
-          }
-        </div>
-
-        <!-- Table grid -->
         @for (z of filteredZones(); track z.id) {
-          @if (z.tables.length) {
+          @if (visibleTables(z).length) {
             <div>
-              @if (filteredZones().length > 1) {
-                <p class="text-xs font-semibold mb-1.5" style="color:var(--color-muted)">{{ z.name }}</p>
-              }
-              <div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(88px,1fr))">
-                @for (t of z.tables; track t.id) {
-                  @let status = tableStatus(t.number);
-                  @let order  = tableOrder(t.number);
-                  @let resv   = tableReservation(t.number);
-
-                  <button (click)="onTableTap(t.number)"
-                          class="rounded-xl p-2.5 text-center transition-all active:scale-95 w-full"
-                          [style]="tableCardStyle(status)"
-                          [style.box-shadow]="isReadyTable(t.number) ? '0 0 0 2.5px #16a34a' : null">
-                    <p class="font-bold text-sm leading-none">{{ t.number }}</p>
-
-                    @if (status === 'free') {
-                      <p class="text-xs mt-1" style="color:var(--color-muted)">свободен</p>
-                      @if (resv) {
-                        <p class="text-xs mt-0.5 font-medium flex items-center justify-center gap-0.5" style="color:#2563eb">
-                          <svg lucideCalendar [size]="10"></svg> {{ fmtTime(resv.time_start) }}
-                        </p>
-                      }
-                    } @else if (status === 'occupied' && order) {
-                      @if (order.waiter === currentUserId()) {
-                        <p class="text-xs mt-1 font-semibold" style="color:var(--color-gold-hover)">
-                          {{ unpaidTotal(order) | number:'1.0-0' }} ₽
-                        </p>
-                        <p class="text-xs" style="color:var(--color-muted)">{{ elapsed(order) }}</p>
-                        @if (readyCount(order) > 0) {
-                          <span class="inline-block px-1 rounded text-xs font-bold mt-0.5"
-                                style="background:#16a34a;color:white">✓{{ readyCount(order) }}</span>
-                        }
-                      } @else {
-                        <p class="text-xs mt-1" style="color:var(--color-muted)">занят</p>
-                      }
-                    } @else if (status === 'reserved' && resv) {
-                      <p class="text-xs mt-1 font-medium truncate" style="color:#1d4ed8">{{ resv.name }}</p>
-                      <p class="text-xs" style="color:#2563eb">{{ fmtTime(resv.time_start) }}</p>
-                      <p class="text-xs flex items-center justify-center gap-0.5" style="color:var(--color-muted)"><svg lucideUsers [size]="10"></svg> {{ resv.guests_count }}</p>
-                    }
-                  </button>
+              <p class="text-xs font-semibold mb-1.5" style="color:var(--color-muted)">{{ z.name }}</p>
+              <div class="grid grid-cols-2 gap-2.5">
+                @for (t of visibleTables(z); track t.id) {
+                  <ng-container [ngTemplateOutlet]="tile" [ngTemplateOutletContext]="{ num: t.number }" />
                 }
               </div>
             </div>
           }
         }
-      }
 
-      <!-- ══ ACTIONS BAR — стол открывается тапом по свободному столу в сетке ══ -->
-      @if (todayReservations().length) {
-        <div class="flex gap-2">
-          <button (click)="resvSheet.set(true)"
-                  class="flex items-center gap-1.5 px-3 rounded-xl font-semibold text-sm"
-                  style="background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;height:44px">
-            <svg lucideCalendar [size]="16"></svg> Брони на сегодня · {{ todayReservations().length }}
-          </button>
-        </div>
-      }
-
-      <!-- ══ MY ORDERS ═══════════════════════════════════════════════ -->
-      @for (o of myOrders(); track o.id) {
-        <div class="overflow-hidden" [id]="'order-' + o.id"
-             style="background:white;border:1px solid var(--color-border);border-radius:12px">
-
-          <div class="flex items-center justify-between px-3 py-2.5"
-               style="background:var(--color-gold-light);border-bottom:1px solid var(--color-gold-mid)">
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="font-bold text-base truncate">{{ o.table_number || 'Стол' }}</span>
-              @if (o.guests) {
-                <span class="text-xs flex items-center gap-0.5 flex-shrink-0" style="color:var(--color-muted)">· <svg lucideUsers [size]="12"></svg> {{ o.guests }}</span>
-              }
-              @if (readyCount(o) > 0) {
-                <span class="flex-shrink-0 px-1.5 py-0.5 rounded-full text-xs font-bold animate-pulse flex items-center gap-0.5"
-                      style="background:#16a34a;color:white"><svg lucideCheck [size]="10"></svg> {{ readyCount(o) }}</span>
-              }
-              <button (click)="openEdit(o)" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded"
-                      style="color:var(--color-muted)"><svg lucidePencil [size]="14"></svg></button>
-            </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <span class="text-xs" style="color:var(--color-muted)">{{ elapsed(o) }}</span>
-              <span class="font-bold text-sm" style="color:var(--color-gold-hover)">
-                {{ unpaidTotal(o) | number:'1.0-0' }} ₽
-              </span>
-            </div>
+        @if (!anyVisibleTables()) {
+          <div class="text-center py-16">
+            <svg lucideUtensilsCrossed [size]="48" class="mb-3 mx-auto" style="color:var(--color-muted)"></svg>
+            <p style="color:var(--color-muted)">{{ view.filter() === 'mine' ? 'У вас нет открытых столов' : view.filter() === 'reservations' ? 'Нет броней на сегодня' : 'Нет открытых столов' }}</p>
+            <p class="text-xs mt-1" style="color:var(--color-light)">Нажмите «+», чтобы открыть стол</p>
           </div>
-
-          @if (o.notes) {
-            <div class="px-3 py-2 text-xs flex items-start gap-1.5"
-                 style="background:#fffbeb;border-bottom:1px solid var(--color-gold-mid);color:#92400e">
-              <svg lucideMessageCircle [size]="12" class="flex-shrink-0 mt-0.5"></svg><span>{{ o.notes }}</span>
-            </div>
-          }
-
-          @if (orderReservation(o)) {
-            @let r = orderReservation(o)!;
-            <div class="px-3 py-2 text-xs flex items-center gap-1.5"
-                 style="background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1d4ed8">
-              <svg lucideCalendar [size]="12" class="flex-shrink-0"></svg>
-              <span class="font-medium">{{ r.name }}</span>
-              <span style="color:#3b82f6">{{ r.time_start }}</span>
-              <span class="flex items-center gap-0.5">· <svg lucideUsers [size]="12"></svg> {{ r.guests_count }}</span>
-              @if (+r.deposit_amount > 0) {
-                <span class="ml-auto font-medium flex items-center gap-0.5"><svg lucideBanknote [size]="12"></svg> {{ +r.deposit_amount | number:'1.0-0' }} ₽</span>
-              }
-            </div>
-          }
-
-          @if (unpaidItems(o).length) {
-            @for (grp of guestGroups(o); track grp.guest) {
-              <div class="px-3 py-2" style="border-bottom:1px solid var(--color-border)">
-                <div class="flex items-center justify-between mb-1">
-                  <span class="section-title">{{ guestLabel(grp.guest) }}</span>
-                  <span class="text-xs font-bold" style="color:var(--color-gold-hover)">
-                    {{ grp.total | number:'1.0-0' }} ₽
-                  </span>
-                </div>
-                @for (item of grp.items; track item.id) {
-                  <div class="flex items-center gap-2 py-0.5">
-                    <span class="flex-1 text-sm truncate">{{ item.menu_item_name }}</span>
-                    <span class="text-xs" style="color:var(--color-muted)">× {{ item.quantity }}</span>
-                    @if (item.kitchen_status === 'ready') {
-                      <svg lucideCheck [size]="12" style="color:#16a34a;flex-shrink:0"></svg>
-                    } @else if (item.kitchen_status === 'cooking') {
-                      <svg lucideClock [size]="12" style="color:var(--color-amber);flex-shrink:0"></svg>
-                    }
-                    @if (confirmDeleteItem() === item.id) {
-                      <button (click)="removeItem(o, item)"
-                              class="text-xs font-bold px-1.5 py-0.5 rounded"
-                              style="background:#ef4444;color:white">Да</button>
-                      <button (click)="confirmDeleteItem.set(null)"
-                              class="text-xs px-1.5 py-0.5 rounded"
-                              style="background:var(--color-bg);color:var(--color-muted);border:1px solid var(--color-border)">Нет</button>
-                    } @else {
-                      <button (click)="askDeleteItem(item)"
-                              class="w-5 h-5 flex items-center justify-center rounded text-xs flex-shrink-0"
-                              style="color:var(--color-muted)"><svg lucideX [size]="12"></svg></button>
-                    }
-                  </div>
-                }
-              </div>
-            }
-          } @else {
-            <div class="px-3 py-3 text-xs text-center"
-                 style="color:var(--color-muted);border-bottom:1px solid var(--color-border)">
-              Все позиции оплачены
-            </div>
-          }
-
-          @if (o.receipts.length) {
-            <div class="flex flex-wrap gap-1 px-3 py-2" style="border-bottom:1px solid var(--color-border)">
-              @for (r of o.receipts; track r.id) {
-                <button (click)="reprint(r)" class="badge badge-green flex items-center gap-1" style="cursor:pointer">
-                  <svg lucideReceipt [size]="12"></svg> {{ r.code }} · {{ r.total | number:'1.0-0' }} ₽
-                </button>
-              }
-            </div>
-          }
-
-          @if (isEmpty(o)) {
-            <!-- Пустой стол: ничего не заказали → можно освободить -->
-            <div style="display:grid;grid-template-columns:1fr 1fr">
-              @if (confirmFree() === o.id) {
-                <button (click)="freeTable(o)"
-                        class="flex items-center justify-center gap-1 py-3 font-bold text-sm"
-                        style="border-right:1px solid var(--color-border);background:#ef4444;color:white">
-                  <svg lucideX [size]="14"></svg> Удалить стол
-                </button>
-                <button (click)="confirmFree.set(null)"
-                        class="flex items-center justify-center py-3 font-medium text-sm"
-                        style="color:var(--color-muted)">Отмена</button>
-              } @else {
-                <button (click)="addMore(o)"
-                        class="flex items-center justify-center gap-1 py-3 font-semibold text-sm"
-                        style="border-right:1px solid var(--color-border);color:var(--color-text)">
-                  <svg lucidePlus [size]="14"></svg> Дозаказ
-                </button>
-                <button (click)="askFreeTable(o)"
-                        class="flex items-center justify-center gap-1 py-3 font-medium text-sm"
-                        style="color:var(--color-red)">
-                  <svg lucideX [size]="14"></svg> Освободить
-                </button>
-              }
-            </div>
-          } @else {
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr">
-              <button (click)="addMore(o)"
-                      class="flex items-center justify-center gap-1 py-3 font-semibold text-sm"
-                      style="border-right:1px solid var(--color-border);color:var(--color-text)">
-                <svg lucidePlus [size]="14"></svg> Дозаказ
-              </button>
-              <button (click)="openMoveSheet(o)"
-                      class="flex items-center justify-center gap-1 py-3 font-medium text-sm"
-                      style="border-right:1px solid var(--color-border);color:var(--color-muted)">
-                <svg lucideArrowLeftRight [size]="14"></svg> Пересадить
-              </button>
-              <button (click)="openCheckout(o)" [disabled]="!unpaidItems(o).length"
-                      class="flex items-center justify-center gap-1 py-3 font-bold text-sm"
-                      [style]="unpaidItems(o).length
-                        ? 'background:var(--color-gold);color:white'
-                        : 'color:var(--color-muted)'">
-                <svg lucideCreditCard [size]="14"></svg> Счёт
-              </button>
-            </div>
-          }
-        </div>
-      }
-
-      @if (!myOrders().length && !zones().length) {
+        }
+      } @else {
         <div class="text-center py-16">
           <svg lucideUtensilsCrossed [size]="48" class="mb-3 mx-auto" style="color:var(--color-muted)"></svg>
-          <p style="color:var(--color-muted)">Нет открытых столов</p>
+          <p style="color:var(--color-muted)">Столы не настроены</p>
         </div>
+      }
+
+      <!-- ══ Карточка стола (переиспользуемая) ═════════════════════════ -->
+      <ng-template #tile let-num="num">
+        @let status = tableStatus(num);
+        @let order  = tableOrder(num);
+        @let resv   = tableReservation(num);
+        @let mine   = status === 'occupied' && order && order.waiter === currentUserId();
+
+        <table-tile [num]="num" [status]="status" [order]="order" [resv]="resv"
+                    [mine]="!!mine" (tap)="onTableTap($event)" />
+      </ng-template>
+
+      <!-- ══ Брони на сегодня (на табе «Брони» не дублируем) ═══════════ -->
+      @if (todayReservations().length && view.filter() !== 'reservations') {
+        <button (click)="resvSheet.set(true)"
+                class="w-full flex items-center gap-2.5 px-3.5 py-3 rounded-xl font-semibold text-sm"
+                style="background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd">
+          <svg lucideCalendar [size]="18" class="flex-shrink-0"></svg>
+          <span class="flex-1 text-left">Брони на сегодня</span>
+          <span class="px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0"
+                style="background:#dbeafe;color:#1d4ed8">{{ todayReservations().length }}</span>
+        </button>
       }
     </div>
 
-    <!-- ── Reservations sheet ────────────────────────────────────────── -->
+    <!-- ══ FAB: открыть стол ═══════════════════════════════════════ -->
+    <button (click)="openNewTable()" title="Открыть стол"
+            class="fixed z-30 flex items-center justify-center rounded-full"
+            style="right:16px;bottom:calc(16px + env(safe-area-inset-bottom));width:56px;height:56px;background:var(--color-gold);color:white;box-shadow:0 4px 16px rgba(184,146,42,0.4)">
+      <svg lucidePlus [size]="28"></svg>
+    </button>
+
+    <!-- ── Reservations sheet ────────────────────────────────────── -->
     @if (resvSheet()) {
-      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="resvSheet.set(false)"></div>
-      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
-           style="background:white;max-height:80dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
-        <div class="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer" (click)="resvSheet.set(false)">
-          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
-        </div>
-        <div class="flex items-center justify-between px-4 py-3 flex-shrink-0"
-             style="border-bottom:1px solid var(--color-border)">
-          <h2 class="font-bold text-base flex items-center gap-2"><svg lucideCalendar [size]="16"></svg> Брони на сегодня</h2>
-          <button (click)="resvSheet.set(false)" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
-        </div>
-        <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-          @for (r of resvSorted(); track r.id) {
-            <div class="flex items-start gap-3 px-3 py-2.5 rounded-xl"
-                 [style]="resvCardStyle(r.status)">
-              <div class="flex-shrink-0 text-center" style="min-width:48px">
-                <p class="font-bold text-sm leading-none">{{ fmtTime(r.time_start) }}</p>
-                @if (r.time_end) {
-                  <p class="text-xs mt-0.5" style="color:var(--color-muted)">{{ fmtTime(r.time_end) }}</p>
-                }
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <p class="font-semibold text-sm">{{ r.name }}</p>
-                  <span class="text-xs px-1.5 py-0.5 rounded-full font-medium"
-                        [style]="resvBadgeStyle(r.status)">{{ resvLabel(r.status) }}</span>
-                </div>
-                <div class="flex items-center gap-2 mt-0.5 text-xs flex-wrap" style="color:var(--color-muted)">
-                  @if (r.table_number) {
-                    <span class="font-medium flex items-center gap-0.5" style="color:var(--color-text)"><svg lucideArmchair [size]="12"></svg> {{ r.table_number }}</span>
-                  } @else {
-                    <span class="flex items-center gap-0.5" style="color:#f59e0b"><svg lucideTriangleAlert [size]="12"></svg> Стол не назначен</span>
-                  }
-                  <span class="flex items-center gap-0.5"><svg lucideUsers [size]="12"></svg> {{ r.guests_count }}</span>
-                  @if (+r.deposit_amount > 0) {
-                    <span class="flex items-center gap-0.5" [style.color]="r.deposit_paid ? '#16a34a' : '#92400e'">
-                      <svg lucideBanknote [size]="12"></svg> {{ +r.deposit_amount | number:'1.0-0' }} ₽ {{ r.deposit_paid ? '✓' : '...' }}
-                    </span>
-                  }
-                </div>
-                @if (r.wishes) {
-                  <p class="text-xs mt-0.5 truncate flex items-center gap-0.5" style="color:var(--color-muted)"><svg lucideMessageCircle [size]="12"></svg> {{ r.wishes }}</p>
-                }
-              </div>
-            </div>
-          }
-        </div>
-      </div>
+      <reservations-sheet [reservations]="resvSorted()" (closed)="resvSheet.set(false)" />
     }
 
-    <!-- ── New table dialog ───────────────────────────────────────── -->
+    <!-- ── New table dialog ──────────────────────────────────────── -->
     @if (newTable()) {
-      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closeNewTable()"></div>
-      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
-           style="background:white;max-height:88dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
-        <div class="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer" (click)="closeNewTable()">
-          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
-        </div>
-        <div class="flex items-center justify-between px-4 py-3 flex-shrink-0"
-             style="border-bottom:1px solid var(--color-border)">
-          <h2 class="font-bold text-base flex items-center gap-2"><svg lucideUtensilsCrossed [size]="16"></svg> Открыть стол</h2>
-          <button (click)="closeNewTable()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
-        </div>
-        <div class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-
-          <!-- Table selection -->
-          <div>
-            <div class="flex items-center justify-between mb-2">
-              <label class="section-title">Стол / зона</label>
-              @if (ntSelectedTables.length > 1) {
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                      style="background:var(--color-gold);color:white">
-                  {{ ntSelectedTables.join('+') }}
-                </span>
-              }
-            </div>
-
-            @if (allTables().length) {
-              <!-- Multi-select grid -->
-              <div class="space-y-3">
-                @for (z of zones(); track z.id) {
-                  @if (z.tables.length) {
-                    <div>
-                      <p class="text-xs font-medium mb-1.5" style="color:var(--color-muted)">{{ z.name }}</p>
-                      <div class="grid gap-1.5" style="grid-template-columns:repeat(auto-fill,minmax(72px,1fr))">
-                        @for (t of z.tables; track t.id) {
-                          @let occupied = tableStatus(t.number) === 'occupied';
-                          @let sel = ntSelectedTables.includes(t.number);
-                          <button (click)="onTableSelect(t.number)"
-                                  [disabled]="occupied"
-                                  class="rounded-xl py-2 px-1 text-center transition-all"
-                                  [style]="occupied
-                                    ? 'background:var(--color-surface2);opacity:0.4;cursor:not-allowed'
-                                    : sel
-                                      ? 'background:var(--color-gold);color:white;border:2px solid var(--color-gold)'
-                                      : 'background:var(--color-surface2);border:2px solid transparent'">
-                            <p class="font-bold text-sm leading-none">{{ t.number }}</p>
-                            <p class="text-xs mt-0.5">
-                              {{ occupied ? 'занят' : sel ? '✓ выбран' : t.seats + ' мест' }}
-                            </p>
-                          </button>
-                        }
-                      </div>
-                    </div>
-                  }
-                }
-              </div>
-
-              @if (ntSelectedTables.length > 1) {
-                <p class="text-xs mt-2 text-center font-medium" style="color:var(--color-gold-hover)">
-                  Объединённый стол: {{ ntSelectedTables.join('+') }}
-                </p>
-              }
-            } @else {
-              <input [(ngModel)]="ntTableFallback" placeholder="Стол 5, VIP-1, Бар"
-                     class="field" style="height:44px" />
-            }
-          </div>
-
-          <!-- Reservation badge (single table) -->
-          @if (ntSelectedTables.length === 1 && tableReservation(ntSelectedTables[0])) {
-            @let resv = tableReservation(ntSelectedTables[0])!;
-            <div class="rounded-xl px-3 py-2.5" style="background:#eff6ff;border:1px solid #bfdbfe">
-              <p class="text-xs font-semibold mb-0.5 flex items-center gap-1" style="color:#1d4ed8"><svg lucideCalendar [size]="12"></svg> Бронь на этом столе</p>
-              <p class="text-sm font-medium">{{ resv.name }} · {{ resv.time_start }}</p>
-              <p class="text-xs flex items-center gap-0.5" style="color:#3b82f6"><svg lucideUsers [size]="12"></svg> {{ resv.guests_count }}
-                @if (+resv.deposit_amount > 0) { · Депозит {{ +resv.deposit_amount | number:'1.0-0' }} ₽ }
-              </p>
-              @if (resv.wishes) {
-                <p class="text-xs mt-0.5" style="color:var(--color-muted)">{{ resv.wishes }}</p>
-              }
-            </div>
-          }
-
-          <div>
-            <label class="section-title block mb-1.5">Гостей</label>
-            <input [(ngModel)]="ntGuests" type="number" min="0" class="field" style="height:44px" />
-          </div>
-          <div>
-            <label class="section-title block mb-1.5">Комментарий</label>
-            <textarea [(ngModel)]="ntNotes" placeholder="Аллергия, пожелания…"
-                      class="field" rows="2" style="resize:none"></textarea>
-          </div>
-          <button (click)="createTable()"
-                  [disabled]="creating() || (!ntSelectedTables.length && !ntTableFallback.trim())"
-                  class="btn btn-primary btn-full" style="height:48px">
-            {{ creating() ? '...' : 'Открыть стол → меню' }}
-          </button>
-        </div>
-      </div>
-    }
-
-    <!-- ── Edit table modal ───────────────────────────────────────── -->
-    @if (editOrder()) {
-      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closeEdit()"></div>
-      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
-           style="background:white;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
-        <div class="flex justify-center pt-3 pb-1 cursor-pointer" (click)="closeEdit()">
-          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
-        </div>
-        <div class="flex items-center justify-between px-4 py-3"
-             style="border-bottom:1px solid var(--color-border)">
-          <h2 class="font-bold text-base flex items-center gap-2"><svg lucidePencil [size]="16"></svg> Изменить стол</h2>
-          <button (click)="closeEdit()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
-        </div>
-        <div class="px-4 py-4 space-y-3">
-          <div>
-            <label class="section-title block mb-1.5">Гостей</label>
-            <input [(ngModel)]="editGuests" type="number" min="0" class="field" style="height:44px" />
-          </div>
-          <div>
-            <label class="section-title block mb-1.5">Комментарий</label>
-            <textarea [(ngModel)]="editNotes" placeholder="Аллергия, пожелания…"
-                      class="field" rows="2" style="resize:none"></textarea>
-          </div>
-          <button (click)="saveEdit()" [disabled]="saving()"
-                  class="btn btn-primary btn-full" style="height:48px">
-            {{ saving() ? '...' : 'Сохранить' }}
-          </button>
-        </div>
-      </div>
-    }
-
-    <!-- ── Move table sheet ───────────────────────────────────────── -->
-    @if (moveOrder()) {
-      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closeMoveSheet()"></div>
-      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
-           style="background:white;max-height:80dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
-        <div class="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer" (click)="closeMoveSheet()">
-          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
-        </div>
-        <div class="flex items-center justify-between px-4 py-3 flex-shrink-0"
-             style="border-bottom:1px solid var(--color-border)">
-          <div>
-            <h2 class="font-bold text-base flex items-center gap-2"><svg lucideArrowLeftRight [size]="16"></svg> Пересадить</h2>
-            <p class="text-xs" style="color:var(--color-muted)">Текущий: {{ moveOrder()!.table_number }}</p>
-          </div>
-          <button (click)="closeMoveSheet()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
-        </div>
-        <div class="flex-1 overflow-y-auto px-4 py-4">
-          <!-- Move multi-select: can also merge with another table -->
-          <p class="text-xs mb-3" style="color:var(--color-muted)">
-            Выберите один или несколько столов для объединения
-          </p>
-          @if (allTables().length) {
-            @for (z of zones(); track z.id) {
-              @if (z.tables.length) {
-                <p class="text-xs font-semibold mb-2 mt-1" style="color:var(--color-muted)">{{ z.name }}</p>
-                <div class="grid gap-2 mb-3" style="grid-template-columns:repeat(auto-fill,minmax(80px,1fr))">
-                  @for (t of z.tables; track t.id) {
-                    @let currentTables = moveOrder()!.table_number.split('+').map(s => s.trim());
-                    @let isCurrent = currentTables.includes(t.number);
-                    @let isSel = moveSelectedTables.includes(t.number);
-                    @let busyByOther = tableStatus(t.number) === 'occupied' && !isCurrent;
-                    <button [disabled]="busyByOther || moveSaving()"
-                            (click)="onMoveSelect(t.number)"
-                            class="rounded-xl p-2.5 text-center transition-all"
-                            [style]="busyByOther
-                              ? 'background:var(--color-surface2);opacity:0.35;cursor:not-allowed'
-                              : isSel
-                                ? 'background:var(--color-gold);color:white'
-                                : 'background:var(--color-bg);border:1px solid var(--color-border)'">
-                      <p class="font-bold text-sm">{{ t.number }}</p>
-                      <p class="text-xs">{{ busyByOther ? 'занят' : isSel ? '✓' : 'свободен' }}</p>
-                    </button>
-                  }
-                </div>
-              }
-            }
-            @if (moveSelectedTables.length) {
-              <div class="sticky bottom-0 pt-3" style="background:white">
-                <button (click)="doMoveTable()" [disabled]="moveSaving()"
-                        class="btn btn-primary btn-full" style="height:48px">
-                  {{ moveSaving() ? '...' : 'Пересадить → ' + moveSelectedTables.join('+') }}
-                </button>
-              </div>
-            }
-          } @else {
-            <p class="text-center py-6" style="color:var(--color-muted)">Столы не настроены</p>
-          }
-        </div>
-      </div>
-    }
-
-    <!-- ── Checkout modal ──────────────────────────────────────────── -->
-    @if (checkout(); as co) {
-      <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closeCheckout()"></div>
-      <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl overflow-hidden"
-           style="background:white;max-height:92dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
-
-        <div class="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer" (click)="closeCheckout()">
-          <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
-        </div>
-
-        <div class="flex-shrink-0 flex items-center justify-between px-4 py-3"
-             style="border-bottom:1px solid var(--color-border)">
-          <div class="flex items-center gap-2">
-            @if (checkoutStep() === 'pay') {
-              <button (click)="checkoutStep.set('mode')"
-                      class="text-sm font-semibold" style="color:var(--color-muted)">← Назад</button>
-            }
-            <h2 class="font-bold text-base flex items-center gap-2"><svg lucideCreditCard [size]="16"></svg> {{ co.table_number || 'Стол' }}</h2>
-          </div>
-          <button (click)="closeCheckout()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
-        </div>
-
-        @if (checkoutStep() === 'mode') {
-          <div class="px-4 py-5 space-y-3 flex-shrink-0">
-            <p class="text-sm text-center mb-4" style="color:var(--color-muted)">Как будете платить?</p>
-            <button (click)="chooseSingle()"
-                    class="w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left"
-                    style="border:2px solid var(--color-border);background:white">
-              <svg lucideReceipt [size]="32" style="color:var(--color-muted);flex-shrink:0"></svg>
-              <div>
-                <p class="font-bold text-base">Один счёт</p>
-                <p class="text-sm" style="color:var(--color-muted)">
-                  {{ coItems().length }} поз. · {{ totalAll() | number:'1.0-0' }} ₽
-                </p>
-              </div>
-            </button>
-            <button (click)="chooseSplit()"
-                    class="w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left"
-                    style="border:2px solid var(--color-gold);background:var(--color-gold-light)">
-              <svg lucideUsers [size]="32" style="color:var(--color-gold-hover);flex-shrink:0"></svg>
-              <div>
-                <p class="font-bold text-base">Раздельно</p>
-                <p class="text-sm" style="color:var(--color-gold-hover)">
-                  Каждый платит за себя
-                  @if (checkoutGuestGroups().length > 1) { · {{ checkoutGuestGroups().length }} счёт(а) }
-                </p>
-              </div>
-            </button>
-            <button (click)="choosePartial()"
-                    class="w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left"
-                    style="border:2px solid var(--color-border);background:white">
-              <svg lucideUserMinus [size]="32" style="color:var(--color-muted);flex-shrink:0"></svg>
-              <div>
-                <p class="font-bold text-base">Часть гостей уходит</p>
-                <p class="text-sm" style="color:var(--color-muted)">
-                  Чек только на уходящих — стол остаётся открыт
-                </p>
-              </div>
-            </button>
-          </div>
-        }
-
-        @if (checkoutStep() === 'pay' && !split() && !partial()) {
-          <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3">
-            @for (item of coItems(); track item.id) {
-              <div class="flex items-center gap-2 py-2" style="border-bottom:1px solid var(--color-border)">
-                <span class="flex-1 text-sm">{{ item.menu_item_name }}</span>
-                <span class="text-xs" style="color:var(--color-muted)">× {{ item.quantity }}</span>
-                <span class="text-sm font-semibold"
-                      style="color:var(--color-gold-hover);min-width:56px;text-align:right">
-                  {{ item.subtotal | number:'1.0-0' }} ₽
-                </span>
-              </div>
-            }
-          </div>
-          <div class="flex-shrink-0 px-4 pt-3 pb-5" style="border-top:1px solid var(--color-border)">
-            <div class="flex items-center justify-between mb-1">
-              <span class="font-medium" style="color:var(--color-muted)">Итого по чеку</span>
-              <span class="text-2xl font-bold">{{ totalAll() | number:'1.0-0' }} ₽</span>
-            </div>
-            @if (depositInfo()) {
-              <div class="rounded-xl px-3 py-2.5 mb-3 mt-2"
-                   style="background:var(--color-gold-light);border:1px solid var(--color-gold-mid)">
-                <div class="flex items-center justify-between mb-0.5">
-                  <span class="text-sm font-medium" style="color:var(--color-gold-hover)">
-                    Депозит ({{ depositInfo()!.deposit_method_label || 'нал' }})
-                  </span>
-                  <span class="text-sm font-bold" style="color:var(--color-gold-hover)">
-                    −{{ depositInfo()!.deposit_amount | number:'1.0-0' }} ₽
-                  </span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-xs" style="color:var(--color-muted)">{{ depositInfo()!.name }}</span>
-                  @if (refundAmount() > 0) {
-                    <span class="text-xs font-semibold" style="color:#166534">
-                      Возврат: {{ refundAmount() | number:'1.0-0' }} ₽
-                    </span>
-                  } @else {
-                    <span class="text-xs font-semibold" style="color:var(--color-gold-hover)">
-                      Остаток: {{ remainingAmount() | number:'1.0-0' }} ₽
-                    </span>
-                  }
-                </div>
-              </div>
-            } @else {
-              <div class="mb-3"></div>
-            }
-            @if (refundAmount() > 0) {
-              <div class="rounded-xl px-3 py-3 mb-4 text-center"
-                   style="background:#dcfce7;border:1px solid #86efac">
-                <span class="text-sm font-semibold flex items-center justify-center gap-1" style="color:#16a34a">
-                  <svg lucideCheck [size]="16"></svg> Депозит покрывает счёт · возврат {{ refundAmount() | number:'1.0-0' }} ₽
-                </span>
-              </div>
-              <button (click)="confirm()" [disabled]="submitting()"
-                      class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
-                @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> } {{ submitting() ? '...' : 'Закрыть счёт и печать' }}
-              </button>
-            } @else if (remainingAmount() === 0 && depositInfo()) {
-              <div class="rounded-xl px-3 py-3 mb-4 text-center"
-                   style="background:#dcfce7;border:1px solid #86efac">
-                <span class="text-sm font-semibold flex items-center justify-center gap-1" style="color:#16a34a">
-                  <svg lucideCheck [size]="16"></svg> Депозит покрывает весь счёт
-                </span>
-              </div>
-              <button (click)="confirm()" [disabled]="submitting()"
-                      class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
-                @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> } {{ submitting() ? '...' : 'Закрыть счёт и печать' }}
-              </button>
-            } @else {
-              <div class="flex gap-2 mb-4">
-                @for (p of payments; track p.value) {
-                  <button (click)="singlePay.set(p.value)" class="btn btn-sm flex items-center gap-1" style="flex:1"
-                          [class]="singlePay() === p.value ? 'btn-primary' : 'btn-outline'">
-                    <svg [lucideIcon]="p.icon" [size]="14"></svg> {{ p.label }}
-                  </button>
-                }
-              </div>
-              <button (click)="confirm()" [disabled]="submitting()"
-                      class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
-                @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> } {{ submitting() ? '...' : 'Закрыть счёт и печать' }}
-              </button>
-            }
-          </div>
-        }
-
-        @if (checkoutStep() === 'pay' && split()) {
-          <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-2">
-            @for (grp of checkoutGuestGroups(); track grp.guest) {
-              <div class="rounded-xl overflow-hidden" style="border:1.5px solid var(--color-border)">
-                <div class="flex items-center gap-2 px-3 py-2.5"
-                     style="background:var(--color-gold-light);border-bottom:1px solid var(--color-gold-mid)">
-                  <span class="font-semibold text-sm flex-1">{{ guestLabel(grp.guest) }}</span>
-                  <div class="flex items-center gap-1">
-                    @for (bn of billChoices(); track bn) {
-                      <button (click)="setGuestBill(grp.guest, bn)"
-                              class="w-7 h-7 rounded-full text-xs font-bold"
-                              [style]="guestBillOf(grp.guest) === bn
-                                ? 'background:var(--color-gold);color:white'
-                                : 'background:white;color:var(--color-muted);border:1.5px solid var(--color-border-mid)'">
-                        {{ bn }}
-                      </button>
-                    }
-                  </div>
-                  <span class="font-bold text-sm flex-shrink-0" style="color:var(--color-gold-hover)">
-                    {{ grp.total | number:'1.0-0' }} ₽
-                  </span>
-                </div>
-                <div class="px-3 py-2">
-                  @for (item of grp.items; track item.id) {
-                    <div class="flex items-center gap-2 py-0.5 text-sm">
-                      <span class="flex-1 truncate">{{ item.menu_item_name }}</span>
-                      <span style="color:var(--color-muted)">× {{ item.quantity }}</span>
-                      <span style="color:var(--color-gold-hover);min-width:52px;text-align:right">
-                        {{ item.subtotal | number:'1.0-0' }} ₽
-                      </span>
-                    </div>
-                  }
-                </div>
-              </div>
-            }
-            <div class="pt-2" style="border-top:2px solid var(--color-border)">
-              <p class="section-title mb-2">Итого по чекам</p>
-              @for (bill of splitBills(); track bill.billNo) {
-                <div class="mb-3 rounded-xl overflow-hidden" style="border:1.5px solid var(--color-gold)">
-                  <div class="flex items-center justify-between px-3 py-2"
-                       style="background:var(--color-gold-light)">
-                    <div class="leading-tight">
-                      <p class="font-bold text-sm">Чек {{ bill.billNo }}</p>
-                      <p class="text-xs" style="color:var(--color-gold-hover)">{{ billGuestNames(bill.guests) }}</p>
-                    </div>
-                    <span class="font-bold" style="color:var(--color-gold-hover)">
-                      {{ bill.total | number:'1.0-0' }} ₽
-                    </span>
-                  </div>
-                  <div class="flex gap-2 px-3 py-2.5">
-                    @for (p of payments; track p.value) {
-                      <button (click)="setBillPay(bill.billNo, p.value)" class="btn btn-sm flex items-center gap-1" style="flex:1"
-                              [class]="billPayOf(bill.billNo) === p.value ? 'btn-primary' : 'btn-outline'">
-                        <svg [lucideIcon]="p.icon" [size]="14"></svg> {{ p.label }}
-                      </button>
-                    }
-                  </div>
-                </div>
-              }
-            </div>
-          </div>
-          <div class="flex-shrink-0 px-4 py-3" style="border-top:1px solid var(--color-border)">
-            <button (click)="confirm()" [disabled]="submitting()"
-                    class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
-              @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> }
-              {{ submitting() ? '...' : 'Закрыть и печать (' + splitBills().length + ' чека)' }}
-            </button>
-          </div>
-        }
-
-        @if (checkoutStep() === 'pay' && partial()) {
-          <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-2">
-            <p class="text-sm" style="color:var(--color-muted)">
-              Отметь, кто уходит — чек будет только на них, остальные продолжают сидеть.
-            </p>
-            @for (grp of checkoutGuestGroups(); track grp.guest) {
-              <div (click)="togglePartialGuest(grp.guest)"
-                   class="rounded-xl overflow-hidden cursor-pointer"
-                   [style]="partialSel()[grp.guest]
-                     ? 'border:2px solid var(--color-gold)'
-                     : 'border:1.5px solid var(--color-border)'">
-                <div class="flex items-center gap-2 px-3 py-2.5"
-                     [style.background]="partialSel()[grp.guest] ? 'var(--color-gold-light)' : 'white'">
-                  <span class="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
-                        [style]="partialSel()[grp.guest]
-                          ? 'background:var(--color-gold);color:white'
-                          : 'border:1.5px solid var(--color-border-mid);background:white'">
-                    @if (partialSel()[grp.guest]) { <svg lucideCheck [size]="14"></svg> }
-                  </span>
-                  <span class="font-semibold text-sm flex-1">{{ guestLabel(grp.guest) }}</span>
-                  <span class="font-bold text-sm flex-shrink-0" style="color:var(--color-gold-hover)">
-                    {{ grp.total | number:'1.0-0' }} ₽
-                  </span>
-                </div>
-                <div class="px-3 py-2" style="background:white">
-                  @for (item of grp.items; track item.id) {
-                    <div class="flex items-center gap-2 py-0.5 text-sm">
-                      <span class="flex-1 truncate">{{ item.menu_item_name }}</span>
-                      <span style="color:var(--color-muted)">× {{ item.quantity }}</span>
-                      <span style="color:var(--color-gold-hover);min-width:52px;text-align:right">
-                        {{ item.subtotal | number:'1.0-0' }} ₽
-                      </span>
-                    </div>
-                  }
-                </div>
-              </div>
-            }
-          </div>
-          <div class="flex-shrink-0 px-4 pt-3 pb-5" style="border-top:1px solid var(--color-border)">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium" style="color:var(--color-muted)">
-                Выбрано: {{ partialItems().length }} поз.
-              </span>
-              <span class="text-2xl font-bold">{{ partialTotal() | number:'1.0-0' }} ₽</span>
-            </div>
-            @if (depositInfo()) {
-              @if (partialAllSelected()) {
-                <p class="text-xs mb-3" style="color:var(--color-gold-hover)">
-                  Выбраны все гости — стол закроется, депозит
-                  {{ depositInfo()!.deposit_amount | number:'1.0-0' }} ₽ будет учтён в чеке.
-                </p>
-              } @else {
-                <p class="text-xs mb-3" style="color:var(--color-muted)">
-                  Депозит {{ depositInfo()!.deposit_amount | number:'1.0-0' }} ₽ будет учтён
-                  при полном расчёте стола.
-                </p>
-              }
-            }
-            <div class="flex gap-2 mb-4">
-              @for (p of payments; track p.value) {
-                <button (click)="singlePay.set(p.value)" class="btn btn-sm flex items-center gap-1" style="flex:1"
-                        [class]="singlePay() === p.value ? 'btn-primary' : 'btn-outline'">
-                  <svg [lucideIcon]="p.icon" [size]="14"></svg> {{ p.label }}
-                </button>
-              }
-            </div>
-            <button (click)="confirm()" [disabled]="submitting() || !partialItems().length"
-                    class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px"
-                    [style.opacity]="!partialItems().length ? '0.5' : '1'">
-              @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> }
-              {{ submitting() ? '...'
-                 : partialAllSelected() ? 'Закрыть счёт и печать'
-                 : 'Чек на выбранных и печать' }}
-            </button>
-          </div>
-        }
-      </div>
+      <new-table-sheet [zones]="zones()" [occupied]="occupiedSet()" [reservations]="todayReservations()"
+                       [prefill]="ntPrefill()" [shiftId]="shiftId"
+                       (created)="onCreated($event)" (closed)="closeNewTable()" />
     }
   `
 })
@@ -824,481 +106,175 @@ export class TablesPage implements OnInit, OnDestroy {
   private reservationApi = inject(ReservationApi);
   private shiftApi = inject(ShiftApi);
   private tableApi = inject(TableApi);
-  private auth    = inject(AuthService);
-  private cart    = inject(CartService);
-  private printer = inject(ReceiptPrintService);
-  private toast   = inject(ToastService);
-  private router  = inject(Router);
+  private auth   = inject(AuthService);
+  private router = inject(Router);
+  view = inject(WaiterViewService);
 
-  payments = PAY_OPTIONS;
-  orders   = signal<Order[]>([]);
-  zones    = signal<Zone[]>([]);
+  orders = signal<Order[]>([]);
+  zones  = signal<Zone[]>([]);
   todayReservations = signal<Reservation[]>([]);
   selectedZoneId    = signal<number | null>(null);
 
-  // new table dialog
-  private shiftId: number | null = null;
-  newTable         = signal(false);
-  creating         = signal(false);
-  ntSelectedTables: string[] = [];
-  ntTableFallback  = '';
-  ntGuests: number | null = null;
-  ntNotes  = '';
-
-  // edit modal
-  editOrder  = signal<Order | null>(null);
-  editGuests: number | null = null;
-  editNotes  = '';
-  saving     = signal(false);
-
-  // reservations sheet
+  shiftId: number | null = null;   // доступен из шаблона для new-table-sheet
+  newTable  = signal(false);
+  ntPrefill = signal<string[]>([]);
   resvSheet = signal(false);
 
-  // move table sheet
-  moveOrder        = signal<Order | null>(null);
-  moveSelectedTables: string[] = [];
-  moveSaving       = signal(false);
-
-  // checkout modal
-  checkout     = signal<Order | null>(null);
-  checkoutStep = signal<'mode' | 'pay'>('mode');
-  split        = signal(false);
-  partial      = signal(false);
-  submitting   = signal(false);
-  singlePay    = signal<PaymentMethod>('cash');
-  partialSel   = signal<Record<number, boolean>>({});
-  private guestBillMap = signal<Record<number, number>>({});
-  private billPayMap   = signal<Record<number, PaymentMethod>>({});
-
-  confirmDeleteItem = signal<number | null>(null);
-  confirmFree       = signal<number | null>(null);
-  private pollTimer?: ReturnType<typeof setInterval>;
-
-  // ── Computed ─────────────────────────────────────────────────────
   currentUserId = computed(() => this.auth.user()?.id);
-
-  myOrders    = computed(() => this.orders().filter(o => o.waiter === this.currentUserId()));
-  otherOrders = computed(() => this.orders().filter(o => o.waiter !== this.currentUserId()));
 
   filteredZones = computed(() => {
     const id = this.selectedZoneId();
     return id === null ? this.zones() : this.zones().filter(z => z.id === id);
   });
 
-  allTables = computed(() => this.zones().flatMap(z => z.tables));
+  /** Есть ли хоть один видимый стол (с учётом фильтра) — для пустого состояния. */
+  anyVisibleTables = computed(() => this.zones().some(z => this.visibleTables(z).length > 0));
+
+  /** Столы зоны: только активные (занятые/брони, без свободных) + фильтр «Мои/Все» + сортировка. */
+  visibleTables(z: Zone): VenueTable[] {
+    const me = this.currentUserId();
+    // Свободные столы скрыты — их открывают через «+».
+    // Объединённый заказ (11+12) показываем один раз — на первом (главном) столе.
+    let ts = z.tables.filter(t =>
+      this.tableStatus(t.number) !== 'free' && !this.isSecondaryMember(t.number));
+    const f = this.view.filter();
+    if (f === 'mine') {
+      ts = ts.filter(t => { const o = this.tableOrder(t.number); return !!o && o.waiter === me; });
+    } else if (f === 'reservations') {
+      ts = ts.filter(t => this.tableStatus(t.number) === 'reserved');
+    }
+    return [...ts].sort((a, b) => this.tableCompare(a.number, b.number));
+  }
+
+  /** Стол — НЕ главный в объединённом заказе (11+12): его представляет первый стол. */
+  private isSecondaryMember(num: string): boolean {
+    const o = this.tableOrder(num);
+    if (!o) return false;
+    const parts = this.orderTables(o);
+    return parts.length > 1 && parts[0] !== num;
+  }
+
+  private statusRank(num: string): number {
+    const o = this.tableOrder(num);
+    const mine = !!o && o.waiter === this.currentUserId();
+    if (mine && bill.readyCount(o!) > 0) return 0;   // готовы блюда
+    if (mine) return 1;                              // мой занятый
+    const st = this.tableStatus(num);
+    if (st === 'reserved') return 2;
+    if (st === 'free') return 3;
+    return 4;                                        // занят другим
+  }
+  private numCompare(a: string, b: string): number {
+    const na = parseInt(a, 10), nb = parseInt(b, 10);
+    if (isNaN(na) && isNaN(nb)) return a.localeCompare(b, 'ru', { numeric: true });
+    if (isNaN(na)) return 1;
+    if (isNaN(nb)) return -1;
+    return na !== nb ? na - nb : a.localeCompare(b, 'ru', { numeric: true });
+  }
+  private tableCompare(a: string, b: string): number {
+    switch (this.view.sort()) {
+      case 'status': { const d = this.statusRank(a) - this.statusRank(b); return d || this.numCompare(a, b); }
+      case 'table':  return a.localeCompare(b, 'ru', { numeric: true });
+      default:       return this.numCompare(a, b);   // 'number'
+    }
+  }
 
   resvSorted = computed(() =>
-    [...this.todayReservations()]
-      .sort((a, b) => a.time_start.localeCompare(b.time_start))
-  );
+    [...this.todayReservations()].sort((a, b) => a.time_start.localeCompare(b.time_start)));
 
-  coItems = computed(() => {
-    const o = this.checkout();
-    return o ? this.unpaidItems(o) : [];
-  });
-  totalAll = computed(() => this.coItems().reduce((s, i) => s + +i.subtotal, 0));
-
-  depositInfo = computed((): ReservationInfo | null => {
-    const o = this.checkout();
-    const r = o?.reservation_info;
-    if (!r || !r.deposit_paid || +r.deposit_amount <= 0) return null;
-    return r;
-  });
-  depositAmount   = computed(() => this.depositInfo() ? +this.depositInfo()!.deposit_amount : 0);
-  remainingAmount = computed(() => Math.max(0, this.totalAll() - this.depositAmount()));
-  refundAmount    = computed(() => Math.max(0, this.depositAmount() - this.totalAll()));
-
-  checkoutGuestGroups = computed(() => {
-    const byGuest = new Map<number, OrderItem[]>();
-    for (const it of this.coItems()) {
-      const grp = byGuest.get(it.guest_no) ?? [];
-      grp.push(it);
-      byGuest.set(it.guest_no, grp);
-    }
-    return [...byGuest.keys()].sort((a, b) => a - b).map(guest => {
-      const items = byGuest.get(guest)!;
-      return { guest, items, total: items.reduce((s, i) => s + +i.subtotal, 0) };
-    });
+  /** Все занятые столы — для шторки открытия (нельзя открыть занятый). */
+  occupiedSet = computed<Set<string>>(() => {
+    const s = new Set<string>();
+    for (const ord of this.orders())
+      for (const t of this.orderTables(ord)) s.add(t);
+    return s;
   });
 
-  // Частичный расчёт: чек только на отмеченных гостей, стол остаётся открыт
-  partialItems = computed(() =>
-    this.checkoutGuestGroups().filter(g => this.partialSel()[g.guest]).flatMap(g => g.items));
-  partialTotal = computed(() => this.partialItems().reduce((s, i) => s + +i.subtotal, 0));
-  partialAllSelected = computed(() => {
-    const groups = this.checkoutGuestGroups();
-    return groups.length > 0 && groups.every(g => this.partialSel()[g.guest]);
-  });
+  private pollTimer?: ReturnType<typeof setInterval>;
+  private pollBusy = false;
 
-  splitBills = computed(() => {
-    const gbm = this.guestBillMap();
-    const bills = new Map<number, { guests: number[]; items: OrderItem[]; total: number }>();
-    for (const grp of this.checkoutGuestGroups()) {
-      const bn = gbm[grp.guest] ?? 1;
-      if (!bills.has(bn)) bills.set(bn, { guests: [], items: [], total: 0 });
-      const b = bills.get(bn)!;
-      b.guests.push(grp.guest);
-      b.items.push(...grp.items);
-      b.total += grp.total;
-    }
-    return [...bills.entries()].sort(([a], [b]) => a - b).map(([billNo, data]) => ({ billNo, ...data }));
-  });
+  private refreshSvc = inject(RefreshService);
+  private readonly onPullRefresh = () => this.reloadAll();
 
-  billChoices = computed(() => {
-    const gbm = this.guestBillMap();
-    const used = new Set(Object.values(gbm));
-    const max  = used.size ? Math.max(...used) : 0;
-    const nums = [...used].sort((a, b) => a - b);
-    if (max < this.checkoutGuestGroups().length) nums.push(max + 1);
-    return nums;
-  });
-
-  // ── Lifecycle ────────────────────────────────────────────────────
   ngOnInit() {
     this.load();
     this.shiftApi.getCurrentShift().subscribe({ next: s => this.shiftId = s?.id ?? null, error: () => {} });
     this.pollTimer = setInterval(() => this.load(), POLL_MS);
 
+    this.loadZones();
+    this.loadReservations();
+    this.refreshSvc.register(this.onPullRefresh);
+  }
+  ngOnDestroy() {
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.refreshSvc.unregister(this.onPullRefresh);
+  }
+
+  load(done?: () => void) {
+    if (this.pollBusy) { done?.(); return; }
+    this.pollBusy = true;
+    this.orderApi.getActiveOrders().subscribe({
+      next: o => { this.pollBusy = false; this.orders.set(o); done?.(); },
+      error: () => { this.pollBusy = false; done?.(); },
+    });
+  }
+
+  private loadZones() {
     this.tableApi.getZones().subscribe({ next: z => this.zones.set(z), error: () => {} });
+  }
+
+  private loadReservations() {
     const today = new Date().toISOString().split('T')[0];
     this.reservationApi.getReservations({ date: today }).subscribe({
       next: r => this.todayReservations.set(r.filter(x => ['pending', 'confirmed', 'arrived'].includes(x.status))),
       error: () => {},
     });
   }
-  ngOnDestroy() { if (this.pollTimer) clearInterval(this.pollTimer); }
 
-  /** Тик поллинга пропускается, пока предыдущий запрос не завершился. */
-  private pollBusy = false;
-
-  load() {
-    if (this.pollBusy) return;
-    this.pollBusy = true;
-    this.orderApi.getActiveOrders().subscribe({
-      next: o => { this.pollBusy = false; this.orders.set(o); },
-      error: () => { this.pollBusy = false; },
-    });
+  /** Pull-to-refresh: перегрузить всё, спрятать спиннер по завершении заказов. */
+  private reloadAll() {
+    this.pollBusy = false;          // не дать поллингу заблокировать ручное обновление
+    this.loadZones();
+    this.loadReservations();
+    this.load(() => this.refreshSvc.done());
   }
 
   // ── Table helpers ─────────────────────────────────────────────────
-  /** Parse order table_number which may be "5+6" for merged tables. */
   private orderTables(o: Order): string[] {
-    return o.table_number.split('+').map(s => s.trim()).filter(Boolean);
+    return tableSegments(o.table_number);
   }
-
   tableStatus(num: string): 'free' | 'occupied' | 'reserved' {
     if (this.orders().some(o => this.orderTables(o).includes(num))) return 'occupied';
     if (this.todayReservations().some(r => r.table_number === num)) return 'reserved';
     return 'free';
   }
-
   tableOrder(num: string): Order | null {
     return this.orders().find(o => this.orderTables(o).includes(num)) ?? null;
   }
-
   tableReservation(num: string): Reservation | null {
     return this.todayReservations().find(r => r.table_number === num) ?? null;
   }
-
-  orderReservation(o: Order): Reservation | null {
-    for (const t of this.orderTables(o)) {
-      const r = this.tableReservation(t);
-      if (r) return r;
-    }
-    return null;
-  }
-
-  tableCardStyle(status: 'free' | 'occupied' | 'reserved'): string {
-    if (status === 'occupied')
-      return 'background:var(--color-gold-light);border:1.5px solid var(--color-gold-mid)';
-    if (status === 'reserved')
-      return 'background:#eff6ff;border:1.5px solid #93c5fd';
-    return 'background:var(--color-surface2);border:1px solid var(--color-border)';
-  }
-
-  /** Свой занятый стол, где есть готовые к подаче блюда — подсветить, чтобы официант подошёл. */
-  isReadyTable(num: string): boolean {
-    const o = this.tableOrder(num);
-    return !!o && o.waiter === this.currentUserId() && this.readyCount(o) > 0;
-  }
-
-  onTableTap(tableNum: string) {
-    if (this.tableStatus(tableNum) === 'occupied') {
-      const order = this.tableOrder(tableNum);
-      if (order) {
-        const el = document.getElementById('order-' + order.id);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  onTableTap(num: string) {
+    if (this.tableStatus(num) === 'occupied') {
+      const o = this.tableOrder(num);
+      if (o && o.waiter === this.currentUserId()) {
+        this.router.navigate(['/waiter/order', o.id]);   // свой стол → экран заказа
       }
+      // занят другим — ничего
     } else {
-      this.openNewTable(tableNum);
+      this.openNewTable(num);   // свободный / с бронью → открыть
     }
-  }
-
-  fmtTime(t: string): string { return t?.slice(0, 5) ?? ''; }
-
-  private static RESV_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
-    pending:   { label: 'Ожидает',      color: '#92400e', bg: '#fffbeb', border: '#fcd34d' },
-    confirmed: { label: 'Подтверждена', color: '#1e40af', bg: '#eff6ff', border: '#93c5fd' },
-    arrived:   { label: 'Пришли',       color: '#166534', bg: '#f0fdf4', border: '#86efac' },
-    completed: { label: 'Завершена',    color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb' },
-    cancelled: { label: 'Отменена',     color: '#991b1b', bg: '#fef2f2', border: '#fca5a5' },
-  };
-
-  resvCardStyle(status: string): string {
-    const m = TablesPage.RESV_META[status] ?? TablesPage.RESV_META['pending'];
-    return `background:${m.bg};border:1px solid ${m.border}`;
-  }
-  resvBadgeStyle(status: string): string {
-    const m = TablesPage.RESV_META[status] ?? TablesPage.RESV_META['pending'];
-    return `background:${m.border};color:${m.color}`;
-  }
-  resvLabel(status: string): string {
-    return TablesPage.RESV_META[status]?.label ?? status;
   }
 
   // ── New table ─────────────────────────────────────────────────────
   openNewTable(prefilledTable = '') {
-    this.ntSelectedTables = prefilledTable ? [prefilledTable] : [];
-    this.ntTableFallback  = '';
-    this.ntGuests  = null;
-    this.ntNotes   = '';
-    this.creating.set(false);
+    this.ntPrefill.set(prefilledTable ? [prefilledTable] : []);
     this.newTable.set(true);
   }
   closeNewTable() { this.newTable.set(false); }
 
-  onTableSelect(tableNum: string) {
-    if (this.tableStatus(tableNum) === 'occupied') return;
-    const idx = this.ntSelectedTables.indexOf(tableNum);
-    if (idx >= 0) {
-      this.ntSelectedTables = this.ntSelectedTables.filter(t => t !== tableNum);
-    } else {
-      this.ntSelectedTables = [...this.ntSelectedTables, tableNum];
-    }
-  }
-
-  createTable() {
-    const tableNumber = this.ntSelectedTables.length
-      ? this.ntSelectedTables.join('+')
-      : this.ntTableFallback.trim();
-    if (this.creating() || !tableNumber) return;
-    if (!this.shiftId) { this.toast.error('Нет открытой смены'); return; }
-    this.creating.set(true);
-    this.orderApi.createOrder({
-      shift: this.shiftId, table_number: tableNumber,
-      guests: this.ntGuests || 0, notes: this.ntNotes.trim(), items: [],
-    }).subscribe({
-      next: order => {
-        this.creating.set(false);
-        this.cart.setTarget(order);
-        this.newTable.set(false);
-        this.router.navigate(['/waiter/order']);
-      },
-      error: () => { this.creating.set(false); this.toast.error('Не удалось открыть стол'); },
-    });
-  }
-
-  // ── Edit order ────────────────────────────────────────────────────
-  openEdit(o: Order) {
-    this.editGuests = o.guests || null;
-    this.editNotes  = o.notes || '';
-    this.editOrder.set(o);
-  }
-  closeEdit() { this.editOrder.set(null); }
-
-  saveEdit() {
-    const o = this.editOrder();
-    if (!o || this.saving()) return;
-    this.saving.set(true);
-    this.orderApi.updateOrder(o.id, {
-      table_number: o.table_number,
-      guests: this.editGuests || 0,
-      notes: this.editNotes.trim(),
-    }).subscribe({
-      next: updated => { this.replaceOrder(updated); this.saving.set(false); this.closeEdit(); },
-      error: () => { this.saving.set(false); this.toast.error('Не удалось сохранить'); },
-    });
-  }
-
-  // ── Move table ────────────────────────────────────────────────────
-  openMoveSheet(o: Order) {
-    this.moveSelectedTables = this.orderTables(o);
-    this.moveOrder.set(o);
-  }
-  closeMoveSheet() { this.moveOrder.set(null); this.moveSelectedTables = []; }
-
-  onMoveSelect(tableNum: string) {
-    const o = this.moveOrder();
-    if (!o) return;
-    const currentTables = this.orderTables(o);
-    const isCurrent = currentTables.includes(tableNum);
-    const busyByOther = this.tableStatus(tableNum) === 'occupied' && !isCurrent;
-    if (busyByOther) return;
-
-    const idx = this.moveSelectedTables.indexOf(tableNum);
-    if (idx >= 0) {
-      this.moveSelectedTables = this.moveSelectedTables.filter(t => t !== tableNum);
-    } else {
-      this.moveSelectedTables = [...this.moveSelectedTables, tableNum];
-    }
-  }
-
-  doMoveTable() {
-    const o = this.moveOrder();
-    if (!o || this.moveSaving() || !this.moveSelectedTables.length) return;
-    const newTableNumber = this.moveSelectedTables.join('+');
-    if (newTableNumber === o.table_number) { this.closeMoveSheet(); return; }
-    this.moveSaving.set(true);
-    this.orderApi.moveOrderTable(o.id, newTableNumber).subscribe({
-      next: updated => {
-        this.replaceOrder(updated);
-        this.moveSaving.set(false);
-        this.closeMoveSheet();
-        this.toast.success(`Стол → ${newTableNumber}`);
-      },
-      error: err => { this.moveSaving.set(false); this.toast.apiError(err, 'Ошибка пересадки'); },
-    });
-  }
-
-  // ── Checkout ──────────────────────────────────────────────────────
-  openCheckout(o: Order) {
-    this.checkout.set(o);
-    this.checkoutStep.set('mode');
-    this.split.set(false);
-    this.partial.set(false);
-    this.singlePay.set('cash');
-    this.partialSel.set({});
-    this.guestBillMap.set({});
-    this.billPayMap.set({});
-    this.submitting.set(false);
-  }
-  closeCheckout() { this.checkout.set(null); this.checkoutStep.set('mode'); }
-  chooseSingle() { this.split.set(false); this.partial.set(false); this.checkoutStep.set('pay'); }
-  choosePartial() {
-    this.partial.set(true);
-    this.split.set(false);
-    this.partialSel.set({});
-    this.singlePay.set('cash');
-    this.checkoutStep.set('pay');
-  }
-  togglePartialGuest(guest: number) {
-    this.partialSel.update(m => ({ ...m, [guest]: !m[guest] }));
-  }
-  chooseSplit() {
-    this.split.set(true);
-    this.partial.set(false);
-    const gbm: Record<number, number> = {};
-    const bpm: Record<number, PaymentMethod> = {};
-    this.checkoutGuestGroups().forEach((grp, idx) => { gbm[grp.guest] = idx + 1; bpm[idx + 1] = 'cash'; });
-    this.guestBillMap.set(gbm);
-    this.billPayMap.set(bpm);
-    this.checkoutStep.set('pay');
-  }
-  guestBillOf(guest: number): number { return this.guestBillMap()[guest] ?? 1; }
-  setGuestBill(guest: number, billNo: number) {
-    this.guestBillMap.update(m => ({ ...m, [guest]: billNo }));
-    if (!this.billPayMap()[billNo]) this.billPayMap.update(m => ({ ...m, [billNo]: 'cash' }));
-  }
-  billPayOf(billNo: number): PaymentMethod { return this.billPayMap()[billNo] ?? 'cash'; }
-  setBillPay(billNo: number, method: PaymentMethod) {
-    this.billPayMap.update(m => ({ ...m, [billNo]: method }));
-  }
-  billGuestNames(guests: number[]): string { return guests.map(g => this.guestLabel(g)).join(' + '); }
-
-  confirm() {
-    const o = this.checkout();
-    const items = this.partial() ? this.partialItems() : this.coItems();
-    if (!o || this.submitting() || !items.length) return;
-    this.submitting.set(true);
-    const billsPayload = this.split()
-      ? this.splitBills().map(b => ({ item_ids: b.items.map(i => i.id), payment_method: this.billPayOf(b.billNo) }))
-      : [{ item_ids: items.map(i => i.id), payment_method: this.singlePay() }];
-    // Депозит брони списываем только при полном закрытии стола одним чеком
-    const closesAll = !this.partial() || this.partialAllSelected();
-    const d = this.split() || !closesAll ? null : this.depositInfo();
-    const staysOpen = this.partial() && !this.partialAllSelected();
-    this.orderApi.checkoutOrder(
-      o.id, billsPayload,
-      d ? +d.deposit_amount : undefined,
-      d ? (d.deposit_method || undefined) : undefined,
-    ).subscribe({
-      next: res => {
-        this.submitting.set(false);
-        this.printer.printHardware(res.receipts);
-        this.toast.success(staysOpen
-          ? 'Чек сформирован — стол остаётся открыт'
-          : res.receipts.length > 1 ? 'Чеки сформированы' : 'Чек сформирован');
-        this.closeCheckout();
-        this.load();
-      },
-      error: err => { this.submitting.set(false); this.toast.apiError(err, 'Ошибка при закрытии счёта'); },
-    });
-  }
-
-  // ── Item actions ──────────────────────────────────────────────────
-  askDeleteItem(item: OrderItem) { this.confirmDeleteItem.set(item.id); }
-  removeItem(o: Order, item: OrderItem) {
-    this.confirmDeleteItem.set(null);
-    this.orderApi.removeItemFromOrder(o.id, item.id).subscribe({
-      next: updated => this.replaceOrder(updated),
-      error: () => this.toast.error('Не удалось удалить позицию'),
-    });
-  }
-  moveItem(o: Order, item: OrderItem, guest: number) {
-    if (item.guest_no === guest) return;
-    this.orderApi.setItemGuest(o.id, item.id, guest).subscribe({
-      next: updated => this.replaceOrder(updated),
-      error: () => this.toast.error('Не удалось перенести позицию'),
-    });
-  }
-
-  // ── Free empty table ─────────────────────────────────────────────
-  /** Стол пустой — по нему ничего не заказывали (нет позиций и чеков). */
-  isEmpty(o: Order): boolean { return o.items.length === 0 && o.receipts.length === 0; }
-  askFreeTable(o: Order) { this.confirmFree.set(o.id); }
-  freeTable(o: Order) {
-    this.confirmFree.set(null);
-    this.orderApi.deleteOrder(o.id).subscribe({
-      next: () => {
-        this.orders.update(list => list.filter(x => x.id !== o.id));
-        this.toast.success('Стол освобождён');
-      },
-      error: err => this.toast.apiError(err, 'Не удалось освободить стол'),
-    });
-  }
-
-  // ── Helpers ───────────────────────────────────────────────────────
-  firstName(name: string): string { return name?.split(' ')[0] ?? ''; }
-  guestLabel(guest: number): string { return guest === 0 ? 'Общий' : 'Гость ' + guest; }
-  guestOptions(o: Order): number[] {
-    const used = this.unpaidItems(o).reduce((m, i) => Math.max(m, i.guest_no), 0);
-    const n = Math.max(o.guests ?? 0, used);
-    return [0, ...Array.from({ length: n }, (_, i) => i + 1)];
-  }
-  guestGroups(o: Order): { guest: number; items: OrderItem[]; total: number }[] {
-    const byGuest = new Map<number, OrderItem[]>();
-    for (const it of this.unpaidItems(o)) {
-      (byGuest.get(it.guest_no) ?? byGuest.set(it.guest_no, []).get(it.guest_no)!).push(it);
-    }
-    return [...byGuest.keys()].sort((a, b) => a - b).map(guest => {
-      const items = byGuest.get(guest)!;
-      return { guest, items, total: items.reduce((s, i) => s + +i.subtotal, 0) };
-    });
-  }
-
-  unpaidItems(o: Order): OrderItem[] { return o.items.filter(i => i.receipt == null); }
-  unpaidTotal(o: Order): number { return this.unpaidItems(o).reduce((s, i) => s + +i.subtotal, 0); }
-  readyCount(o: Order): number {
-    return o.items.filter(i => i.receipt == null && i.kitchen_status === 'ready').length;
-  }
-  elapsed(o: Order): string {
-    const min = Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60000);
-    return min < 60 ? `${min} мин` : `${Math.floor(min / 60)} ч ${min % 60} мин`;
-  }
-
-  addMore(o: Order) { this.cart.setTarget(o); this.router.navigate(['/waiter/order']); }
-  reprint(r: Receipt) { this.printer.printHardware(r); }
-  private replaceOrder(updated: Order) {
-    this.orders.update(list => list.map(o => o.id === updated.id ? updated : o));
+  onCreated(order: Order) {
+    this.newTable.set(false);
+    this.router.navigate(['/waiter/order', order.id], { queryParams: { seg: 'menu' } });
   }
 }

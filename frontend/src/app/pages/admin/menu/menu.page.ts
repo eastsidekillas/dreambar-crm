@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { MenuApi } from '../../../entities/menu';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Menu, MenuItem, MenuCategory, MenuSection } from '../../../core/models';
+import { ItemModifiersEditor } from './item-modifiers-editor';
 import {
   LucideDynamicIcon,
   LucideGlassWater, LucideUtensilsCrossed, LucideWind, LucideClipboardList,
@@ -27,7 +28,7 @@ interface CategoryNode extends MenuCategory { items: MenuItem[]; }
 @Component({
   selector: 'app-menu',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideDynamicIcon,
+  imports: [CommonModule, FormsModule, LucideDynamicIcon, ItemModifiersEditor,
     LucideUtensilsCrossed,
     LucideSearch, LucideX, LucidePencil, LucideTrash2, LucideEye, LucideCheck,
     LucideChevronUp, LucideChevronDown],
@@ -394,6 +395,9 @@ interface CategoryNode extends MenuCategory { items: MenuItem[]; }
                               }
                             </select>
                           </div>
+                        </div>
+                        <div class="mb-2 pt-2" style="border-top:1px solid var(--color-border)">
+                          <item-modifiers-editor [itemId]="item.id" />
                         </div>
                         <div class="flex items-center gap-3 flex-wrap">
                           <button (click)="saveItemEdit(item)" class="btn btn-primary btn-sm flex items-center gap-1"><svg lucideCheck [size]="12"></svg> Сохранить</button>

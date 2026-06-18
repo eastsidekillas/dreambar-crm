@@ -211,7 +211,8 @@ class MenuItemViewSet(viewsets.ModelViewSet):
         return MenuItemSerializer
 
     def get_queryset(self):
-        qs = MenuItem.objects.select_related('category__section__menu')
+        # prefetch modifier_groups — для has_modifiers без N+1 в списке/by_category.
+        qs = MenuItem.objects.select_related('category__section__menu').prefetch_related('modifier_groups')
         if not has_perm(self.request.user, Perm.MENU_MANAGE):
             qs = qs.filter(is_active=True)
         return qs
@@ -261,7 +262,9 @@ class MenuItemViewSet(viewsets.ModelViewSet):
                 return Response([])
             sections_qs = active_menu.sections.filter(is_active=True)
 
-        sections = sections_qs.prefetch_related('categories__items').order_by('sort_order')
+        sections = sections_qs.prefetch_related(
+            'categories__items__modifier_groups'
+        ).order_by('sort_order')
 
         result = []
         for section in sections:

@@ -122,6 +122,22 @@ const ZONE_COLORS = [
         <label class="section-title block mb-1.5">Порядок отображения</label>
         <input [(ngModel)]="zfSort" type="number" min="0" class="field" style="height:44px;width:100px" />
       </div>
+      <div>
+        <label class="section-title block mb-1.5">VIP-зона</label>
+        <button (click)="zfRequiresDeposit = !zfRequiresDeposit" type="button"
+                class="btn btn-sm" style="height:40px;border:1.5px solid var(--color-border)"
+                [style.background]="zfRequiresDeposit ? 'var(--color-gold-light)' : 'white'"
+                [style.color]="zfRequiresDeposit ? 'var(--color-gold-hover)' : 'var(--color-muted)'">
+          {{ zfRequiresDeposit ? 'Берётся депозит' : 'Без депозита' }}
+        </button>
+        <p class="text-xs mt-1" style="color:var(--color-muted)">В VIP-зоне у броней появляется депозит.</p>
+      </div>
+      @if (zfRequiresDeposit) {
+        <div>
+          <label class="section-title block mb-1.5">Мин. депозит, ₽ <span style="color:var(--color-muted)">(0 — без минимума)</span></label>
+          <input [(ngModel)]="zfMinDeposit" type="number" min="0" class="field" style="height:44px;width:140px" />
+        </div>
+      }
       <button (click)="saveZone()" [disabled]="zoneSaving() || !zfName.trim()"
               class="btn btn-primary btn-full" style="height:48px">
         {{ zoneSaving() ? '...' : (editingZone()?.id ? 'Сохранить' : 'Создать зону') }}
@@ -201,6 +217,8 @@ export class TablesAdminPage implements OnInit {
   zfName  = '';
   zfColor = '#6b7280';
   zfSort  = 0;
+  zfRequiresDeposit = false;
+  zfMinDeposit = 0;
   zoneSaving = signal(false);
 
   // Table form
@@ -235,6 +253,8 @@ export class TablesAdminPage implements OnInit {
     this.zfName  = z?.name  ?? '';
     this.zfColor = z?.color ?? '#b8922a';
     this.zfSort  = z?.sort  ?? this.zones().length;
+    this.zfRequiresDeposit = z?.requires_deposit ?? false;
+    this.zfMinDeposit = z ? +z.min_deposit : 0;
     this.zoneForm.set(true);
   }
   closeZoneForm() { this.zoneForm.set(false); }
@@ -242,7 +262,11 @@ export class TablesAdminPage implements OnInit {
   saveZone() {
     if (this.zoneSaving() || !this.zfName.trim()) return;
     this.zoneSaving.set(true);
-    const data = { name: this.zfName.trim(), color: this.zfColor, sort: this.zfSort };
+    const data = {
+      name: this.zfName.trim(), color: this.zfColor, sort: this.zfSort,
+      requires_deposit: this.zfRequiresDeposit,
+      min_deposit: this.zfRequiresDeposit ? this.zfMinDeposit : 0,
+    };
     const z = this.editingZone();
     const req = z?.id
       ? this.tableApi.updateZone(z.id, data)

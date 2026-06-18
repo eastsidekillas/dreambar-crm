@@ -92,6 +92,16 @@ export class ReceiptPrintService {
       ? `<div class="hr"></div><div class="center small" style="font-weight:bold">${this.esc(copyLabel)}</div>`
       : '';
 
+    // Депозит: списано — deposit_amount; к оплате = итого − списано; возврат — refund_amount.
+    const dep = +r.deposit_amount || 0;
+    const refund = +r.refund_amount || 0;
+    const net = Math.max(0, +r.total - dep);
+    const depMethod = this.esc(r.deposit_method_label || r.deposit_method || '');
+    const depositHtml = (dep > 0 || refund > 0) ? `
+      ${dep > 0 ? `<div class="row"><span>Депозит (${depMethod})</span><span>−${this.money(dep)} ₽</span></div>` : ''}
+      <div class="row total"><span>К оплате</span><span>${this.money(net)} ₽</span></div>
+      ${refund > 0 ? `<div class="row"><span>Возврат гостю</span><span>${this.money(refund)} ₽</span></div>` : ''}` : '';
+
     return `<div class="receipt">
       <div class="center brand">BAR DREAM</div>
       <div class="center muted">vk.com/mydreambar</div>
@@ -104,8 +114,7 @@ export class ReceiptPrintService {
       ${rows}
       <div class="hr"></div>
       <div class="row total"><span>ИТОГО</span><span>${this.money(r.total)} ₽</span></div>
-      ${r.deposit_amount > 0 ? `<div class="row"><span>Депозит (${this.esc(r.deposit_method_label || r.deposit_method || '')})</span><span>−${this.money(r.deposit_amount)} ₽</span></div>
-      <div class="row total"><span>К оплате</span><span>${this.money(+r.total - +r.deposit_amount)} ₽</span></div>` : ''}
+      ${depositHtml}
       <div class="row"><span>Оплата</span><span>${this.esc(r.payment_label)}</span></div>
       <div class="hr"></div>
       <div class="center small">Спасибо за визит!</div>

@@ -9,7 +9,8 @@ class TableInline(admin.TabularInline):
 
 @admin.register(Zone)
 class ZoneAdmin(admin.ModelAdmin):
-    list_display = ['name', 'color', 'sort']
+    list_display = ['name', 'color', 'sort', 'requires_deposit', 'min_deposit']
+    list_editable = ['requires_deposit', 'min_deposit']
     inlines = [TableInline]
 
 

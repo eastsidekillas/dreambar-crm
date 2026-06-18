@@ -20,8 +20,8 @@ const REFRESH_MS = 8000;
     <div class="min-h-screen flex flex-col" style="background:#1C1917;color:#F5F3EE">
 
       <!-- Header -->
-      <header class="sticky top-0 z-30 px-4 py-3 flex items-center justify-between"
-              style="background:#0C0A09;border-bottom:1px solid #44403C">
+      <header class="sticky top-0 z-30 px-4 pb-3 flex items-center justify-between"
+              style="padding-top:calc(0.75rem + env(safe-area-inset-top,0px));background:#0C0A09;border-bottom:1px solid #44403C">
         <div class="flex items-center gap-2">
           <svg lucideChefHat [size]="24"></svg>
           <div class="leading-tight">
@@ -109,6 +109,16 @@ const REFRESH_MS = 8000;
                   </div>
                 }
 
+                @if (t.glassware?.length) {
+                  <div class="mx-3 mt-2 px-2.5 py-2 rounded-lg flex items-center flex-wrap gap-x-3 gap-y-1 text-sm font-semibold"
+                       style="background:#0c4a6e;color:#7dd3fc">
+                    <span>🍷 Посуда:</span>
+                    @for (g of t.glassware; track g.kind) {
+                      <span>{{ g.label }} ×{{ g.count }}</span>
+                    }
+                  </div>
+                }
+
                 <div class="p-3 flex-1 space-y-2">
                   @for (it of t.items; track it.id) {
                     <div class="rounded-lg p-2.5"
@@ -126,6 +136,13 @@ const REFRESH_MS = 8000;
                         }
                       </div>
                       @if (it.volume) { <p class="text-xs mb-2" style="color:#A8A29E">{{ it.volume }}</p> }
+                      @if (it.modifiers?.length) {
+                        <div class="flex flex-wrap gap-1 mb-2">
+                          @for (m of it.modifiers; track m) {
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded" style="background:#3A2E12;color:#FBBF24">{{ m }}</span>
+                          }
+                        </div>
+                      }
                       <div class="flex gap-2">
                         @if (it.kitchen_status === 'new') {
                           <button (click)="setStatus(it, 'cooking')"
@@ -180,7 +197,7 @@ const REFRESH_MS = 8000;
                     </div>
                     <div class="space-y-0.5 mb-2">
                       @for (it of t.items; track it.id) {
-                        <p class="text-sm" style="color:#D6D3D1">{{ it.quantity }}× {{ it.name }}</p>
+                        <p class="text-sm" style="color:#D6D3D1">{{ it.quantity }}× {{ it.name }}@if (it.modifiers?.length) {<span style="color:#FBBF24"> · {{ it.modifiers!.join(', ') }}</span>}</p>
                       }
                     </div>
                     <button (click)="returnToWork(t)"

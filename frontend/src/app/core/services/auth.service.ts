@@ -99,7 +99,7 @@ export class AuthService {
       case 'kitchen':   return '/kitchen';
       case 'bartender': return '/bartender';
       case 'wardrobe':  return '/waiter/tickets';
-      default:          return '/waiter/order';
+      default:          return '/waiter/tables';
     }
   }
 

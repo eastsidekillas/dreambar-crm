@@ -41,6 +41,21 @@
   --color-hookah-bg:  #FFEDD5;
 }
 
+/* Тёмная тема — переопределяет --color-* (структурные). Управляется ThemeService
+   через data-theme на <html>. Акцентные статусные цвета оставлены как есть. */
+[data-theme="dark"] {
+  --color-bg:         #17140F;
+  --color-surface:    #211D16;
+  --color-surface2:   #2A251D;
+  --color-border:     #3A332A;
+  --color-border-mid: #4C4537;
+  --color-text:       #F4EFE4;
+  --color-muted:      #A89F90;
+  --color-light:      #6E6657;
+  --color-gold-light: #352C1A;
+  --color-gold-mid:   #574826;
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 
@@ -60,6 +75,10 @@ input, button, select, textarea { font-family: inherit; }
 ::-webkit-scrollbar-thumb { background: var(--color-border-mid); border-radius: 2px; }
 
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 8px); }
+
+/* Pull-to-refresh: спиннер в PullToRefreshDirective. */
+@keyframes ptr-rotate { to { transform: rotate(360deg); } }
+.ptr-spinner.ptr-spinning { animation: ptr-rotate 0.6s linear infinite; }
 
 @layer components {
 

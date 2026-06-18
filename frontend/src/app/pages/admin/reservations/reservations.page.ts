@@ -2,7 +2,7 @@ import { Component, OnInit, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReservationApi } from '../../../entities/reservation';
-import { TableApi } from '../../../entities/table';
+import { TableApi, zoneOfTableId, zonePolicy } from '../../../entities/table';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { Reservation, ReservationStatus, Zone } from '../../../core/models';
 import {
@@ -283,12 +283,15 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
               </div>
             </div>
 
+            @if (depositEnabled()) {
             <div>
-              <label class="section-title block mb-2">Депозит</label>
+              <label class="section-title block mb-2">
+                Депозит @if (depositMin() > 0) { <span style="color:var(--color-muted)">· мин. {{ depositMin() | number:'1.0-0' }} ₽</span> }
+              </label>
               <div class="flex gap-2">
                 <div class="flex-1">
                   <input type="number" [(ngModel)]="form.deposit_amount" class="field"
-                         placeholder="0" min="0"/>
+                         [placeholder]="depositMin() || 0" [min]="depositMin()"/>
                 </div>
                 <div class="flex-1">
                   <select [(ngModel)]="form.deposit_method" class="field">
@@ -306,6 +309,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
                 </button>
               </div>
             </div>
+            }
 
             <div>
               <label class="section-title block mb-1">Пожелания по заказу</label>
@@ -434,6 +438,17 @@ export class ReservationsPage implements OnInit {
   pickTable(id: number | null) {
     this.form.table = id;
     this.tablePicker.set(false);
+    this.applyDepositPolicy();
+  }
+
+  /** Депозит берётся только в VIP-зоне выбранного стола (флаг зоны, без хардкода). */
+  depositEnabled(): boolean { return zonePolicy(zoneOfTableId(this.zones(), this.form.table)).enabled; }
+  depositMin(): number { return zonePolicy(zoneOfTableId(this.zones(), this.form.table)).min; }
+  /** При смене стола: не-VIP → обнуляем депозит; VIP с минимумом → префилл минимума. */
+  private applyDepositPolicy() {
+    const p = zonePolicy(zoneOfTableId(this.zones(), this.form.table));
+    if (!p.enabled) { this.form.deposit_amount = 0; this.form.deposit_method = ''; this.form.deposit_paid = false; }
+    else if (p.min > 0 && !this.form.deposit_amount) this.form.deposit_amount = p.min;
   }
 
   openCreate() {

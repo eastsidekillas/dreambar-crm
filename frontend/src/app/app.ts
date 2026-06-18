@@ -3,6 +3,8 @@ import { Router, RouterOutlet } from '@angular/router';
 import { BdToastComponent } from './shared/ui/toast/toast.component';
 import { ConnectivityService } from './core/services/connectivity.service';
 import { AuthService } from './core/services/auth.service';
+import { ThemeService } from './core/services/theme.service';
+import { LoggerService } from './core/services/logger.service';
 
 @Component({
   selector: 'app-root',
@@ -34,6 +36,9 @@ export class App implements OnInit {
   readonly connectivity = inject(ConnectivityService);
   private auth = inject(AuthService);
   private router = inject(Router);
+  // Инстанцируем на старте: тема применяется к <html>, логгер ловит глобальные ошибки.
+  private theme = inject(ThemeService);
+  private logger = inject(LoggerService);
 
   /** Авто-блокировка по бездействию (важно для всегда-открытого бармен-POS). */
   private readonly IDLE_LOCK_MS = 60 * 60 * 1000;   // 1 час

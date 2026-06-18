@@ -22,7 +22,7 @@ class ZoneSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Zone
-        fields = ['id', 'name', 'color', 'sort', 'tables']
+        fields = ['id', 'name', 'color', 'sort', 'requires_deposit', 'min_deposit', 'tables']
 
     def get_tables(self, obj):
         tables = sorted(obj.tables.all(), key=lambda t: natural_key(t.number))
