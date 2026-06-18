@@ -46,9 +46,10 @@ export interface GuestCard { guest: number; items: OrderItem[]; total: number; }
             <span class="text-sm truncate block"
                   [style.color]="item.kitchen_status === 'ready' ? '#16a34a' : null"
                   [style.font-weight]="item.kitchen_status === 'ready' ? '600' : null">{{ item.menu_item_name }}</span>
-            @if (item.comment) {
-              <span class="text-xs truncate block" style="color:var(--color-muted)">{{ item.comment }}</span>
-            }
+            <span class="text-xs block" style="color:var(--color-light)">
+              @if (item.created_at) { {{ item.created_at | date:'HH:mm' }} }
+              @if (item.comment) { <span style="color:var(--color-muted)">· {{ item.comment }}</span> }
+            </span>
           </span>
           @if (item.kitchen_status === 'ready') {
             <span class="text-xs font-semibold flex items-center gap-0.5 flex-shrink-0 px-1.5 py-0.5 rounded-full"

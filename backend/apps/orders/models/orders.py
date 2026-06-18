@@ -66,6 +66,7 @@ class OrderItem(models.Model):
     guest_no       = models.PositiveSmallIntegerField(default=0, verbose_name='Гость')
     comment        = models.CharField(max_length=200, blank=True, verbose_name='Комментарий')
     is_sent        = models.BooleanField(default=True, verbose_name='Отправлен на кухню/бар')
+    created_at     = models.DateTimeField(auto_now_add=True, null=True, verbose_name='Добавлено')
     receipt        = models.ForeignKey(
         'receipts.Receipt', on_delete=models.SET_NULL, null=True, blank=True, related_name='items',
     )

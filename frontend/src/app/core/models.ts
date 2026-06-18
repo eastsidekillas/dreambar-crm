@@ -209,6 +209,7 @@ export interface OrderItem {
   kitchen_status: 'new' | 'cooking' | 'ready';
   comment?: string;
   is_sent?: boolean;
+  created_at?: string;
 }
 
 export interface ReceiptItem {

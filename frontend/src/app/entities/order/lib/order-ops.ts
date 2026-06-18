@@ -11,7 +11,8 @@ import { Order, OrderItem } from '../../../core/models';
  */
 export type OrderOp =
   | { kind: 'addItem'; idem: string; orderId: number; tempItemId: number; menuItemId: number;
-      quantity: number; guestNo: number; modifierIds: number[]; name: string; price: number; type: string; comment: string }
+      quantity: number; guestNo: number; modifierIds: number[]; name: string; price: number; type: string;
+      comment: string; addedAt: string }
   | { kind: 'updateItem'; idem: string; orderId: number; itemId: number; quantity: number; comment: string }
   | { kind: 'removeItem'; idem: string; orderId: number; itemId: number }
   | { kind: 'setItemGuest'; idem: string; orderId: number; itemId: number; guestNo: number }
@@ -67,6 +68,7 @@ function applyOp(orders: Order[], op: OrderOp): Order[] {
         id: op.tempItemId, menu_item: op.menuItemId, menu_item_name: op.name, menu_item_type: op.type,
         quantity: op.quantity, unit_price: op.price, subtotal: op.price * op.quantity,
         guest_no: op.guestNo, receipt: null, kitchen_status: 'new', comment: op.comment, is_sent: false,
+        created_at: op.addedAt,
       };
       o.items = [...o.items, item];
       recalc(o); break;

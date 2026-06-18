@@ -65,6 +65,7 @@ export class OrderApi {
       kind: 'addItem', idem: this.offline.newIdem(), orderId, tempItemId: this.offline.nextTempItemId(),
       menuItemId, quantity, guestNo, modifierIds,
       name: snap?.name ?? 'Позиция', price: snap?.price ?? 0, type: snap?.type ?? '', comment: '',
+      addedAt: new Date().toISOString(),
     });
   }
   /** Перенести позицию на другого гостя (0 — общая позиция). */
