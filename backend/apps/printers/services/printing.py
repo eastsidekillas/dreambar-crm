@@ -113,21 +113,23 @@ def render_receipt(receipt, width: int = 48, copy_label: str = "") -> bytes:
         out += _line("  " + qty, _money(it.subtotal), width)
     out += _enc("-" * width) + FEED
 
-    out += BOLD_ON + DOUBLE_ON
-    out += _line("ИТОГО", _money(receipt.total) + " руб", width // 2)
-    out += DOUBLE_OFF + BOLD_OFF
-    # Депозит: списано — поле deposit_amount; к оплате = итого − списано; возврат — refund_amount.
+    # Депозит как «скидка» в магазинном чеке: Сумма → −Депозит → крупный ИТОГО к оплате.
     dep    = receipt.deposit_amount or Decimal(0)
     refund = receipt.refund_amount or Decimal(0)
-    if dep > 0 or refund > 0:
+    to_pay = max(Decimal(0), receipt.total - dep)
+    if dep > 0:
         dm = {"cash": "нал", "transfer": "перевод"}.get(receipt.deposit_method, receipt.deposit_method or "")
-        if dep > 0:
-            out += _line(f"Депозит ({dm})" if dm else "Депозит", "-" + _money(dep) + " руб", width)
-        out += BOLD_ON
-        out += _line("К оплате", _money(max(Decimal(0), receipt.total - dep)) + " руб", width)
-        out += BOLD_OFF
+        out += _line("Сумма", _money(receipt.total) + " руб", width)
+        out += _line(f"Депозит ({dm})" if dm else "Депозит", "-" + _money(dep) + " руб", width)
+        out += BOLD_ON + DOUBLE_ON
+        out += _line("ИТОГО", _money(to_pay) + " руб", width // 2)   # к оплате — крупно
+        out += DOUBLE_OFF + BOLD_OFF
         if refund > 0:
             out += _line("Возврат гостю", _money(refund) + " руб", width)
+    else:
+        out += BOLD_ON + DOUBLE_ON
+        out += _line("ИТОГО", _money(receipt.total) + " руб", width // 2)
+        out += DOUBLE_OFF + BOLD_OFF
     out += _line("Оплата", receipt.get_payment_method_display(), width)
     out += _enc("-" * width) + FEED
     if rs.footer:
