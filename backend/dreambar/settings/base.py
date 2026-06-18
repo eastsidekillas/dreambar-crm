@@ -80,7 +80,13 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Идемпотентность мутаций (офлайн-очередь официанта) — после auth, оборачивает view.
+    'apps.audit.idempotency.IdempotencyMiddleware',
 ]
+
+# Фронт шлёт кастомный заголовок Idempotency-Key — разрешаем его в CORS (нужно для dev).
+from corsheaders.defaults import default_headers  # noqa: E402
+CORS_ALLOW_HEADERS = (*default_headers, 'idempotency-key')
 
 ROOT_URLCONF = 'dreambar.urls'
 
