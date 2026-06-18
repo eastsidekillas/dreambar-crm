@@ -107,7 +107,7 @@ const PAGE_META: { prefix: string; title: string; desc: string }[] = [
 
         <!-- ── Desktop sidebar ──────────────────────────────────── -->
         <aside class="hidden md:flex flex-col w-56 min-h-screen sticky top-0 h-screen overflow-y-auto"
-               style="background:white;border-right:1px solid var(--color-border)">
+               style="background:white;border-right:1px solid var(--color-border);padding-top:env(safe-area-inset-top,0px)">
 
           <div class="px-5 flex items-center gap-2 flex-shrink-0"
                style="border-bottom:1px solid var(--color-border);height:64px">
@@ -189,7 +189,8 @@ const PAGE_META: { prefix: string; title: string; desc: string }[] = [
           <!-- Desktop header -->
           <header class="hidden md:flex sticky top-0 z-30 items-center gap-4 px-6 flex-shrink-0"
                   style="background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
-                         border-bottom:1px solid var(--color-border);height:64px">
+                         border-bottom:1px solid var(--color-border);
+                         min-height:64px;padding-top:env(safe-area-inset-top,0px)">
             <div class="flex-1 min-w-0">
               <h1 class="text-base font-bold leading-tight truncate">{{ pageTitle() }}</h1>
               <p class="text-xs truncate" style="color:var(--color-muted)">{{ pageDesc() }}</p>
@@ -218,8 +219,8 @@ const PAGE_META: { prefix: string; title: string; desc: string }[] = [
           </header>
 
           <!-- Mobile header -->
-          <header class="md:hidden sticky top-0 z-40 px-4 py-3 flex items-center justify-between"
-                  style="background:white;border-bottom:1px solid var(--color-border);box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+          <header class="md:hidden sticky top-0 z-40 px-4 pb-3 flex items-center justify-between"
+                  style="padding-top:calc(0.75rem + env(safe-area-inset-top,0px));background:white;border-bottom:1px solid var(--color-border);box-shadow:0 1px 4px rgba(0,0,0,0.06)">
             <div class="flex items-center gap-2 min-w-0">
               <svg lucideGlassWater [size]="18" class="flex-shrink-0"></svg>
               <span class="font-bold text-sm truncate">{{ pageTitle() }}</span>

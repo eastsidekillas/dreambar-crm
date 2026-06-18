@@ -1,8 +1,9 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Reservation } from '../../../core/models';
+import { BdBottomSheetComponent } from '../../../shared/ui';
 import {
-  LucideCalendar, LucideX, LucideArmchair, LucideUsers,
+  LucideArmchair, LucideUsers,
   LucideTriangleAlert, LucideBanknote, LucideMessageCircle,
 } from '@lucide/angular';
 
@@ -18,21 +19,11 @@ const RESV_META: Record<string, { label: string; color: string; bg: string; bord
 @Component({
   selector: 'reservations-sheet',
   standalone: true,
-  imports: [CommonModule, LucideCalendar, LucideX, LucideArmchair, LucideUsers,
+  imports: [CommonModule, BdBottomSheetComponent, LucideArmchair, LucideUsers,
             LucideTriangleAlert, LucideBanknote, LucideMessageCircle],
   template: `
-    <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closed.emit()"></div>
-    <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl"
-         style="background:white;max-height:80dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
-      <div class="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer" (click)="closed.emit()">
-        <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
-      </div>
-      <div class="flex items-center justify-between px-4 py-3 flex-shrink-0"
-           style="border-bottom:1px solid var(--color-border)">
-        <h2 class="font-bold text-base flex items-center gap-2"><svg lucideCalendar [size]="16"></svg> Брони на сегодня</h2>
-        <button (click)="closed.emit()" class="btn btn-ghost btn-sm"><svg lucideX [size]="16"></svg></button>
-      </div>
-      <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+    <bd-bottom-sheet title="Брони на сегодня" maxHeight="80dvh" (closed)="closed.emit()">
+      <div class="px-4 py-3 space-y-2">
         @for (r of reservations; track r.id) {
           <div class="flex items-start gap-3 px-3 py-2.5 rounded-xl" [style]="cardStyle(r.status)">
             <div class="flex-shrink-0 text-center" style="min-width:48px">
@@ -67,7 +58,7 @@ const RESV_META: Record<string, { label: string; color: string; bg: string; bord
           </div>
         }
       </div>
-    </div>
+    </bd-bottom-sheet>
   `,
 })
 export class ReservationsSheet {

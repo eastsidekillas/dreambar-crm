@@ -5,6 +5,8 @@ export { BdDividerComponent }  from './divider/divider.component';
 export { BdBadgeComponent }    from './badge/badge.component';
 export { BdTableComponent }    from './table-ui/table-ui.component';
 export { BdDrawerComponent }   from './drawer/drawer.component';
+export { BdBottomSheetComponent } from './bottom-sheet/bottom-sheet.component';
+export { PullToRefreshDirective } from './pull-to-refresh/pull-to-refresh.directive';
 export { TouchKeyboardComponent, TouchKeyboardDirective, TouchKeyboardService } from './touch-keyboard/touch-keyboard';
 export type { BdTableColumn }  from './table-ui/table-ui.component';
 export { BdToastComponent }    from './toast/toast.component';

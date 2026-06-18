@@ -39,12 +39,17 @@ class MenuCategorySerializer(serializers.ModelSerializer):
 class MenuItemSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     category_type = serializers.CharField(source='category.section.station_type', read_only=True)
+    has_modifiers = serializers.SerializerMethodField()
 
     class Meta:
         model = MenuItem
         fields = ['id', 'name', 'volume', 'description', 'price', 'cost_price',
                   'is_active', 'is_out_of_stock', 'sort_order', 'category',
-                  'category_name', 'category_type', 'print_station']
+                  'category_name', 'category_type', 'print_station', 'has_modifiers']
+
+    def get_has_modifiers(self, obj):
+        # len() по prefetch'нутому related — без доп. запроса (by_category прокидывает prefetch).
+        return len(obj.modifier_groups.all()) > 0
 
 
 class MenuItemWriteSerializer(serializers.ModelSerializer):
@@ -70,8 +75,11 @@ class ModifierGroupSerializer(serializers.ModelSerializer):
 
 class MenuItemModifierGroupSerializer(serializers.ModelSerializer):
     modifier_group_name = serializers.CharField(source='modifier_group.name', read_only=True)
+    is_required         = serializers.BooleanField(source='modifier_group.is_required', read_only=True)
+    max_selections      = serializers.IntegerField(source='modifier_group.max_selections', read_only=True)
     modifiers           = ModifierSerializer(source='modifier_group.modifiers', many=True, read_only=True)
 
     class Meta:
         model  = MenuItemModifierGroup
-        fields = ['id', 'menu_item', 'modifier_group', 'modifier_group_name', 'modifiers', 'sort_order']
+        fields = ['id', 'menu_item', 'modifier_group', 'modifier_group_name',
+                  'is_required', 'max_selections', 'modifiers', 'sort_order']

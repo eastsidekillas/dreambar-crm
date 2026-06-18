@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReservationApi } from '../../entities/reservation';
-import { TableApi } from '../../entities/table';
+import { TableApi, zoneOfTableId, zonePolicy } from '../../entities/table';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { Reservation, Zone } from '../../core/models';
@@ -197,7 +197,7 @@ const REFRESH_MS = 60_000;
             </div>
             <div>
               <p class="text-xs mb-1" style="color:#94a3b8">Стол</p>
-              <select [(ngModel)]="form.table" class="w-full px-3 rounded-xl"
+              <select [(ngModel)]="form.table" (ngModelChange)="applyDepositPolicy()" class="w-full px-3 rounded-xl"
                       style="background:#1e293b;border:1px solid #334155;color:#f1f5f9;min-height:48px">
                 <option [ngValue]="null">Не выбран</option>
                 @for (z of zones(); track z.id) {
@@ -210,11 +210,12 @@ const REFRESH_MS = 60_000;
               </select>
             </div>
           </div>
+          @if (depositEnabled()) {
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <p class="text-xs mb-1" style="color:#94a3b8">Депозит ₽</p>
-              <input [(ngModel)]="form.deposit_amount" type="number" min="0" inputmode="numeric"
-                     placeholder="0" class="w-full px-3 rounded-xl"
+              <p class="text-xs mb-1" style="color:#94a3b8">Депозит ₽ @if (depositMin() > 0) { · мин. {{ depositMin() | number:'1.0-0' }} }</p>
+              <input [(ngModel)]="form.deposit_amount" type="number" [min]="depositMin()" inputmode="numeric"
+                     [placeholder]="depositMin() || 0" class="w-full px-3 rounded-xl"
                      style="background:#1e293b;border:1px solid #334155;color:#f1f5f9;min-height:48px"/>
             </div>
             @if (form.deposit_amount > 0) {
@@ -228,6 +229,7 @@ const REFRESH_MS = 60_000;
               </div>
             }
           </div>
+          }
           <div>
             <p class="text-xs mb-1" style="color:#94a3b8">Пожелания</p>
             <input [(ngModel)]="form.wishes" class="w-full px-3 rounded-xl"
@@ -346,6 +348,15 @@ export class BartenderReservationsMobilePage implements OnInit, OnDestroy {
       deposit_method: 'cash' as 'cash' | 'transfer',
       wishes: '',
     };
+  }
+
+  /** Депозит — только в VIP-зоне выбранного стола (флаг зоны, без хардкода). */
+  depositEnabled(): boolean { return zonePolicy(zoneOfTableId(this.zones(), this.form.table)).enabled; }
+  depositMin(): number { return zonePolicy(zoneOfTableId(this.zones(), this.form.table)).min; }
+  applyDepositPolicy() {
+    const p = zonePolicy(zoneOfTableId(this.zones(), this.form.table));
+    if (!p.enabled) this.form.deposit_amount = 0;
+    else if (p.min > 0 && !this.form.deposit_amount) this.form.deposit_amount = p.min;
   }
 
   dateLabel(date: string): string {

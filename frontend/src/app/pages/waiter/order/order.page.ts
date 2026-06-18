@@ -1,246 +1,564 @@
-import { Component, OnInit, signal, computed, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router, ActivatedRoute } from '@angular/router';
+import { OrderApi } from '../../../entities/order';
+import { TableApi, tableSegments } from '../../../entities/table';
+import { ReceiptPrintService } from '../../../features/receipt/receipt-print.service';
+import { ToastService } from '../../../shared/ui';
+import { Order, OrderItem, Receipt, Zone, MenuItem, MenuItemModifierGroup } from '../../../core/models';
+import { RefreshService } from '../../../core/services/refresh.service';
 import { MenuApi } from '../../../entities/menu';
-import { CartService } from '../../../features/cart/cart.service';
-import { MenuByCategory, MenuItem } from '../../../core/models';
-import { catMeta } from '../../../shared/lib/menu-meta';
-import { MenuItemCard } from './menu-item-card';
+import { MoveTableSheet } from './move-table-sheet';
+import { SplitGuestSheet } from './split-guest-sheet';
+import { CheckoutSheet } from './checkout-sheet';
+import { OrderMenuComponent } from '../../../features/order-menu/order-menu.component';
+import { GuestBoardComponent, GuestCard } from '../../../features/guest-board/guest-board.component';
+import { OrderItemSheet } from './order-item-sheet';
+import { AddItemSheet } from './add-item-sheet';
+import { GuestMenuSheet, GuestState } from './guest-menu-sheet';
+import { GlasswareStepper } from '../../../features/order-glassware/glassware-stepper.component';
+import { BdBottomSheetComponent } from '../../../shared/ui';
+import { bill, orderStatus as computeOrderStatus } from '../../../entities/order';
 import {
-  LucideDynamicIcon, LucideUtensilsCrossed,
-  LucideSearch, LucideSearchSlash, LucideX, LucideClock, LucideUsers,
+  LucideChevronLeft, LucideArrowLeftRight, LucideX, LucideUsers,
+  LucideCreditCard, LucideReceipt, LucidePlus, LucideClock,
+  LucideCalendar, LucideBanknote, LucideMessageCircle,
+  LucideSearch, LucideSend, LucideTrash2,
 } from '@lucide/angular';
 
-// Верхний уровень меню — секции (станции). Порядок фиксированный.
-const SECTION_META: { type: string; label: string }[] = [
-  { type: 'bar',     label: 'Бар' },
-  { type: 'kitchen', label: 'Кухня' },
-  { type: 'hookah',  label: 'Кальян' },
-];
+const POLL_MS = 10_000;
 
+/** Экран заказа стола: карточки гостей. «+» у гостя раскрывает меню (группы → позиции) над поиском. */
 @Component({
   selector: 'app-order-page',
   standalone: true,
-  imports: [CommonModule, MenuItemCard, LucideDynamicIcon, LucideSearch, LucideSearchSlash, LucideX, LucideClock, LucideUsers, LucideUtensilsCrossed],
+  imports: [CommonModule, MoveTableSheet, SplitGuestSheet, CheckoutSheet, OrderMenuComponent, GuestBoardComponent,
+    OrderItemSheet, AddItemSheet, GuestMenuSheet, GlasswareStepper, BdBottomSheetComponent,
+    LucideChevronLeft, LucideArrowLeftRight, LucideX, LucideUsers,
+    LucideCreditCard, LucideReceipt, LucidePlus, LucideClock,
+    LucideCalendar, LucideBanknote, LucideMessageCircle,
+    LucideSearch, LucideSend, LucideTrash2],
+  styles: [`
+    @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    @keyframes menuIn  { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    .sheet-anim { animation: sheetUp .30s cubic-bezier(.22,1,.36,1); }
+    .menu-anim  { animation: menuIn .22s ease-out; }
+  `],
   template: `
-    <div>
-      @if (cart.target(); as t) {
-        <div class="flex items-center justify-between px-3 py-2 mb-3 rounded-xl"
-             style="background:var(--color-gold-light);border:1px solid var(--color-gold-mid)">
-          <span class="text-xs font-medium flex items-center gap-1" style="color:var(--color-gold-hover)">
-            <svg lucideUtensilsCrossed [size]="12"></svg> Стол «{{ t.table_number || 'Стол' }}»@if (t.guests) { · <svg lucideUsers [size]="12"></svg> {{ t.guests }} }
-          </span>
-          <button (click)="cart.setTarget(null)" class="text-xs font-semibold"
-                  style="color:var(--color-gold-hover)">Закрыть меню</button>
+    @if (order(); as o) {
+      <!-- ══ Шапка стола (липкая, на той же сетке, что контент) ═══ -->
+      <div class="sticky top-0 z-20 pb-2 flex items-center gap-2"
+           style="padding-top:calc(0.25rem + env(safe-area-inset-top,0px));background:var(--color-bg)">
+        <button (click)="back()" class="flex items-center justify-center rounded-xl flex-shrink-0"
+                style="width:38px;height:38px;background:var(--color-surface);border:1px solid var(--color-border);color:var(--color-muted)">
+          <svg lucideChevronLeft [size]="20"></svg>
+        </button>
+        <div class="flex-1 min-w-0">
+          <span class="font-bold text-lg leading-tight truncate block">{{ o.table_number || 'Стол' }}</span>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            <span class="text-xs flex items-center gap-1" style="color:var(--color-muted)">
+              <svg lucideUsers [size]="11"></svg> {{ o.guests || guestCount() }}
+            </span>
+            @if (orderStatus(); as st) {
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    [style.color]="st.color" [style.background]="st.bg">{{ st.label }}</span>
+            }
+          </div>
         </div>
-      }
-
-      <!-- ── Guest selector ─────────────────────────────── -->
-      <div class="mb-3">
-        <p class="section-title mb-1.5">Гость</p>
-        <div class="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4" style="scrollbar-width:none">
-          <button (click)="activeGuest.set(0)"
-                  class="flex-shrink-0 px-4 rounded-xl text-sm font-semibold flex items-center gap-1"
-                  style="min-height:44px"
-                  [style.background]="activeGuest() === 0 ? 'var(--color-gold)' : 'var(--color-bg)'"
-                  [style.color]="activeGuest() === 0 ? 'white' : 'var(--color-muted)'"
-                  [style.border]="'1.5px solid var(--color-border)'"><svg lucideUsers [size]="14"></svg> Общий</button>
-          @for (g of guestList(); track g) {
-            <button (click)="activeGuest.set(g)"
-                    class="flex-shrink-0 rounded-xl text-sm font-bold"
-                    style="min-width:44px;min-height:44px"
-                    [style.background]="activeGuest() === g ? 'var(--color-gold)' : 'var(--color-bg)'"
-                    [style.color]="activeGuest() === g ? 'white' : 'var(--color-muted)'"
-                    [style.border]="'1.5px solid var(--color-border)'">{{ g }}</button>
-          }
-          <button (click)="addGuest()"
-                  class="flex-shrink-0 rounded-xl text-base font-bold"
-                  style="min-width:44px;min-height:44px;background:var(--color-bg);color:var(--color-muted);border:1.5px dashed var(--color-border-mid)">
-            ＋
-          </button>
-        </div>
-      </div>
-
-      <!-- ── Search bar ─────────────────────────────────── -->
-      <div class="relative mb-3">
-        <span class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center"
-              style="color:var(--color-muted)"><svg lucideSearch [size]="16"></svg></span>
-        <input [value]="searchQuery()"
-               (input)="onSearch($event)"
-               placeholder="Поиск по меню..."
-               class="field"
-               style="padding-left:2.25rem;padding-right:2.25rem;min-height:48px;font-size:1rem" />
-        @if (searchQuery()) {
-          <button (click)="searchQuery.set('')"
-                  class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-lg"
-                  style="color:var(--color-muted);min-width:36px;min-height:36px;background:var(--color-surface2)">
-            <svg lucideX [size]="14"></svg>
+        @if (isEmpty(o)) {
+          <button (click)="confirmFree() ? free() : confirmFree.set(true)"
+                  [title]="confirmFree() ? 'Ещё раз — удалить стол' : 'Освободить стол'"
+                  class="flex items-center justify-center rounded-xl flex-shrink-0"
+                  [style]="confirmFree()
+                    ? 'width:38px;height:38px;background:var(--color-red);color:white'
+                    : 'width:38px;height:38px;background:var(--color-surface);border:1px solid var(--color-border);color:var(--color-red)'">
+            <svg lucideTrash2 [size]="16"></svg>
           </button>
         }
+        <button (click)="moveOpen.set(true)" class="flex items-center justify-center rounded-xl flex-shrink-0"
+                style="width:38px;height:38px;background:var(--color-surface);border:1px solid var(--color-border);color:var(--color-muted)">
+          <svg lucideArrowLeftRight [size]="16"></svg>
+        </button>
       </div>
 
-      <!-- ── SEARCH RESULTS ─────────────────────────────── -->
-      @if (isSearching()) {
-        @if (searchResults().length) {
-          @for (group of searchResults(); track group.cat.id) {
-            <div class="mb-5">
-              <div class="section-title mb-2 flex items-center gap-1">
-                <svg [lucideIcon]="meta(group.cat.station_type).icon" [size]="14"></svg> {{ group.cat.name }}
-              </div>
-              <div class="grid grid-cols-2 gap-2.5">
-                @for (item of group.items; track item.id) {
-                  <menu-item-card [item]="item" [guest]="activeGuest()" />
-                }
-              </div>
-            </div>
-          }
-        } @else {
-          <div class="text-center py-12">
-            <svg lucideSearchSlash [size]="40" class="mx-auto mb-2" style="color:var(--color-muted)"></svg>
-            <p style="color:var(--color-muted)">Ничего не найдено по «{{ searchQuery() }}»</p>
-            <button (click)="searchQuery.set('')" class="btn btn-ghost btn-sm mt-3">Сбросить</button>
+      <div class="space-y-3 pt-1" style="padding-bottom:84px">
+
+        @if (o.reservation_info; as r) {
+          <div class="px-3 py-2 text-xs flex items-center gap-1.5 rounded-xl"
+               style="background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8">
+            <svg lucideCalendar [size]="13" class="flex-shrink-0"></svg>
+            <span class="font-medium">{{ r.name }}</span>
+            @if (+r.deposit_amount > 0) {
+              <span class="ml-auto font-medium flex items-center gap-0.5"><svg lucideBanknote [size]="12"></svg> {{ +r.deposit_amount | number:'1.0-0' }} ₽</span>
+            }
           </div>
         }
-      }
+        @if (o.notes) {
+          <div class="px-3 py-2 text-xs flex items-start gap-1.5 rounded-xl"
+               style="background:#fffbeb;border:1px solid var(--color-gold-mid);color:#92400e">
+            <svg lucideMessageCircle [size]="13" class="flex-shrink-0 mt-0.5"></svg><span>{{ o.notes }}</span>
+          </div>
+        }
 
-      <!-- ── BROWSE BY CATEGORY ─────────────────────────── -->
-      @if (!isSearching()) {
+        <!-- ══ Гости (таблица) ══════════════════════════════════ -->
+        <guest-board [cards]="guestCards()" [order]="o" [targetGuest]="targetGuest()"
+                     (add)="startAdd($event)" (menu)="guestMenu.set($event)" (itemTap)="openItem($event)" />
 
-        <!-- Section tabs (станции) — верхний уровень группировки -->
-        @if (sections().length > 1) {
-          <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-2" style="scrollbar-width:none">
-            @for (s of sections(); track s.type) {
-              <button (click)="selectSection(s.type)"
-                      class="flex-shrink-0 flex items-center gap-1.5 rounded-xl font-bold"
-                      style="min-height:44px;padding:0 16px;font-size:0.9rem"
-                      [style.background]="selectedSection() === s.type ? meta(s.type).color : 'var(--color-bg)'"
-                      [style.color]="selectedSection() === s.type ? 'white' : 'var(--color-muted)'"
-                      [style.border]="'1.5px solid ' + (selectedSection() === s.type ? meta(s.type).color : 'var(--color-border)')">
-                <svg [lucideIcon]="meta(s.type).icon" [size]="16"></svg> {{ s.label }}
+        <!-- Посуда к столу — НЕ в счёте, подсказка сколько нести -->
+        <glassware-stepper [order]="o" (change)="setGlass($event.kind, $event.count)" />
+
+        @if (o.receipts.length) {
+          <div class="flex flex-wrap gap-1.5">
+            @for (r of o.receipts; track r.id) {
+              <button (click)="reprint(r)" class="badge badge-green flex items-center gap-1" style="cursor:pointer">
+                <svg lucideReceipt [size]="12"></svg> {{ r.code }} · {{ r.total | number:'1.0-0' }} ₽
               </button>
             }
           </div>
         }
 
-        <!-- Category tabs — touch-sized -->
-        <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-4" style="scrollbar-width:none">
-          @for (cat of visibleCategories(); track cat.id) {
-            <button (click)="selectCat(cat.id)"
-                    class="cat-chip flex-shrink-0 flex items-center gap-1"
-                    style="min-height:44px;padding:0 16px;font-size:0.875rem"
-                    [class]="catChipClass(cat)">
-              <svg [lucideIcon]="meta(cat.station_type).icon" [size]="14"></svg> {{ cat.name }}
+      </div>
+
+      <!-- ══ Нижняя панель-шторка: поиск · разделы · категории → позиции ═ -->
+      <div class="fixed inset-x-0 bottom-0 z-30 sheet-anim"
+           style="background:var(--color-surface);border-radius:20px 20px 0 0;box-shadow:0 -8px 28px rgba(0,0,0,0.14);padding-bottom:env(safe-area-inset-bottom)">
+
+        <!-- + Гость — над шторкой (двигается вместе со шторкой) -->
+        <div class="absolute inset-x-0 flex justify-center" style="bottom:100%;padding-bottom:10px;pointer-events:none">
+          <button (click)="addGuest()"
+                  class="flex items-center gap-1.5 px-5 py-2 rounded-full font-semibold text-sm"
+                  style="pointer-events:auto;background:var(--color-gold-light);border:1.5px solid var(--color-gold-mid);color:var(--color-gold-hover);box-shadow:0 4px 14px rgba(0,0,0,0.14)">
+            <svg lucidePlus [size]="16"></svg> Гость
+          </button>
+        </div>
+
+        <!-- хваталка -->
+        <div class="flex justify-center pt-2 pb-1">
+          <div class="w-9 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
+        </div>
+
+        <!-- Поиск позиций -->
+        <div class="px-3 pt-1 pb-2 flex items-center gap-2">
+          <div class="relative flex-1">
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center" style="color:var(--color-muted)">
+              <svg lucideSearch [size]="16"></svg>
+            </span>
+            <input [value]="search()" (input)="onSearch($event)" (focus)="onSearchFocus()"
+                   placeholder="Поиск позиций" class="field"
+                   style="padding-left:2.5rem;min-height:46px;border-radius:999px" />
+          </div>
+          <!-- Меню закрыто: есть неотправленные → отправить; всё отправлено → счёт. Открыто → закрыть. -->
+          @if (targetGuest() === null) {
+            @if (hasUnsent()) {
+              <button (click)="printSheet.set(true)" title="Отправить на печать"
+                      class="flex items-center justify-center rounded-full flex-shrink-0 text-white"
+                      style="width:46px;height:46px;background:var(--color-gold)">
+                <svg lucideSend [size]="19"></svg>
+              </button>
+            } @else {
+              <button (click)="checkoutOpen.set(true)" title="Счёт"
+                      class="flex items-center justify-center rounded-full flex-shrink-0 text-white"
+                      style="width:46px;height:46px;background:var(--color-gold)">
+                <svg lucideCreditCard [size]="18"></svg>
+              </button>
+            }
+          } @else {
+            <button (click)="stopAdd()" title="Закрыть меню"
+                    class="flex items-center justify-center rounded-full flex-shrink-0"
+                    style="width:46px;height:46px;background:var(--color-bg);border:1.5px solid var(--color-border);color:var(--color-muted)">
+              <svg lucideX [size]="20"></svg>
             </button>
           }
         </div>
 
-        @if (current()) {
-          <div class="section-title mb-3">{{ current()!.name }}</div>
-
-          <div class="grid grid-cols-2 gap-2.5">
-            @for (item of current()!.items; track item.id) {
-              <menu-item-card [item]="item" [guest]="activeGuest()" [showDescription]="true" />
-            }
-          </div>
+        @if (targetGuest() !== null) {
+          <order-menu class="menu-anim block" [search]="search()" (pick)="addItem($event)" />
         }
+      </div>
+    } @else {
+      <div class="text-center py-20">
+        <svg lucideClock [size]="40" class="mx-auto mb-2" style="color:var(--color-muted)"></svg>
+        <p style="color:var(--color-muted)">Загрузка стола…</p>
+      </div>
+    }
 
-        @if (!categories().length) {
-          <div class="text-center py-16">
-            <svg lucideClock [size]="40" class="mx-auto mb-3" style="color:var(--color-muted)"></svg>
-            <p style="color:var(--color-muted)">Загрузка меню...</p>
-          </div>
-        }
-      }
-    </div>
-  `
+    <!-- ── Модалки ──────────────────────────────────────────── -->
+    @if (moveOpen() && order(); as mo) {
+      <move-table-sheet [order]="mo" [zones]="zones()" [occupiedByOthers]="occupied()"
+                        (moved)="onUpdated($event); moveOpen.set(false)" (closed)="moveOpen.set(false)" />
+    }
+    @if (checkoutOpen() && order(); as co) {
+      <checkout-sheet [order]="co" (done)="onCheckoutDone()" (closed)="checkoutOpen.set(false)" />
+    }
+
+    <!-- ══ Добавление позиции с модификаторами ══════════════════ -->
+    @if (addTarget(); as at) {
+      <add-item-sheet [item]="at.item" [groups]="at.groups" [saving]="addingItem()"
+                      (add)="confirmAddItem($event)" (closed)="addTarget.set(null)" />
+    }
+
+    <!-- ══ Редактирование позиции (тап по позиции) ══════════════ -->
+    @if (editItem(); as it) {
+      <order-item-sheet [item]="it" [guests]="itemGuestOptions()" [saving]="savingItem()"
+                        (save)="saveItem($event)" (delete)="deleteItemFromSheet()" (closed)="editItem.set(null)" />
+    }
+
+    <!-- ══ Меню гостя (по «…») ═══════════════════════════════════ -->
+    @if (guestMenu() !== null) {
+      <guest-menu-sheet [label]="gLabel(guestMenu()!)" [currentName]="gName(guestMenu()!)"
+                        [state]="guestState(guestMenu()!)"
+                        (rename)="saveRename($event)" (precheck)="printPrecheck(guestMenu()!)"
+                        (split)="openSplit(guestMenu()!)" (delete)="deleteGuest(guestMenu()!)"
+                        (closed)="closeGuestMenu()" />
+    }
+
+    <!-- ══ Перенос гостя на свободный стол (новый заказ) ════════ -->
+    @if (splitGuestNo() !== null && order(); as so) {
+      <split-guest-sheet [order]="so" [guestLabel]="gLabel(splitGuestNo()!)" [zones]="zones()"
+                         [occupied]="occupied()" [saving]="splittingGuest()"
+                         (picked)="doSplitGuest($event)" (closed)="splitGuestNo.set(null)" />
+    }
+
+    <!-- ══ Шторка «Отправить на печать» ══════════════════════════ -->
+    @if (printSheet()) {
+      <bd-bottom-sheet title="Отправить на печать" (closed)="printSheet.set(false)">
+        <div class="px-4 pt-1 pb-5 space-y-2">
+          <button (click)="sendToPrint()"
+                  class="w-full flex items-center justify-center gap-2 rounded-xl font-bold text-white"
+                  style="height:52px;background:var(--color-gold)">
+            <svg lucideSend [size]="18"></svg> Отправить
+          </button>
+          <button (click)="openCheckout()"
+                  class="w-full flex items-center justify-center gap-2 rounded-xl font-bold"
+                  style="height:52px;color:var(--color-gold-hover);background:var(--color-gold-light);border:1.5px solid var(--color-gold-mid)">
+            <svg lucideReceipt [size]="18"></svg> Расчёт
+          </button>
+        </div>
+      </bd-bottom-sheet>
+    }
+  `,
 })
-export class OrderPage implements OnInit {
-  cart = inject(CartService);
+export class OrderPage implements OnInit, OnDestroy {
+  private orderApi = inject(OrderApi);
+  private menuApi = inject(MenuApi);
+  private tableApi = inject(TableApi);
+  private printer = inject(ReceiptPrintService);
+  private toast  = inject(ToastService);
+  private router = inject(Router);
+  private route  = inject(ActivatedRoute);
 
-  menuByCategory = signal<MenuByCategory[]>([]);
-  selectedSection = signal<string | null>(null);   // station_type выбранной секции
-  selectedCatId  = signal<number | null>(null);
-  searchQuery    = signal('');
+  order = signal<Order | null>(null);
+  zones = signal<Zone[]>([]);
 
-  activeGuest    = signal(0);
+  moveOpen     = signal(false);
+  splitGuestNo   = signal<number | null>(null);   // гость, которого переносим на свободный стол
+  splittingGuest = signal(false);
+  checkoutOpen = signal(false);
+  printSheet   = signal(false);
+  guestMenu       = signal<number | null>(null);   // открытое меню «…» гостя
+  editItem        = signal<OrderItem | null>(null);  // редактируемая позиция (кол-во/коммент)
+  savingItem      = signal(false);
+  confirmFree     = signal(false);
   private extraGuests = signal(0);
 
-  categories  = computed(() => this.menuByCategory());
-  /** Секции, реально присутствующие в меню, в фиксированном порядке. */
-  sections    = computed(() => {
-    const present = new Set<string>(this.menuByCategory().map(c => c.station_type));
-    const known   = SECTION_META.filter(s => present.has(s.type));
-    const extra   = [...present]
-      .filter(t => !SECTION_META.some(s => s.type === t))
-      .map(t => ({ type: t, label: t }));
-    return [...known, ...extra];
-  });
-  /** Категории только выбранной секции. */
-  visibleCategories = computed(() => {
-    const sec = this.selectedSection();
-    return sec ? this.menuByCategory().filter(c => c.station_type === sec) : this.menuByCategory();
-  });
-  current     = computed(() => this.menuByCategory().find(c => c.id === this.selectedCatId()) ?? null);
-  isSearching = computed(() => !!this.searchQuery().trim());
+  // Инлайн-меню снизу (содержимое — в <order-menu>)
+  targetGuest = signal<number | null>(null);   // кому добавляем (после «+»)
+  search      = signal('');
+  // Шторка выбора модификаторов при добавлении позиции
+  addTarget   = signal<{ item: MenuItem; groups: MenuItemModifierGroup[]; guest: number } | null>(null);
+  addingItem  = signal(false);
 
-  searchResults = computed(() => {
-    const q = this.searchQuery().toLowerCase().trim();
-    if (!q) return [];
-    return this.menuByCategory()
-      .map(cat => ({
-        cat,
-        items: cat.items.filter(i =>
-          i.name.toLowerCase().includes(q) ||
-          (i.description ?? '').toLowerCase().includes(q) ||
-          (i.volume ?? '').toLowerCase().includes(q)
-        ),
-      }))
-      .filter(g => g.items.length > 0);
+  private orderId = 0;
+  private firstLoad = true;
+  private pollTimer?: ReturnType<typeof setInterval>;
+  private pollBusy = false;
+  private allOrders = signal<Order[]>([]);
+
+  /** Столы, занятые другими — для шторки пересадки. */
+  occupied = computed<Set<string>>(() => {
+    const mineId = this.orderId;
+    const occ = new Set<string>();
+    for (const ord of this.allOrders()) {
+      if (ord.id === mineId) continue;
+      for (const t of tableSegments(ord.table_number)) occ.add(t);
+    }
+    return occ;
   });
 
-  guestList = computed<number[]>(() => {
-    const fromTable = this.cart.target()?.guests ?? 0;
-    const fromCart  = this.cart.items().reduce((m, c) => Math.max(m, c.guestNo), 0);
-    const n = Math.max(fromTable, fromCart, this.extraGuests(), 1);
-    return Array.from({ length: n }, (_, i) => i + 1);
+  // утилита счёта в шаблон
+  isEmpty = bill.isEmpty;
+
+  /** Карточки гостей: 0 (Общий) — только если на нём есть позиции; затем 1..N. */
+  guestCards = computed<GuestCard[]>(() => {
+    const o = this.order();
+    if (!o) return [];
+    const items = bill.unpaidItems(o);
+    const maxItem = items.reduce((m, i) => Math.max(m, i.guest_no), 0);
+    const n = Math.max(o.guests ?? 0, maxItem, this.extraGuests(), 1);
+    const nums: number[] = [];
+    if (items.some(i => i.guest_no === 0)) nums.push(0);
+    for (let g = 1; g <= n; g++) nums.push(g);
+    return nums.map(guest => {
+      const its = items.filter(i => i.guest_no === guest);
+      return { guest, items: its, total: its.reduce((s, i) => s + +i.subtotal, 0) };
+    });
+  });
+  /** Кол-во гостей (без «Общего») — для подписи в шапке. */
+  guestCount = computed(() => this.guestCards().filter(g => g.guest > 0).length);
+
+  /** Куда можно переписать позицию: только гости 1..N («Общий» — не цель). */
+  itemGuestOptions = computed<{ no: number; label: string }[]>(() => {
+    const n = this.guestCards().reduce((m, c) => Math.max(m, c.guest), 0);
+    const opts: { no: number; label: string }[] = [];
+    for (let g = 1; g <= n; g++) opts.push({ no: g, label: this.gLabel(g) });
+    return opts;
   });
 
-  constructor(private menuApi: MenuApi) {}
+  /** Есть неотправленные (черновые) позиции — их ещё не видят на кухне/баре. */
+  hasUnsent = computed(() => {
+    const o = this.order();
+    return !!o && bill.unpaidItems(o).some(i => i.is_sent === false);
+  });
+
+  /** Статус заказа целиком: Новый заказ / Отправлен / Готовится / Готов / Оплачен. */
+  orderStatus = computed(() => {
+    const o = this.order();
+    return o ? computeOrderStatus(o) : null;
+  });
+
+  private refreshSvc = inject(RefreshService);
+  private readonly onPullRefresh = () => { this.pollBusy = false; this.load(() => this.refreshSvc.done()); };
 
   ngOnInit() {
-    this.menuApi.getMenuByCategory().subscribe(data => {
-      this.menuByCategory.set(data);
-      if (data.length) {
-        this.selectedSection.set(data[0].station_type);   // первая секция
-        this.selectedCatId.set(data[0].id);               // первая категория в ней
-      }
+    this.orderId = Number(this.route.snapshot.paramMap.get('id')) || 0;
+    this.tableApi.getZones().subscribe({ next: z => this.zones.set(z), error: () => {} });
+    this.load();
+    this.pollTimer = setInterval(() => this.load(), POLL_MS);
+    this.refreshSvc.register(this.onPullRefresh);
+  }
+  ngOnDestroy() {
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.refreshSvc.unregister(this.onPullRefresh);
+  }
+
+  private load(done?: () => void) {
+    if (this.pollBusy) { done?.(); return; }
+    this.pollBusy = true;
+    this.orderApi.getActiveOrders().subscribe({
+      next: list => {
+        this.pollBusy = false;
+        done?.();
+        this.allOrders.set(list);
+        const o = list.find(x => x.id === this.orderId) ?? null;
+        if (!o) {                       // закрыт/освобождён — выходим к плану зала
+          if (!this.firstLoad) { this.toast.info('Стол закрыт'); }
+          this.router.navigate(['/waiter/tables']);
+          return;
+        }
+        this.order.set(o);
+        if (this.firstLoad) {
+          this.firstLoad = false;
+          // При создании стола (?seg=menu) сразу включаем добавление первому гостю.
+          if (this.route.snapshot.queryParamMap.get('seg') === 'menu') this.startAdd(o.guests ? 1 : 0);
+        }
+      },
+      error: () => { this.pollBusy = false; done?.(); },
     });
-    this.activeGuest.set(this.cart.target()?.guests ? 1 : 0);
   }
 
-  selectSection(type: string) {
-    this.selectedSection.set(type);
-    const first = this.menuByCategory().find(c => c.station_type === type);
-    if (first) this.selectedCatId.set(first.id);
+  back() { this.router.navigate(['/waiter/tables']); }
+
+  // ── Инлайн-меню ───────────────────────────────────────────────────
+  startAdd(guest: number) { this.targetGuest.set(guest); this.search.set(''); }
+  stopAdd() { this.targetGuest.set(null); this.search.set(''); }
+  onSearchFocus() { if (this.targetGuest() === null) this.targetGuest.set(1); }
+  onSearch(e: Event) { this.search.set((e.target as HTMLInputElement).value); }
+
+  addItem(it: MenuItem) {
+    if (it.is_out_of_stock) return;
+    const g = this.targetGuest() ?? 0;
+    if (!it.has_modifiers) { this.addToOrder(it, g, 1, []); return; }
+    // У позиции есть модификаторы — грузим группы и открываем шторку выбора.
+    this.menuApi.getItemModifierGroups(it.id).subscribe({
+      next: groups => groups.length
+        ? this.addTarget.set({ item: it, groups, guest: g })
+        : this.addToOrder(it, g, 1, []),
+      error: () => this.addToOrder(it, g, 1, []),   // не загрузилось — добавим без модификаторов
+    });
+  }
+  /** Подтверждение из шторки выбора модификаторов. */
+  confirmAddItem(payload: { quantity: number; modifierIds: number[] }) {
+    const t = this.addTarget();
+    if (!t || this.addingItem()) return;
+    this.addingItem.set(true);
+    this.orderApi.addItemToOrder(this.orderId, t.item.id, payload.quantity, t.guest, payload.modifierIds).subscribe({
+      next: updated => {
+        this.addingItem.set(false);
+        this.addTarget.set(null);
+        this.onUpdated(updated);
+        this.toast.show(`${t.item.name} → ${this.gLabel(t.guest)}`, 'success', 1200);
+      },
+      error: err => { this.addingItem.set(false); this.toast.apiError(err, 'Не удалось добавить позицию'); },
+    });
+  }
+  private addToOrder(it: MenuItem, guest: number, qty: number, modifierIds: number[]) {
+    this.orderApi.addItemToOrder(this.orderId, it.id, qty, guest, modifierIds).subscribe({
+      next: updated => {
+        this.onUpdated(updated);
+        this.toast.show(`${it.name} → ${this.gLabel(guest)}`, 'success', 1200);
+      },
+      error: err => this.toast.apiError(err, 'Не удалось добавить позицию'),
+    });
   }
 
-  onSearch(event: Event) {
-    this.searchQuery.set((event.target as HTMLInputElement).value);
-  }
-
-  selectCat(id: number) { this.selectedCatId.set(id); }
-  add(item: MenuItem)   { this.cart.add(item, this.activeGuest()); }
-
+  // ── Гости ─────────────────────────────────────────────────────────
   addGuest() {
-    const next = this.guestList().length + 1;
+    const maxG = this.guestCards().reduce((m, g) => Math.max(m, g.guest), 0);
+    const next = maxG + 1;
     this.extraGuests.set(next);
-    this.activeGuest.set(next);
+    this.startAdd(next);
+  }
+  // ── Редактирование позиции (тап по позиции) ───────────────────────
+  openItem(item: OrderItem) { this.editItem.set(item); }
+  saveItem(patch: { quantity: number; comment: string; guest: number }) {
+    const it = this.editItem();
+    if (!it || this.savingItem()) return;
+    this.savingItem.set(true);
+    const guestChanged = patch.guest !== it.guest_no;
+    this.orderApi.updateOrderItem(this.orderId, it.id, { quantity: patch.quantity, comment: patch.comment }).subscribe({
+      next: u => {
+        if (!guestChanged) { this.finishSaveItem(u); return; }
+        // Гость сменился — переписываем позицию (отдельный эндпоинт).
+        this.orderApi.setItemGuest(this.orderId, it.id, patch.guest).subscribe({
+          next: u2 => {
+            this.finishSaveItem(u2);
+            this.toast.show(`${it.menu_item_name} → ${this.gLabel(patch.guest)}`, 'success', 1200);
+          },
+          error: err => { this.savingItem.set(false); this.toast.apiError(err, 'Не удалось перенести позицию'); },
+        });
+      },
+      error: err => { this.savingItem.set(false); this.toast.apiError(err, 'Не удалось сохранить позицию'); },
+    });
+  }
+  private finishSaveItem(u: Order) { this.savingItem.set(false); this.onUpdated(u); this.editItem.set(null); }
+  deleteItemFromSheet() {
+    const it = this.editItem();
+    if (!it) return;
+    this.editItem.set(null);
+    this.orderApi.removeItemFromOrder(this.orderId, it.id).subscribe({
+      next: u => { this.onUpdated(u); this.toast.success('Позиция удалена'); },
+      error: () => this.toast.error('Не удалось удалить позицию'),
+    });
   }
 
-  meta(type: string) { return catMeta(type); }
-
-  catChipClass(cat: MenuByCategory): string {
-    const active = this.selectedCatId() === cat.id;
-    if (!active) return 'cat-chip-inactive';
-    return `cat-chip-${cat.station_type} cat-chip-active-${cat.station_type}`;
+  // ── Меню гостя («…») ──────────────────────────────────────────────
+  /** Подпись гостя с учётом пользовательского имени (Order.guest_names). */
+  gLabel(guest: number): string {
+    if (guest === 0) return 'Общий';
+    return this.order()?.guest_names?.[String(guest)] || `Гость ${guest}`;
   }
+  closeGuestMenu() { this.guestMenu.set(null); }
+  /** Текущее имя гостя (для подстановки в поле переименования). */
+  gName(guest: number): string { return this.order()?.guest_names?.[String(guest)] ?? ''; }
+
+  saveRename(name: string) {
+    const g = this.guestMenu();
+    if (g == null) return;
+    this.orderApi.renameGuest(this.orderId, g, name).subscribe({
+      next: u => { this.onUpdated(u); this.closeGuestMenu(); this.toast.success('Имя обновлено'); },
+      error: err => this.toast.apiError(err, 'Не удалось переименовать'),
+    });
+  }
+  /** Состояние гостя для меню: пусто / активен (позиции не готовы) / готов (всё готово). */
+  guestState(guest: number): GuestState {
+    const items = this.guestCards().find(g => g.guest === guest)?.items ?? [];
+    if (!items.length) return 'empty';
+    if (items.every(i => i.kitchen_status === 'ready')) return 'ready';
+    return 'active';
+  }
+  printPrecheck(guest: number) {
+    this.orderApi.printPrecheck(this.orderId, guest).subscribe({
+      next: () => { this.closeGuestMenu(); this.toast.success('Счёт отправлен на печать'); },
+      error: err => this.toast.apiError(err, 'Не удалось напечатать счёт'),
+    });
+  }
+  /** Открыть выбор свободного стола для переноса гостя в новый заказ. */
+  openSplit(guest: number) { this.splitGuestNo.set(guest); this.closeGuestMenu(); }
+  /** Перенести позиции гостя в новый заказ на выбранном свободном столе. */
+  doSplitGuest(tableNumber: string) {
+    const guest = this.splitGuestNo();
+    if (guest == null || this.splittingGuest()) return;
+    this.splittingGuest.set(true);
+    this.orderApi.splitGuest(this.orderId, guest, tableNumber).subscribe({
+      next: res => {
+        this.splittingGuest.set(false);
+        this.splitGuestNo.set(null);
+        this.onUpdated(res.order);
+        this.toast.success(`Гость перенесён на стол ${tableNumber}`);
+      },
+      error: err => { this.splittingGuest.set(false); this.toast.apiError(err, 'Не удалось перенести'); },
+    });
+  }
+  /** Удалить гостя: активного — снять все его позиции; пустого — убрать слот. */
+  deleteGuest(guest: number) {
+    this.closeGuestMenu();
+    const cards = this.guestCards();
+    const card = cards.find(g => g.guest === guest);
+    if (!card) return;
+    if (card.items.length) {                       // активный гость — снять позиции
+      this.removeItemsSeq(card.items.map(i => i.id), guest);
+      return;
+    }
+    // пустой гость — убрать слот (снизить число гостей, не ниже макс. гостя с позициями)
+    const maxWithItems = cards.filter(c => c.items.length).reduce((m, c) => Math.max(m, c.guest), 0);
+    const displayed = cards.filter(c => c.guest > 0).length;
+    const newCount = Math.max(maxWithItems, displayed - 1);
+    this.extraGuests.set(newCount);
+    const o = this.order();
+    if (o && (o.guests ?? 0) > newCount) {
+      this.orderApi.updateOrder(this.orderId, { guests: newCount }).subscribe({
+        next: u => { this.onUpdated(u); this.toast.success(`${this.gLabel(guest)} удалён`); },
+        error: err => this.toast.apiError(err, 'Не удалось удалить гостя'),
+      });
+    } else {
+      this.toast.success(`${this.gLabel(guest)} удалён`);
+    }
+  }
+  private removeItemsSeq(ids: number[], guest: number) {
+    if (!ids.length) { this.toast.success(`${this.gLabel(guest)} удалён`); return; }
+    const [first, ...rest] = ids;
+    this.orderApi.removeItemFromOrder(this.orderId, first).subscribe({
+      next: updated => { this.onUpdated(updated); this.removeItemsSeq(rest, guest); },
+      error: () => this.toast.error('Не удалось удалить позицию'),
+    });
+  }
+
+  onUpdated(updated: Order) { this.order.set(updated); }
+  onCheckoutDone() { this.checkoutOpen.set(false); this.load(); }
+
+  // ── Шторка «Отправить на печать» ──────────────────────────────────
+  /** Отправить черновые позиции на кухню/бар. */
+  sendToPrint() {
+    this.orderApi.sendOrder(this.orderId).subscribe({
+      next: res => { this.onUpdated(res.order); this.printSheet.set(false); this.toast.success('Заказ отправлен на кухню'); },
+      error: err => this.toast.apiError(err, 'Не удалось отправить заказ'),
+    });
+  }
+  openCheckout() { this.printSheet.set(false); this.checkoutOpen.set(true); }
+
+  setGlass(code: string, count: number) {
+    if (count < 0) count = 0;
+    this.orderApi.setGlassware(this.orderId, code, count).subscribe({
+      next: updated => this.onUpdated(updated),
+      error: err => this.toast.apiError(err, 'Не удалось обновить посуду'),
+    });
+  }
+
+  free() {
+    this.orderApi.deleteOrder(this.orderId).subscribe({
+      next: () => { this.toast.success('Стол освобождён'); this.router.navigate(['/waiter/tables']); },
+      error: err => this.toast.apiError(err, 'Не удалось освободить стол'),
+    });
+  }
+  reprint(r: Receipt) { this.printer.printHardware(r); }
 }

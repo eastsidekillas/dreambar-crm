@@ -42,3 +42,9 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# e2e / playwright
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache

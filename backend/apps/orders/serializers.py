@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 
 from apps.receipts.models import Receipt
-from .models import Order, OrderItem, OrderItemModifier
+from .models import Order, OrderItem, OrderItemModifier, OrderGlassware
 
 # Re-export so existing imports like `from apps.orders.serializers import ShiftSerializer` не ломаются
 from apps.shifts.serializers import ShiftSerializer               # noqa: F401
@@ -26,8 +26,16 @@ class OrderItemModifierSerializer(serializers.ModelSerializer):
         fields = ['id', 'modifier', 'modifier_name', 'price_delta', 'quantity']
 
 
+class OrderGlasswareSerializer(serializers.ModelSerializer):
+    kind_label = serializers.CharField(source='get_kind_display', read_only=True)
+
+    class Meta:
+        model  = OrderGlassware
+        fields = ['kind', 'kind_label', 'count']
+
+
 class OrderItemSerializer(serializers.ModelSerializer):
-    menu_item_name = serializers.CharField(source='menu_item.name', read_only=True)
+    # menu_item_name — снимок из модели (не из FK), чтобы не менялся при правке меню.
     menu_item_type = serializers.CharField(source='menu_item.category.section.station_type', read_only=True)
     subtotal       = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     modifiers      = OrderItemModifierSerializer(source='selected_modifiers', many=True, read_only=True)
@@ -36,7 +44,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = ['id', 'menu_item', 'menu_item_name', 'menu_item_type',
                   'quantity', 'unit_price', 'subtotal', 'guest_no', 'receipt',
-                  'kitchen_status', 'modifiers']
+                  'kitchen_status', 'comment', 'is_sent', 'modifiers']
 
 
 class OrderItemCreateSerializer(serializers.ModelSerializer):
@@ -66,8 +74,7 @@ class OrderItemCreateSerializer(serializers.ModelSerializer):
 
 
 class ReceiptItemSerializer(serializers.ModelSerializer):
-    menu_item_name   = serializers.CharField(source='menu_item.name',   read_only=True)
-    menu_item_volume = serializers.CharField(source='menu_item.volume', read_only=True)
+    # menu_item_name/volume — снимки из модели (фиксируются на момент заказа).
     menu_item_type   = serializers.CharField(source='menu_item.category.section.station_type', read_only=True)
     subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
@@ -89,7 +96,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
         fields = ['id', 'order', 'shift', 'number', 'code', 'table_number',
                   'waiter', 'waiter_name', 'payment_method', 'payment_label',
                   'total', 'deposit_amount', 'deposit_method', 'deposit_method_label',
-                  'issued_at', 'items']
+                  'refund_amount', 'issued_at', 'items']
 
     def get_waiter_name(self, obj):
         if obj.waiter:
@@ -104,6 +111,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     receipts = ReceiptSerializer(many=True, read_only=True)
+    glassware = OrderGlasswareSerializer(many=True, read_only=True)
     total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     is_paid = serializers.BooleanField(read_only=True)
     waiter_name = serializers.SerializerMethodField()
@@ -113,8 +121,8 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = ['id', 'shift', 'waiter', 'waiter_name', 'table_number', 'guests',
                   'status', 'created_at', 'updated_at', 'closed_at', 'notes',
-                  'reservation', 'reservation_info',
-                  'items', 'receipts', 'total', 'is_paid']
+                  'reservation', 'reservation_info', 'guest_names',
+                  'items', 'receipts', 'glassware', 'total', 'is_paid']
         read_only_fields = ['waiter', 'created_at', 'updated_at', 'closed_at']
 
     def get_waiter_name(self, obj):

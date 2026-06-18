@@ -7,7 +7,7 @@ import { EmployeeApi } from '../../../entities/employee';
 import { OrderApi } from '../../../entities/order';
 import { ShiftApi } from '../../../entities/shift';
 import { AuthService } from '../../../core/services/auth.service';
-import { ToastService } from '../../../shared/ui/toast/toast.service';
+import { ToastService } from '../../../shared/ui';
 import { Shift } from '../../../core/models';
 import { LucideLogOut, LucideKeyRound, LucideArrowLeftRight } from '@lucide/angular';
 import { ROLE_LABEL } from '../../../shared/lib/roles';

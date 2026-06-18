@@ -33,7 +33,7 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'tables', pathMatch: 'full' },
       {
-        path: 'order',
+        path: 'order/:id',
         loadComponent: () => import('./pages/waiter/order/order.page').then(m => m.OrderPage)
       },
       {
@@ -41,8 +41,12 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/waiter/tables/tables.page').then(m => m.TablesPage)
       },
       {
-        path: 'orders',
-        loadComponent: () => import('./pages/waiter/orders/orders.page').then(m => m.OrdersPage)
+        path: 'stop-list',
+        loadComponent: () => import('./pages/waiter/stop-list/stop-list.page').then(m => m.StopListPage)
+      },
+      {
+        path: 'settings',
+        loadComponent: () => import('./pages/waiter/settings/settings.page').then(m => m.SettingsPage)
       },
       {
         path: 'tickets',

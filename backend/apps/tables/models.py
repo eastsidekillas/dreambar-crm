@@ -5,6 +5,9 @@ class Zone(models.Model):
     name  = models.CharField(max_length=50, verbose_name='Название')
     color = models.CharField(max_length=7, default='#6b7280', verbose_name='Цвет (hex)')
     sort  = models.PositiveSmallIntegerField(default=0, verbose_name='Порядок')
+    # VIP-зона: в ней брони берут депозит. min_deposit=0 — депозит опционален, >0 — минимум обязателен.
+    requires_deposit = models.BooleanField(default=False, verbose_name='VIP-зона (берётся депозит)')
+    min_deposit      = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Мин. депозит, ₽')
 
     class Meta:
         db_table = 'tables_zone'

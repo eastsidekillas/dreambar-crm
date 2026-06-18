@@ -9,6 +9,10 @@ class Receipt(models.Model):
         ('transfer', 'Перевод'),
         ('mixed',    'Смешанная'),
     ]
+    DEPOSIT_METHODS = [
+        ('cash',     'Наличные'),
+        ('transfer', 'Перевод'),
+    ]
     order          = models.ForeignKey('orders.Order', on_delete=models.CASCADE, related_name='receipts')
     shift          = models.ForeignKey('shifts.Shift', on_delete=models.CASCADE, related_name='receipts')
     number         = models.PositiveIntegerField(verbose_name='Номер чека в смене')
@@ -16,8 +20,9 @@ class Receipt(models.Model):
     waiter         = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='receipts')
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash')
     total          = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Депозит')
-    deposit_method = models.CharField(max_length=20, blank=True, default='', verbose_name='Способ депозита')
+    deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Депозит (списано)')
+    deposit_method = models.CharField(max_length=20, choices=DEPOSIT_METHODS, blank=True, default='', verbose_name='Способ депозита')
+    refund_amount  = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Возврат депозита')
     issued_at      = models.DateTimeField(auto_now_add=True)
 
     class Meta:

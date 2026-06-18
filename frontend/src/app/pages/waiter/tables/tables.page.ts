@@ -4,14 +4,16 @@ import { Router } from '@angular/router';
 import { OrderApi } from '../../../entities/order';
 import { ReservationApi } from '../../../entities/reservation';
 import { ShiftApi } from '../../../entities/shift';
-import { TableApi } from '../../../entities/table';
+import { TableApi, tableSegments } from '../../../entities/table';
 import { AuthService } from '../../../core/services/auth.service';
-import { CartService } from '../../../features/cart/cart.service';
-import { Order, Zone, Reservation } from '../../../core/models';
+import { RefreshService } from '../../../core/services/refresh.service';
+import { Order, Zone, Reservation, VenueTable } from '../../../core/models';
+import { WaiterViewService } from '../waiter-view.service';
 import { ReservationsSheet } from './reservations-sheet';
 import { NewTableSheet } from './new-table-sheet';
-import * as bill from './order-bill';
-import { LucideCalendar, LucideUsers, LucideUtensilsCrossed, LucidePlus } from '@lucide/angular';
+import { TableTile } from './table-tile';
+import { bill } from '../../../entities/order';
+import { LucideCalendar, LucideUtensilsCrossed, LucidePlus } from '@lucide/angular';
 
 const POLL_MS = 10_000;
 
@@ -19,80 +21,34 @@ const POLL_MS = 10_000;
 @Component({
   selector: 'app-tables-page',
   standalone: true,
-  imports: [CommonModule, ReservationsSheet, NewTableSheet,
-    LucideCalendar, LucideUsers, LucideUtensilsCrossed, LucidePlus],
+  imports: [CommonModule, ReservationsSheet, NewTableSheet, TableTile,
+    LucideCalendar, LucideUtensilsCrossed, LucidePlus],
   template: `
     <div class="space-y-3 pb-4">
 
-      <!-- ══ ZONE GRID ═══════════════════════════════════════════════ -->
+      <h1 class="text-xl font-bold px-0.5 pt-0.5">Заказы</h1>
+
+      <!-- ══ ZONE GRID (свободные столы скрыты — открытие через «+») ════ -->
       @if (zones().length) {
-        <div class="flex gap-2 overflow-x-auto pb-0.5" style="scrollbar-width:none">
-          <button (click)="selectedZoneId.set(null)"
-                  class="flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium"
-                  [style]="selectedZoneId() === null
-                    ? 'background:var(--color-gold);color:white'
-                    : 'background:var(--color-surface2);color:var(--color-muted)'">
-            Все
-          </button>
-          @for (z of zones(); track z.id) {
-            <button (click)="selectedZoneId.set(z.id)"
-                    class="flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium"
-                    [style]="selectedZoneId() === z.id
-                      ? 'background:' + z.color + ';color:white'
-                      : 'background:var(--color-surface2);color:var(--color-muted)'">
-              {{ z.name }}
-            </button>
-          }
-        </div>
-
         @for (z of filteredZones(); track z.id) {
-          @if (z.tables.length) {
+          @if (visibleTables(z).length) {
             <div>
-              @if (filteredZones().length > 1) {
-                <p class="text-xs font-semibold mb-1.5" style="color:var(--color-muted)">{{ z.name }}</p>
-              }
-              <div class="grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(88px,1fr))">
-                @for (t of z.tables; track t.id) {
-                  @let status = tableStatus(t.number);
-                  @let order  = tableOrder(t.number);
-                  @let resv   = tableReservation(t.number);
-
-                  <button (click)="onTableTap(t.number)"
-                          class="rounded-xl p-2.5 text-center transition-all active:scale-95 w-full"
-                          [style]="tableCardStyle(status)"
-                          [style.box-shadow]="isReadyTable(t.number) ? '0 0 0 2.5px #16a34a' : null">
-                    <p class="font-bold text-sm leading-none">{{ t.number }}</p>
-
-                    @if (status === 'free') {
-                      <p class="text-xs mt-1" style="color:var(--color-muted)">свободен</p>
-                      @if (resv) {
-                        <p class="text-xs mt-0.5 font-medium flex items-center justify-center gap-0.5" style="color:#2563eb">
-                          <svg lucideCalendar [size]="10"></svg> {{ fmtTime(resv.time_start) }}
-                        </p>
-                      }
-                    } @else if (status === 'occupied' && order) {
-                      @if (order.waiter === currentUserId()) {
-                        <p class="text-xs mt-1 font-semibold" style="color:var(--color-gold-hover)">
-                          {{ unpaidTotal(order) | number:'1.0-0' }} ₽
-                        </p>
-                        <p class="text-xs" style="color:var(--color-muted)">{{ elapsed(order) }}</p>
-                        @if (readyCount(order) > 0) {
-                          <span class="inline-block px-1 rounded text-xs font-bold mt-0.5"
-                                style="background:#16a34a;color:white">✓{{ readyCount(order) }}</span>
-                        }
-                      } @else {
-                        <p class="text-xs mt-1" style="color:var(--color-muted)">занят</p>
-                      }
-                    } @else if (status === 'reserved' && resv) {
-                      <p class="text-xs mt-1 font-medium truncate" style="color:#1d4ed8">{{ resv.name }}</p>
-                      <p class="text-xs" style="color:#2563eb">{{ fmtTime(resv.time_start) }}</p>
-                      <p class="text-xs flex items-center justify-center gap-0.5" style="color:var(--color-muted)"><svg lucideUsers [size]="10"></svg> {{ resv.guests_count }}</p>
-                    }
-                  </button>
+              <p class="text-xs font-semibold mb-1.5" style="color:var(--color-muted)">{{ z.name }}</p>
+              <div class="grid grid-cols-2 gap-2.5">
+                @for (t of visibleTables(z); track t.id) {
+                  <ng-container [ngTemplateOutlet]="tile" [ngTemplateOutletContext]="{ num: t.number }" />
                 }
               </div>
             </div>
           }
+        }
+
+        @if (!anyVisibleTables()) {
+          <div class="text-center py-16">
+            <svg lucideUtensilsCrossed [size]="48" class="mb-3 mx-auto" style="color:var(--color-muted)"></svg>
+            <p style="color:var(--color-muted)">{{ view.filter() === 'mine' ? 'У вас нет открытых столов' : view.filter() === 'reservations' ? 'Нет броней на сегодня' : 'Нет открытых столов' }}</p>
+            <p class="text-xs mt-1" style="color:var(--color-light)">Нажмите «+», чтобы открыть стол</p>
+          </div>
         }
       } @else {
         <div class="text-center py-16">
@@ -101,22 +57,34 @@ const POLL_MS = 10_000;
         </div>
       }
 
-      <!-- ══ Брони на сегодня ════════════════════════════════════════ -->
-      @if (todayReservations().length) {
-        <div class="flex gap-2">
-          <button (click)="resvSheet.set(true)"
-                  class="flex items-center gap-1.5 px-3 rounded-xl font-semibold text-sm"
-                  style="background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd;height:44px">
-            <svg lucideCalendar [size]="16"></svg> Брони на сегодня · {{ todayReservations().length }}
-          </button>
-        </div>
+      <!-- ══ Карточка стола (переиспользуемая) ═════════════════════════ -->
+      <ng-template #tile let-num="num">
+        @let status = tableStatus(num);
+        @let order  = tableOrder(num);
+        @let resv   = tableReservation(num);
+        @let mine   = status === 'occupied' && order && order.waiter === currentUserId();
+
+        <table-tile [num]="num" [status]="status" [order]="order" [resv]="resv"
+                    [mine]="!!mine" (tap)="onTableTap($event)" />
+      </ng-template>
+
+      <!-- ══ Брони на сегодня (на табе «Брони» не дублируем) ═══════════ -->
+      @if (todayReservations().length && view.filter() !== 'reservations') {
+        <button (click)="resvSheet.set(true)"
+                class="w-full flex items-center gap-2.5 px-3.5 py-3 rounded-xl font-semibold text-sm"
+                style="background:#eff6ff;color:#1d4ed8;border:1.5px solid #93c5fd">
+          <svg lucideCalendar [size]="18" class="flex-shrink-0"></svg>
+          <span class="flex-1 text-left">Брони на сегодня</span>
+          <span class="px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0"
+                style="background:#dbeafe;color:#1d4ed8">{{ todayReservations().length }}</span>
+        </button>
       }
     </div>
 
     <!-- ══ FAB: открыть стол ═══════════════════════════════════════ -->
     <button (click)="openNewTable()" title="Открыть стол"
             class="fixed z-30 flex items-center justify-center rounded-full"
-            style="right:16px;bottom:76px;width:56px;height:56px;background:var(--color-gold);color:white;box-shadow:0 4px 16px rgba(184,146,42,0.4)">
+            style="right:16px;bottom:calc(16px + env(safe-area-inset-bottom));width:56px;height:56px;background:var(--color-gold);color:white;box-shadow:0 4px 16px rgba(184,146,42,0.4)">
       <svg lucidePlus [size]="28"></svg>
     </button>
 
@@ -139,8 +107,8 @@ export class TablesPage implements OnInit, OnDestroy {
   private shiftApi = inject(ShiftApi);
   private tableApi = inject(TableApi);
   private auth   = inject(AuthService);
-  private cart   = inject(CartService);
   private router = inject(Router);
+  view = inject(WaiterViewService);
 
   orders = signal<Order[]>([]);
   zones  = signal<Zone[]>([]);
@@ -152,17 +120,64 @@ export class TablesPage implements OnInit, OnDestroy {
   ntPrefill = signal<string[]>([]);
   resvSheet = signal(false);
 
-  // расчёт из общего util — для ячеек сетки
-  unpaidTotal = bill.unpaidTotal;
-  readyCount  = bill.readyCount;
-  elapsed     = bill.elapsed;
-
   currentUserId = computed(() => this.auth.user()?.id);
 
   filteredZones = computed(() => {
     const id = this.selectedZoneId();
     return id === null ? this.zones() : this.zones().filter(z => z.id === id);
   });
+
+  /** Есть ли хоть один видимый стол (с учётом фильтра) — для пустого состояния. */
+  anyVisibleTables = computed(() => this.zones().some(z => this.visibleTables(z).length > 0));
+
+  /** Столы зоны: только активные (занятые/брони, без свободных) + фильтр «Мои/Все» + сортировка. */
+  visibleTables(z: Zone): VenueTable[] {
+    const me = this.currentUserId();
+    // Свободные столы скрыты — их открывают через «+».
+    // Объединённый заказ (11+12) показываем один раз — на первом (главном) столе.
+    let ts = z.tables.filter(t =>
+      this.tableStatus(t.number) !== 'free' && !this.isSecondaryMember(t.number));
+    const f = this.view.filter();
+    if (f === 'mine') {
+      ts = ts.filter(t => { const o = this.tableOrder(t.number); return !!o && o.waiter === me; });
+    } else if (f === 'reservations') {
+      ts = ts.filter(t => this.tableStatus(t.number) === 'reserved');
+    }
+    return [...ts].sort((a, b) => this.tableCompare(a.number, b.number));
+  }
+
+  /** Стол — НЕ главный в объединённом заказе (11+12): его представляет первый стол. */
+  private isSecondaryMember(num: string): boolean {
+    const o = this.tableOrder(num);
+    if (!o) return false;
+    const parts = this.orderTables(o);
+    return parts.length > 1 && parts[0] !== num;
+  }
+
+  private statusRank(num: string): number {
+    const o = this.tableOrder(num);
+    const mine = !!o && o.waiter === this.currentUserId();
+    if (mine && bill.readyCount(o!) > 0) return 0;   // готовы блюда
+    if (mine) return 1;                              // мой занятый
+    const st = this.tableStatus(num);
+    if (st === 'reserved') return 2;
+    if (st === 'free') return 3;
+    return 4;                                        // занят другим
+  }
+  private numCompare(a: string, b: string): number {
+    const na = parseInt(a, 10), nb = parseInt(b, 10);
+    if (isNaN(na) && isNaN(nb)) return a.localeCompare(b, 'ru', { numeric: true });
+    if (isNaN(na)) return 1;
+    if (isNaN(nb)) return -1;
+    return na !== nb ? na - nb : a.localeCompare(b, 'ru', { numeric: true });
+  }
+  private tableCompare(a: string, b: string): number {
+    switch (this.view.sort()) {
+      case 'status': { const d = this.statusRank(a) - this.statusRank(b); return d || this.numCompare(a, b); }
+      case 'table':  return a.localeCompare(b, 'ru', { numeric: true });
+      default:       return this.numCompare(a, b);   // 'number'
+    }
+  }
 
   resvSorted = computed(() =>
     [...this.todayReservations()].sort((a, b) => a.time_start.localeCompare(b.time_start)));
@@ -178,32 +193,55 @@ export class TablesPage implements OnInit, OnDestroy {
   private pollTimer?: ReturnType<typeof setInterval>;
   private pollBusy = false;
 
+  private refreshSvc = inject(RefreshService);
+  private readonly onPullRefresh = () => this.reloadAll();
+
   ngOnInit() {
     this.load();
     this.shiftApi.getCurrentShift().subscribe({ next: s => this.shiftId = s?.id ?? null, error: () => {} });
     this.pollTimer = setInterval(() => this.load(), POLL_MS);
 
+    this.loadZones();
+    this.loadReservations();
+    this.refreshSvc.register(this.onPullRefresh);
+  }
+  ngOnDestroy() {
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.refreshSvc.unregister(this.onPullRefresh);
+  }
+
+  load(done?: () => void) {
+    if (this.pollBusy) { done?.(); return; }
+    this.pollBusy = true;
+    this.orderApi.getActiveOrders().subscribe({
+      next: o => { this.pollBusy = false; this.orders.set(o); done?.(); },
+      error: () => { this.pollBusy = false; done?.(); },
+    });
+  }
+
+  private loadZones() {
     this.tableApi.getZones().subscribe({ next: z => this.zones.set(z), error: () => {} });
+  }
+
+  private loadReservations() {
     const today = new Date().toISOString().split('T')[0];
     this.reservationApi.getReservations({ date: today }).subscribe({
       next: r => this.todayReservations.set(r.filter(x => ['pending', 'confirmed', 'arrived'].includes(x.status))),
       error: () => {},
     });
   }
-  ngOnDestroy() { if (this.pollTimer) clearInterval(this.pollTimer); }
 
-  load() {
-    if (this.pollBusy) return;
-    this.pollBusy = true;
-    this.orderApi.getActiveOrders().subscribe({
-      next: o => { this.pollBusy = false; this.orders.set(o); },
-      error: () => { this.pollBusy = false; },
-    });
+  /** Pull-to-refresh: перегрузить всё, спрятать спиннер по завершении заказов. */
+  private reloadAll() {
+    this.pollBusy = false;          // не дать поллингу заблокировать ручное обновление
+    this.loadZones();
+    this.loadReservations();
+    this.load(() => this.refreshSvc.done());
   }
 
   // ── Table helpers ─────────────────────────────────────────────────
   private orderTables(o: Order): string[] {
-    return o.table_number.split('+').map(s => s.trim()).filter(Boolean);
+    return tableSegments(o.table_number);
   }
   tableStatus(num: string): 'free' | 'occupied' | 'reserved' {
     if (this.orders().some(o => this.orderTables(o).includes(num))) return 'occupied';
@@ -216,25 +254,11 @@ export class TablesPage implements OnInit, OnDestroy {
   tableReservation(num: string): Reservation | null {
     return this.todayReservations().find(r => r.table_number === num) ?? null;
   }
-  tableCardStyle(status: 'free' | 'occupied' | 'reserved'): string {
-    if (status === 'occupied')
-      return 'background:var(--color-gold-light);border:1.5px solid var(--color-gold-mid)';
-    if (status === 'reserved')
-      return 'background:#eff6ff;border:1.5px solid #93c5fd';
-    return 'background:var(--color-surface2);border:1px solid var(--color-border)';
-  }
-  /** Свой занятый стол с готовыми блюдами — подсветить. */
-  isReadyTable(num: string): boolean {
-    const o = this.tableOrder(num);
-    return !!o && o.waiter === this.currentUserId() && bill.readyCount(o) > 0;
-  }
-  fmtTime(t: string): string { return t?.slice(0, 5) ?? ''; }
-
   onTableTap(num: string) {
     if (this.tableStatus(num) === 'occupied') {
       const o = this.tableOrder(num);
       if (o && o.waiter === this.currentUserId()) {
-        this.router.navigate(['/waiter/orders'], { queryParams: { order: o.id } });
+        this.router.navigate(['/waiter/order', o.id]);   // свой стол → экран заказа
       }
       // занят другим — ничего
     } else {
@@ -250,8 +274,7 @@ export class TablesPage implements OnInit, OnDestroy {
   closeNewTable() { this.newTable.set(false); }
 
   onCreated(order: Order) {
-    this.cart.setTarget(order);
     this.newTable.set(false);
-    this.router.navigate(['/waiter/order']);
+    this.router.navigate(['/waiter/order', order.id], { queryParams: { seg: 'menu' } });
   }
 }

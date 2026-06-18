@@ -15,6 +15,10 @@ export interface Zone {
   name: string;
   color: string;
   sort: number;
+  /** VIP-зона: в ней брони берут депозит. */
+  requires_deposit: boolean;
+  /** Минимальный депозит (₽). 0 — депозит опционален, >0 — минимум обязателен. */
+  min_deposit: number;
   tables: VenueTable[];
 }
 
@@ -26,6 +30,16 @@ export interface KitchenItem {
   volume: string;
   quantity: number;
   kitchen_status: KitchenStatus;
+  /** Выбранные модификаторы (названия) — показываем на кухонном экране. */
+  modifiers?: string[];
+}
+
+/** Посуда к столу (не позиция заказа, в чек не входит). */
+export interface GlasswareLine {
+  kind: string;
+  label?: string;       // подпись с бэка (kind_label) — для тикета
+  kind_label?: string;  // подпись с бэка (OrderSerializer)
+  count: number;
 }
 
 export interface KitchenTicket {
@@ -34,6 +48,7 @@ export interface KitchenTicket {
   waiter_name: string;
   source: 'bar' | 'table';
   notes: string;
+  glassware?: GlasswareLine[];
   created_at: string;
   elapsed_min: number;
   items: KitchenItem[];
@@ -165,6 +180,8 @@ export interface MenuItem {
   category_name: string;
   category_type: 'bar' | 'kitchen' | 'hookah';
   print_station: string;
+  /** Есть ли у позиции группы модификаторов (тогда при добавлении показываем выбор). */
+  has_modifiers?: boolean;
 }
 
 export interface MenuByCategory {
@@ -190,6 +207,8 @@ export interface OrderItem {
   guest_no: number;
   receipt: number | null;
   kitchen_status: 'new' | 'cooking' | 'ready';
+  comment?: string;
+  is_sent?: boolean;
 }
 
 export interface ReceiptItem {
@@ -217,6 +236,7 @@ export interface Receipt {
   deposit_amount: number;
   deposit_method: string;
   deposit_method_label: string;
+  refund_amount: number;
   issued_at: string;
   items: ReceiptItem[];
 }
@@ -248,8 +268,10 @@ export interface Order {
   notes: string;
   reservation: number | null;
   reservation_info: ReservationInfo | null;
+  guest_names?: Record<string, string>;
   items: OrderItem[];
   receipts: Receipt[];
+  glassware: GlasswareLine[];
   total: number;
   is_paid: boolean;
 }
@@ -485,6 +507,9 @@ export interface MenuItemModifierGroup {
   menu_item: number;
   modifier_group: number;
   modifier_group_name: string;
+  is_required: boolean;
+  /** Макс. число выбранных (0 = без лимита, 1 = одиночный выбор). */
+  max_selections: number;
   modifiers: Modifier[];
   sort_order: number;
 }

@@ -105,8 +105,8 @@ def render_receipt(receipt, width: int = 48, copy_label: str = "") -> bytes:
     out += _enc("-" * width) + FEED
 
     for it in receipt.items.all():
-        name   = it.menu_item.name
-        volume = it.menu_item.volume or ""
+        name   = it.menu_item_name or it.menu_item.name
+        volume = it.menu_item_volume or it.menu_item.volume or ""
         label  = f"{name} ({volume})" if volume else name
         out += _enc(label[:width]) + FEED
         qty  = f"{it.quantity} x {_money(it.unit_price)}"
@@ -116,6 +116,18 @@ def render_receipt(receipt, width: int = 48, copy_label: str = "") -> bytes:
     out += BOLD_ON + DOUBLE_ON
     out += _line("ИТОГО", _money(receipt.total) + " руб", width // 2)
     out += DOUBLE_OFF + BOLD_OFF
+    # Депозит: списано — поле deposit_amount; к оплате = итого − списано; возврат — refund_amount.
+    dep    = receipt.deposit_amount or Decimal(0)
+    refund = receipt.refund_amount or Decimal(0)
+    if dep > 0 or refund > 0:
+        dm = {"cash": "нал", "transfer": "перевод"}.get(receipt.deposit_method, receipt.deposit_method or "")
+        if dep > 0:
+            out += _line(f"Депозит ({dm})" if dm else "Депозит", "-" + _money(dep) + " руб", width)
+        out += BOLD_ON
+        out += _line("К оплате", _money(max(Decimal(0), receipt.total - dep)) + " руб", width)
+        out += BOLD_OFF
+        if refund > 0:
+            out += _line("Возврат гостю", _money(refund) + " руб", width)
     out += _line("Оплата", receipt.get_payment_method_display(), width)
     out += _enc("-" * width) + FEED
     if rs.footer:
@@ -127,6 +139,64 @@ def render_receipt(receipt, width: int = 48, copy_label: str = "") -> bytes:
             out += _enc(rs.qr_label) + FEED
     if copy_label:
         out += FEED + BOLD_ON + _enc(copy_label) + FEED + BOLD_OFF
+    out += FEED * 3 + CUT
+    return bytes(out)
+
+
+def render_precheck(order, items, guest_label: str = "", width: int = 48) -> bytes:
+    """Счёт по столу/гостю (без оплаты и фискализации — это итоговый документ для гостя)."""
+    from django.utils import timezone
+    from apps.printers.models import ReceiptSettings
+
+    rs = ReceiptSettings.get()
+    out = bytearray()
+    out += INIT + _codepage_select()
+    out += ALIGN_CENTER + DOUBLE_ON + BOLD_ON
+    out += _enc(rs.title) + FEED
+    out += DOUBLE_OFF
+    out += _enc("СЧЁТ") + FEED
+    out += BOLD_OFF
+    for line in (rs.subtitle or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        for chunk in textwrap.wrap(line, width):
+            out += _enc(chunk) + FEED
+    out += _enc("-" * width) + FEED
+
+    out += ALIGN_LEFT
+    issued = timezone.localtime().strftime("%d.%m.%Y %H:%M")
+    out += _line("Стол", order.table_number or "—", width)
+    if guest_label:
+        out += _line("Гость", guest_label, width)
+    waiter = ""
+    if order.waiter_id:
+        waiter = order.waiter.get_full_name() or order.waiter.username
+    out += _line("Официант", waiter or "—", width)
+    out += _line("Дата", issued, width)
+    out += _enc("-" * width) + FEED
+
+    total = Decimal(0)
+    for it in items:
+        total += it.subtotal
+        name   = it.menu_item_name or it.menu_item.name
+        volume = it.menu_item_volume or it.menu_item.volume or ""
+        label  = f"{name} ({volume})" if volume else name
+        out += _enc(label[:width]) + FEED
+        qty  = f"{it.quantity} x {_money(it.unit_price)}"
+        out += _line("  " + qty, _money(it.subtotal), width)
+    out += _enc("-" * width) + FEED
+
+    out += BOLD_ON + DOUBLE_ON
+    out += _line("ИТОГО", _money(total) + " руб", width // 2)
+    out += DOUBLE_OFF + BOLD_OFF
+    out += _enc("-" * width) + FEED
+    if rs.footer:
+        out += ALIGN_CENTER + _enc(rs.footer) + FEED
+    if rs.qr_data:
+        out += FEED + ALIGN_CENTER + _qr(rs.qr_data) + FEED
+        if rs.qr_label:
+            out += _enc(rs.qr_label) + FEED
     out += FEED * 3 + CUT
     return bytes(out)
 

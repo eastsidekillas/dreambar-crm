@@ -68,6 +68,17 @@ import { tableChips } from './bar-ui';
               </div>
             }
 
+            <!-- Посуда к столу (не в счёте) -->
+            @if (t.glassware?.length) {
+              <div class="px-3 py-2 flex items-center flex-wrap gap-x-3 gap-y-1 text-sm font-semibold"
+                   style="background:#0c4a6e;color:#7dd3fc;border-bottom:1px solid #334155">
+                <span>🍷 Посуда:</span>
+                @for (g of t.glassware; track g.kind) {
+                  <span>{{ g.label }} ×{{ g.count }}</span>
+                }
+              </div>
+            }
+
             <!-- Drinks -->
             <div class="p-3 flex-1 space-y-2">
               @for (it of t.items; track it.id) {
@@ -81,6 +92,13 @@ import { tableChips } from './bar-ui';
                     </div>
                     @if (it.volume) {
                       <p class="text-xs mt-0.5" style="color:#94a3b8">{{ it.volume }}</p>
+                    }
+                    @if (it.modifiers?.length) {
+                      <div class="flex flex-wrap gap-1 mt-1">
+                        @for (m of it.modifiers; track m) {
+                          <span class="text-xs font-semibold px-2 py-0.5 rounded" style="background:#3a2e12;color:#fbbf24">{{ m }}</span>
+                        }
+                      </div>
                     }
                   </div>
                   <div class="flex-shrink-0 flex items-center gap-2">
@@ -153,7 +171,7 @@ import { tableChips } from './bar-ui';
                   </span>
                 </div>
                 @for (it of t.items; track it.id) {
-                  <p class="text-sm" style="color:#bbf7d0">{{ it.quantity }}× {{ it.name }}</p>
+                  <p class="text-sm" style="color:#bbf7d0">{{ it.quantity }}× {{ it.name }}@if (it.modifiers?.length) {<span style="color:#fbbf24"> · {{ it.modifiers!.join(', ') }}</span>}</p>
                 }
               </div>
             }

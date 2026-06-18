@@ -18,6 +18,7 @@ class Order(models.Model):
     updated_at   = models.DateTimeField(auto_now=True)
     closed_at    = models.DateTimeField(null=True, blank=True)
     notes        = models.TextField(blank=True)
+    guest_names  = models.JSONField(default=dict, blank=True, verbose_name='Имена гостей')
     reservation  = models.ForeignKey(
         'reservations.Reservation', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='orders', verbose_name='Бронь',
@@ -48,10 +49,16 @@ class OrderItem(models.Model):
     ]
     order          = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     menu_item      = models.ForeignKey('menu.MenuItem', on_delete=models.PROTECT)
+    # Снимки названия/объёма на момент заказа — чтобы чек (фин. документ) не менялся
+    # задним числом при переименовании/правке позиции меню. Цена тоже снимок (unit_price).
+    menu_item_name   = models.CharField(max_length=200, blank=True, verbose_name='Название (снимок)')
+    menu_item_volume = models.CharField(max_length=50, blank=True, verbose_name='Объём (снимок)')
     quantity       = models.PositiveIntegerField(default=1)
     unit_price     = models.DecimalField(max_digits=10, decimal_places=2)
     kitchen_status = models.CharField(max_length=10, choices=KITCHEN_STATUS, default='new')
     guest_no       = models.PositiveSmallIntegerField(default=0, verbose_name='Гость')
+    comment        = models.CharField(max_length=200, blank=True, verbose_name='Комментарий')
+    is_sent        = models.BooleanField(default=True, verbose_name='Отправлен на кухню/бар')
     receipt        = models.ForeignKey(
         'receipts.Receipt', on_delete=models.SET_NULL, null=True, blank=True, related_name='items',
     )
@@ -60,12 +67,45 @@ class OrderItem(models.Model):
         verbose_name = 'Позиция заказа'
         verbose_name_plural = 'Позиции заказа'
 
+    def save(self, *args, **kwargs):
+        # Снимок названия/объёма берём один раз — при создании позиции.
+        if self.menu_item_id and not self.menu_item_name:
+            self.menu_item_name = self.menu_item.name
+            self.menu_item_volume = self.menu_item.volume or ''
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"{self.menu_item.name} x{self.quantity}"
+        return f"{self.menu_item_name or self.menu_item.name} x{self.quantity}"
 
     @property
     def subtotal(self):
         return self.unit_price * self.quantity
+
+
+class OrderGlassware(models.Model):
+    """Посуда к столу: сколько стаканов/рюмок/бокалов принести.
+
+    Это НЕ позиция заказа — в чек не попадает и цену не меняет.
+    Подсказка официанту и бару, сколько посуды нести к напиткам.
+    """
+    KIND_CHOICES = [
+        ('glass', 'Стакан'),
+        ('shot',  'Рюмка'),
+        ('wine',  'Бокал'),
+    ]
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='glassware')
+    kind  = models.CharField(max_length=10, choices=KIND_CHOICES, verbose_name='Тип посуды')
+    count = models.PositiveSmallIntegerField(default=0, verbose_name='Количество')
+
+    class Meta:
+        verbose_name = 'Посуда к заказу'
+        verbose_name_plural = 'Посуда к заказам'
+        constraints = [
+            models.UniqueConstraint(fields=['order', 'kind'], name='uniq_order_glassware_kind'),
+        ]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} x{self.count}"
 
 
 class OrderItemModifier(models.Model):

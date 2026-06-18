@@ -21,6 +21,7 @@ class KitchenOrdersView(APIView):
         kitchen_items = OrderItem.objects.filter(
             order__shift=shift,
             order__status__in=['open', 'closed'],
+            is_sent=True,   # черновики (ещё не отправленные официантом) на кухню не показываем
         ).filter(
             Q(menu_item__print_station=category_type) |
             Q(menu_item__print_station='',
@@ -37,7 +38,9 @@ class KitchenOrdersView(APIView):
         if category_type == 'kitchen' and user_role == 'bartender':
             kitchen_items = kitchen_items.filter(order__waiter=request.user)
 
-        kitchen_items = kitchen_items.select_related('order', 'order__waiter', 'order__waiter__profile', 'menu_item')
+        kitchen_items = kitchen_items.select_related(
+            'order', 'order__waiter', 'order__waiter__profile', 'menu_item'
+        ).prefetch_related('selected_modifiers__modifier')
 
         ready_today = kitchen_items.filter(kitchen_status='ready').count()
 
@@ -66,6 +69,10 @@ class KitchenOrdersView(APIView):
                                     (waiter.get_full_name() or waiter.username) if waiter else '—'),
                     'source': source,
                     'notes': o.notes or '',
+                    'glassware': [
+                        {'kind': g.kind, 'label': g.get_kind_display(), 'count': g.count}
+                        for g in o.glassware.all() if g.count
+                    ],
                     'created_at': o.created_at,
                     'elapsed_min': elapsed,
                     'items': [],
@@ -74,10 +81,11 @@ class KitchenOrdersView(APIView):
             t = tickets[o.id]
             t['items'].append({
                 'id': it.id,
-                'name': it.menu_item.name,
-                'volume': it.menu_item.volume,
+                'name': it.menu_item_name or it.menu_item.name,
+                'volume': it.menu_item_volume or it.menu_item.volume,
                 'quantity': it.quantity,
                 'kitchen_status': it.kitchen_status,
+                'modifiers': [om.modifier.name for om in it.selected_modifiers.all()],
             })
             if it.kitchen_status != 'ready':
                 t['_all_ready'] = False

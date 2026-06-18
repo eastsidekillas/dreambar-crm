@@ -5,13 +5,14 @@ from rest_framework.response import Response
 from apps.users.permissions_matrix import HasPerm, Perm
 from .models import Zone, Table
 from .serializers import ZoneSerializer, TableSerializer, natural_key
+from .utils import table_segments
 
 
 def _cascade_table_rename(old_number: str, new_number: str):
     """Update open orders that reference old_number in table_number (handles merged e.g. '5+6')."""
     from apps.orders.models import Order
     for order in Order.objects.filter(status='open'):
-        parts = [t.strip() for t in order.table_number.split('+')]
+        parts = table_segments(order.table_number)
         if old_number in parts:
             order.table_number = '+'.join(new_number if t == old_number else t for t in parts)
             order.save(update_fields=['table_number', 'updated_at'])

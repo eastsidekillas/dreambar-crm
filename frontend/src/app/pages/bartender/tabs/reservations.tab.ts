@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChange
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReservationApi } from '../../../entities/reservation';
-import { TableApi } from '../../../entities/table';
+import { TableApi, zoneOfTableId, zonePolicy } from '../../../entities/table';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { TouchKeyboardDirective, TouchKeyboardService } from '../../../shared/ui';
 import { Reservation, Zone } from '../../../core/models';
@@ -160,7 +160,7 @@ import { LucideCalendar, LucidePhone, LucidePencil } from '@lucide/angular';
             </div>
             <div>
               <p class="text-xs mb-1" style="color:#94a3b8">Стол</p>
-              <select [(ngModel)]="form.table" class="w-full px-3 py-2.5 rounded-xl"
+              <select [(ngModel)]="form.table" (ngModelChange)="applyDepositPolicy()" class="w-full px-3 py-2.5 rounded-xl"
                       style="background:#0f172a;border:1px solid #334155;color:#f1f5f9">
                 <option [ngValue]="null">Не выбран</option>
                 @for (z of zones(); track z.id) {
@@ -172,10 +172,11 @@ import { LucideCalendar, LucidePhone, LucidePencil } from '@lucide/angular';
                 }
               </select>
             </div>
+            @if (depositEnabled()) {
             <div>
-              <p class="text-xs mb-1" style="color:#94a3b8">Депозит ₽</p>
-              <input [(ngModel)]="form.deposit_amount" type="number" min="0" bdKbd class="w-full px-3 py-2.5 rounded-xl"
-                     placeholder="0" style="background:#0f172a;border:1px solid #334155;color:#f1f5f9"/>
+              <p class="text-xs mb-1" style="color:#94a3b8">Депозит ₽ @if (depositMin() > 0) { · мин. {{ depositMin() | number:'1.0-0' }} }</p>
+              <input [(ngModel)]="form.deposit_amount" type="number" [min]="depositMin()" bdKbd class="w-full px-3 py-2.5 rounded-xl"
+                     [placeholder]="depositMin() || 0" style="background:#0f172a;border:1px solid #334155;color:#f1f5f9"/>
             </div>
             @if (form.deposit_amount > 0) {
               <div>
@@ -186,6 +187,7 @@ import { LucideCalendar, LucidePhone, LucidePencil } from '@lucide/angular';
                   <option value="transfer">Перевод</option>
                 </select>
               </div>
+            }
             }
             <div class="col-span-2">
               <p class="text-xs mb-1" style="color:#94a3b8">Пожелания</p>
@@ -308,6 +310,15 @@ export class BarReservationsTab implements OnInit, OnChanges {
       deposit_method: 'cash' as 'cash' | 'transfer',
       wishes: '',
     };
+  }
+
+  /** Депозит — только в VIP-зоне выбранного стола (флаг зоны, без хардкода). */
+  depositEnabled(): boolean { return zonePolicy(zoneOfTableId(this.zones(), this.form.table)).enabled; }
+  depositMin(): number { return zonePolicy(zoneOfTableId(this.zones(), this.form.table)).min; }
+  applyDepositPolicy() {
+    const p = zonePolicy(zoneOfTableId(this.zones(), this.form.table));
+    if (!p.enabled) this.form.deposit_amount = 0;
+    else if (p.min > 0 && !this.form.deposit_amount) this.form.deposit_amount = p.min;
   }
 
   dateLabel(date: string): string {

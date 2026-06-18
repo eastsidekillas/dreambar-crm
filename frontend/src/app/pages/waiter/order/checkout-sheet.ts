@@ -1,11 +1,11 @@
 import { Component, Input, Output, EventEmitter, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PAY_OPTIONS } from '../../../shared/lib/payments';
-import { Order, OrderItem, PaymentMethod, ReservationInfo } from '../../../core/models';
+import { Order, PaymentMethod, ReservationInfo } from '../../../core/models';
 import { OrderApi } from '../../../entities/order';
 import { ReceiptPrintService } from '../../../features/receipt/receipt-print.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
-import * as bill from './order-bill';
+import { bill, split } from '../../../entities/order';
 import {
   LucideDynamicIcon, LucideCreditCard, LucideX, LucideReceipt,
   LucideUsers, LucideUserMinus, LucideCheck,
@@ -21,7 +21,7 @@ import {
     @if (current(); as co) {
       <div class="fixed inset-0 z-50" style="background:rgba(0,0,0,0.45)" (click)="closed.emit()"></div>
       <div class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col rounded-t-2xl overflow-hidden"
-           style="background:white;max-height:92dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
+           style="background:var(--color-surface);max-height:92dvh;box-shadow:0 -8px 32px rgba(0,0,0,0.15)">
 
         <div class="flex justify-center pt-3 pb-1 flex-shrink-0 cursor-pointer" (click)="closed.emit()">
           <div class="w-10 h-1 rounded-full" style="background:var(--color-border-mid)"></div>
@@ -44,7 +44,7 @@ import {
             <p class="text-sm text-center mb-4" style="color:var(--color-muted)">Как будете платить?</p>
             <button (click)="chooseSingle()"
                     class="w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left"
-                    style="border:2px solid var(--color-border);background:white">
+                    style="border:2px solid var(--color-border);background:var(--color-surface)">
               <svg lucideReceipt [size]="32" style="color:var(--color-muted);flex-shrink:0"></svg>
               <div>
                 <p class="font-bold text-base">Один счёт</p>
@@ -67,7 +67,7 @@ import {
             </button>
             <button (click)="choosePartial()"
                     class="w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left"
-                    style="border:2px solid var(--color-border);background:white">
+                    style="border:2px solid var(--color-border);background:var(--color-surface)">
               <svg lucideUserMinus [size]="32" style="color:var(--color-muted);flex-shrink:0"></svg>
               <div>
                 <p class="font-bold text-base">Часть гостей уходит</p>
@@ -93,60 +93,22 @@ import {
             }
           </div>
           <div class="flex-shrink-0 px-4 pt-3 pb-5" style="border-top:1px solid var(--color-border)">
-            <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center justify-between mb-2">
               <span class="font-medium" style="color:var(--color-muted)">Итого по чеку</span>
-              <span class="text-2xl font-bold">{{ totalAll() | number:'1.0-0' }} ₽</span>
+              <span class="text-lg font-bold">{{ totalAll() | number:'1.0-0' }} ₽</span>
             </div>
-            @if (depositInfo()) {
-              <div class="rounded-xl px-3 py-2.5 mb-3 mt-2"
-                   style="background:var(--color-gold-light);border:1px solid var(--color-gold-mid)">
-                <div class="flex items-center justify-between mb-0.5">
-                  <span class="text-sm font-medium" style="color:var(--color-gold-hover)">
-                    Депозит ({{ depositInfo()!.deposit_method_label || 'нал' }})
-                  </span>
-                  <span class="text-sm font-bold" style="color:var(--color-gold-hover)">
-                    −{{ depositInfo()!.deposit_amount | number:'1.0-0' }} ₽
-                  </span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-xs" style="color:var(--color-muted)">{{ depositInfo()!.name }}</span>
-                  @if (refundAmount() > 0) {
-                    <span class="text-xs font-semibold" style="color:#166534">
-                      Возврат: {{ refundAmount() | number:'1.0-0' }} ₽
-                    </span>
-                  } @else {
-                    <span class="text-xs font-semibold" style="color:var(--color-gold-hover)">
-                      Остаток: {{ remainingAmount() | number:'1.0-0' }} ₽
-                    </span>
-                  }
-                </div>
-              </div>
-            } @else {
-              <div class="mb-3"></div>
-            }
-            @if (refundAmount() > 0) {
-              <div class="rounded-xl px-3 py-3 mb-4 text-center"
-                   style="background:#dcfce7;border:1px solid #86efac">
+            <ng-container [ngTemplateOutlet]="depositBox" />
+            @if (toPayNow() === 0 && depositInfo()) {
+              <div class="rounded-xl px-3 py-3 mb-4 text-center" style="background:#dcfce7;border:1px solid #86efac">
                 <span class="text-sm font-semibold flex items-center justify-center gap-1" style="color:#16a34a">
-                  <svg lucideCheck [size]="16"></svg> Депозит покрывает счёт · возврат {{ refundAmount() | number:'1.0-0' }} ₽
+                  <svg lucideCheck [size]="16"></svg> Депозит покрывает счёт{{ refundNow() > 0 ? ' · возврат ' + (refundNow() | number:'1.0-0') + ' ₽' : '' }}
                 </span>
               </div>
-              <button (click)="confirm()" [disabled]="submitting()"
-                      class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
-                @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> } {{ submitting() ? '...' : 'Закрыть счёт и печать' }}
-              </button>
-            } @else if (remainingAmount() === 0 && depositInfo()) {
-              <div class="rounded-xl px-3 py-3 mb-4 text-center"
-                   style="background:#dcfce7;border:1px solid #86efac">
-                <span class="text-sm font-semibold flex items-center justify-center gap-1" style="color:#16a34a">
-                  <svg lucideCheck [size]="16"></svg> Депозит покрывает весь счёт
-                </span>
-              </div>
-              <button (click)="confirm()" [disabled]="submitting()"
-                      class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
-                @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> } {{ submitting() ? '...' : 'Закрыть счёт и печать' }}
-              </button>
             } @else {
+              <div class="flex items-center justify-between mb-3">
+                <span class="font-semibold">К оплате</span>
+                <span class="text-2xl font-bold">{{ toPayNow() | number:'1.0-0' }} ₽</span>
+              </div>
               <div class="flex gap-2 mb-4">
                 @for (p of payments; track p.value) {
                   <button (click)="singlePay.set(p.value)" class="btn btn-sm flex items-center gap-1" style="flex:1"
@@ -155,11 +117,11 @@ import {
                   </button>
                 }
               </div>
-              <button (click)="confirm()" [disabled]="submitting()"
-                      class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
-                @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> } {{ submitting() ? '...' : 'Закрыть счёт и печать' }}
-              </button>
             }
+            <button (click)="confirm()" [disabled]="submitting()"
+                    class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
+              @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> } {{ submitting() ? '...' : 'Закрыть счёт и печать' }}
+            </button>
           </div>
         }
 
@@ -176,7 +138,7 @@ import {
                               class="w-7 h-7 rounded-full text-xs font-bold"
                               [style]="guestBillOf(grp.guest) === bn
                                 ? 'background:var(--color-gold);color:white'
-                                : 'background:white;color:var(--color-muted);border:1.5px solid var(--color-border-mid)'">
+                                : 'background:var(--color-surface);color:var(--color-muted);border:1.5px solid var(--color-border-mid)'">
                         {{ bn }}
                       </button>
                     }
@@ -225,6 +187,14 @@ import {
             </div>
           </div>
           <div class="flex-shrink-0 px-4 py-3" style="border-top:1px solid var(--color-border)">
+            <ng-container [ngTemplateOutlet]="depositBox" />
+            @if (depositApply() > 0) {
+              <p class="text-xs mb-2" style="color:var(--color-muted)">Депозит распределится по чекам пропорционально.</p>
+              <div class="flex items-center justify-between mb-3">
+                <span class="font-semibold">К оплате всего</span>
+                <span class="text-xl font-bold">{{ toPayNow() | number:'1.0-0' }} ₽</span>
+              </div>
+            }
             <button (click)="confirm()" [disabled]="submitting()"
                     class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px">
               @if (!submitting()) { <svg lucideReceipt [size]="16"></svg> }
@@ -249,7 +219,7 @@ import {
                   <span class="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
                         [style]="partialSel()[grp.guest]
                           ? 'background:var(--color-gold);color:white'
-                          : 'border:1.5px solid var(--color-border-mid);background:white'">
+                          : 'border:1.5px solid var(--color-border-mid);background:var(--color-surface)'">
                     @if (partialSel()[grp.guest]) { <svg lucideCheck [size]="14"></svg> }
                   </span>
                   <span class="font-semibold text-sm flex-1">{{ guestLabel(grp.guest) }}</span>
@@ -257,7 +227,7 @@ import {
                     {{ grp.total | number:'1.0-0' }} ₽
                   </span>
                 </div>
-                <div class="px-3 py-2" style="background:white">
+                <div class="px-3 py-2" style="background:var(--color-surface)">
                   @for (item of grp.items; track item.id) {
                     <div class="flex items-center gap-2 py-0.5 text-sm">
                       <span class="flex-1 truncate">{{ item.menu_item_name }}</span>
@@ -276,29 +246,29 @@ import {
               <span class="font-medium" style="color:var(--color-muted)">
                 Выбрано: {{ partialItems().length }} поз.
               </span>
-              <span class="text-2xl font-bold">{{ partialTotal() | number:'1.0-0' }} ₽</span>
+              <span class="text-lg font-bold">{{ partialTotal() | number:'1.0-0' }} ₽</span>
             </div>
-            @if (depositInfo()) {
-              @if (partialAllSelected()) {
-                <p class="text-xs mb-3" style="color:var(--color-gold-hover)">
-                  Выбраны все гости — стол закроется, депозит
-                  {{ depositInfo()!.deposit_amount | number:'1.0-0' }} ₽ будет учтён в чеке.
-                </p>
-              } @else {
-                <p class="text-xs mb-3" style="color:var(--color-muted)">
-                  Депозит {{ depositInfo()!.deposit_amount | number:'1.0-0' }} ₽ будет учтён
-                  при полном расчёте стола.
-                </p>
-              }
+            <ng-container [ngTemplateOutlet]="depositBox" />
+            @if (toPayNow() === 0 && depositInfo() && partialItems().length) {
+              <div class="rounded-xl px-3 py-3 mb-4 text-center" style="background:#dcfce7;border:1px solid #86efac">
+                <span class="text-sm font-semibold flex items-center justify-center gap-1" style="color:#16a34a">
+                  <svg lucideCheck [size]="16"></svg> Депозит покрывает{{ refundNow() > 0 ? ' · возврат ' + (refundNow() | number:'1.0-0') + ' ₽' : '' }}
+                </span>
+              </div>
+            } @else {
+              <div class="flex items-center justify-between mb-3">
+                <span class="font-semibold">К оплате</span>
+                <span class="text-2xl font-bold">{{ toPayNow() | number:'1.0-0' }} ₽</span>
+              </div>
+              <div class="flex gap-2 mb-4">
+                @for (p of payments; track p.value) {
+                  <button (click)="singlePay.set(p.value)" class="btn btn-sm flex items-center gap-1" style="flex:1"
+                          [class]="singlePay() === p.value ? 'btn-primary' : 'btn-outline'">
+                    <svg [lucideIcon]="p.icon" [size]="14"></svg> {{ p.label }}
+                  </button>
+                }
+              </div>
             }
-            <div class="flex gap-2 mb-4">
-              @for (p of payments; track p.value) {
-                <button (click)="singlePay.set(p.value)" class="btn btn-sm flex items-center gap-1" style="flex:1"
-                        [class]="singlePay() === p.value ? 'btn-primary' : 'btn-outline'">
-                  <svg [lucideIcon]="p.icon" [size]="14"></svg> {{ p.label }}
-                </button>
-              }
-            </div>
             <button (click)="confirm()" [disabled]="submitting() || !partialItems().length"
                     class="btn btn-primary btn-full flex items-center justify-center gap-1" style="height:48px"
                     [style.opacity]="!partialItems().length ? '0.5' : '1'">
@@ -311,6 +281,37 @@ import {
         }
       </div>
     }
+
+    <!-- ══ Понятная разбивка депозита (общий баланс стола) ════════ -->
+    <ng-template #depositBox>
+      @if (depositInfo()) {
+        <div class="rounded-xl px-3 py-2.5 mb-3"
+             style="background:var(--color-gold-light);border:1px solid var(--color-gold-mid)">
+          <div class="flex items-center justify-between text-sm">
+            <span style="color:var(--color-gold-hover)">Депозит стола ({{ depositInfo()!.deposit_method_label || 'нал' }})</span>
+            <span class="font-bold" style="color:var(--color-gold-hover)">{{ depositTotal() | number:'1.0-0' }} ₽</span>
+          </div>
+          @if (depositUsed() > 0) {
+            <div class="flex items-center justify-between text-xs mt-1" style="color:var(--color-muted)">
+              <span>Использовано ранее</span><span>−{{ depositUsed() | number:'1.0-0' }} ₽</span>
+            </div>
+          }
+          <div class="flex items-center justify-between text-xs mt-1">
+            <span style="color:var(--color-muted)">Спишется с этого счёта</span>
+            <span class="font-semibold" style="color:var(--color-gold-hover)">−{{ depositApply() | number:'1.0-0' }} ₽</span>
+          </div>
+          @if (refundNow() > 0) {
+            <div class="flex items-center justify-between text-xs mt-1 font-semibold" style="color:#166534">
+              <span>Возврат гостю</span><span>{{ refundNow() | number:'1.0-0' }} ₽</span>
+            </div>
+          } @else if (depositLeft() > 0) {
+            <div class="flex items-center justify-between text-xs mt-1" style="color:var(--color-gold-hover)">
+              <span>Останется на депозите</span><span class="font-semibold">{{ depositLeft() | number:'1.0-0' }} ₽</span>
+            </div>
+          }
+        </div>
+      }
+    </ng-template>
   `,
 })
 export class CheckoutSheet {
@@ -319,10 +320,19 @@ export class CheckoutSheet {
   private toast = inject(ToastService);
 
   payments = PAY_OPTIONS;
-  guestLabel = bill.guestLabel;
+  /** Подпись гостя с учётом пользовательских имён (Order.guest_names). */
+  guestLabel = (guest: number): string => {
+    if (guest === 0) return 'Общий';
+    return this.current()?.guest_names?.[String(guest)] || `Гость ${guest}`;
+  };
 
   @Input({ required: true }) set order(o: Order) {
+    // Данные обновляем всегда (поллинг заказа каждые 10с), но флоу выбора
+    // НЕ сбрасываем при обновлении — иначе пользователя выкидывает на «Как платить?».
+    // Сброс только при первой установке / смене стола.
+    const fresh = this.current()?.id !== o.id;
     this.current.set(o);
+    if (!fresh) return;
     this.step.set('mode');
     this.split.set(false);
     this.partial.set(false);
@@ -354,21 +364,29 @@ export class CheckoutSheet {
     if (!r || !r.deposit_paid || +r.deposit_amount <= 0) return null;
     return r;
   });
-  depositAmount   = computed(() => this.depositInfo() ? +this.depositInfo()!.deposit_amount : 0);
-  remainingAmount = computed(() => Math.max(0, this.totalAll() - this.depositAmount()));
-  refundAmount    = computed(() => Math.max(0, this.depositAmount() - this.totalAll()));
+  // ── Депозит как переходящий баланс стола (источник — бронь) ──
+  depositTotal     = computed(() => this.depositInfo() ? +this.depositInfo()!.deposit_amount : 0);
+  /** Уже списано депозита в прошлых чеках заказа. */
+  depositUsed      = computed(() => (this.current()?.receipts ?? []).reduce((s, r) => s + (+r.deposit_amount || 0), 0));
+  /** Доступно депозита перед этим расчётом. */
+  depositRemaining = computed(() => Math.max(0, this.depositTotal() - this.depositUsed()));
+  /** Сумма текущего расчёта (partial — только выбранные гости). */
+  checkoutTotal    = computed(() => this.partial() ? this.partialTotal() : this.totalAll());
+  /** Сколько спишется с депозита сейчас. */
+  depositApply     = computed(() => Math.min(this.depositRemaining(), this.checkoutTotal()));
+  /** К оплате деньгами после депозита. */
+  toPayNow         = computed(() => this.checkoutTotal() - this.depositApply());
+  /** Останется на депозите для оставшихся гостей. */
+  depositLeft      = computed(() => this.depositRemaining() - this.depositApply());
+  /** Закрывает ли этот расчёт заказ целиком. */
+  closesNow        = computed(() => !this.partial() || this.partialAllSelected());
+  /** Возврат неиспользованного депозита — только при полном закрытии. */
+  refundNow        = computed(() => (this.closesNow() && this.depositRemaining() > this.checkoutTotal())
+    ? this.depositRemaining() - this.checkoutTotal() : 0);
 
   checkoutGuestGroups = computed(() => {
-    const byGuest = new Map<number, OrderItem[]>();
-    for (const it of this.coItems()) {
-      const grp = byGuest.get(it.guest_no) ?? [];
-      grp.push(it);
-      byGuest.set(it.guest_no, grp);
-    }
-    return [...byGuest.keys()].sort((a, b) => a - b).map(guest => {
-      const items = byGuest.get(guest)!;
-      return { guest, items, total: items.reduce((s, i) => s + +i.subtotal, 0) };
-    });
+    const o = this.current();
+    return o ? bill.guestGroups(o) : [];
   });
 
   partialItems = computed(() =>
@@ -379,28 +397,8 @@ export class CheckoutSheet {
     return groups.length > 0 && groups.every(g => this.partialSel()[g.guest]);
   });
 
-  splitBills = computed(() => {
-    const gbm = this.guestBillMap();
-    const bills = new Map<number, { guests: number[]; items: OrderItem[]; total: number }>();
-    for (const grp of this.checkoutGuestGroups()) {
-      const bn = gbm[grp.guest] ?? 1;
-      if (!bills.has(bn)) bills.set(bn, { guests: [], items: [], total: 0 });
-      const b = bills.get(bn)!;
-      b.guests.push(grp.guest);
-      b.items.push(...grp.items);
-      b.total += grp.total;
-    }
-    return [...bills.entries()].sort(([a], [b]) => a - b).map(([billNo, data]) => ({ billNo, ...data }));
-  });
-
-  billChoices = computed(() => {
-    const gbm = this.guestBillMap();
-    const used = new Set(Object.values(gbm));
-    const max  = used.size ? Math.max(...used) : 0;
-    const nums = [...used].sort((a, b) => a - b);
-    if (max < this.checkoutGuestGroups().length) nums.push(max + 1);
-    return nums;
-  });
+  splitBills  = computed(() => split.splitBills(this.checkoutGuestGroups(), this.guestBillMap()));
+  billChoices = computed(() => split.billChoices(this.guestBillMap(), this.checkoutGuestGroups().length));
 
   chooseSingle() { this.split.set(false); this.partial.set(false); this.step.set('pay'); }
   choosePartial() {
@@ -428,7 +426,7 @@ export class CheckoutSheet {
   }
   billPayOf(billNo: number): PaymentMethod { return this.billPayMap()[billNo] ?? 'cash'; }
   setBillPay(billNo: number, method: PaymentMethod) { this.billPayMap.update(m => ({ ...m, [billNo]: method })); }
-  billGuestNames(guests: number[]): string { return guests.map(g => bill.guestLabel(g)).join(' + '); }
+  billGuestNames(guests: number[]): string { return guests.map(g => this.guestLabel(g)).join(' + '); }
 
   confirm() {
     const o = this.current();
@@ -438,14 +436,8 @@ export class CheckoutSheet {
     const billsPayload = this.split()
       ? this.splitBills().map(b => ({ item_ids: b.items.map(i => i.id), payment_method: this.billPayOf(b.billNo) }))
       : [{ item_ids: items.map(i => i.id), payment_method: this.singlePay() }];
-    const closesAll = !this.partial() || this.partialAllSelected();
-    const d = this.split() || !closesAll ? null : this.depositInfo();
     const staysOpen = this.partial() && !this.partialAllSelected();
-    this.orderApi.checkoutOrder(
-      o.id, billsPayload,
-      d ? +d.deposit_amount : undefined,
-      d ? (d.deposit_method || undefined) : undefined,
-    ).subscribe({
+    this.orderApi.checkoutOrder(o.id, billsPayload).subscribe({
       next: res => {
         this.submitting.set(false);
         this.printer.printHardware(res.receipts);

@@ -15,8 +15,8 @@ import { Component, EventEmitter, HostListener, Input, Output } from '@angular/c
   <div class="absolute inset-0" style="background:rgba(0,0,0,.35)" (click)="closed.emit()"></div>
   <aside class="absolute right-0 top-0 bottom-0 w-full flex flex-col drawer-panel"
          style="max-width:420px;background:#fff;box-shadow:-8px 0 24px rgba(0,0,0,.12)">
-    <header class="flex items-center justify-between gap-2 px-4 py-3"
-            style="border-bottom:1px solid var(--color-border)">
+    <header class="flex items-center justify-between gap-2 px-4 pb-3"
+            style="padding-top:calc(0.75rem + env(safe-area-inset-top,0px));border-bottom:1px solid var(--color-border)">
       <h3 class="font-semibold text-sm truncate">{{ title }}</h3>
       <button (click)="closed.emit()" class="btn btn-ghost btn-sm" aria-label="Закрыть">✕</button>
     </header>
