@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.test import TestCase, RequestFactory
 from django.http import JsonResponse
+from django.utils import timezone
 
 from apps.audit.idempotency import IdempotencyMiddleware
 from apps.audit.models import IdempotencyKey
@@ -53,3 +56,18 @@ class IdempotencyMiddlewareTests(TestCase):
         self.assertEqual(IdempotencyKey.objects.filter(key='e1').count(), 0)
         self._post(mw, 'e1')                                  # повтор честно выполняется
         self.assertEqual(self.calls, 2)
+
+    def test_fresh_inflight_claim_returns_409(self):
+        # claim есть, не завершён, свежий → параллельный запрос ждёт (409), не выполняется
+        IdempotencyKey.objects.create(key='inflight', method='POST', path='/api/orders/', completed=False)
+        r = self._post(self._mw(), 'inflight')
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(self.calls, 0)
+
+    def test_stale_claim_reruns(self):
+        # claim завис (предыдущий запрос умер, не завершив) → переклейм и выполнение
+        IdempotencyKey.objects.create(key='stale', method='POST', path='/api/orders/', completed=False)
+        IdempotencyKey.objects.filter(key='stale').update(created_at=timezone.now() - timedelta(seconds=120))
+        self._post(self._mw(), 'stale')
+        self.assertEqual(self.calls, 1)
+        self.assertTrue(IdempotencyKey.objects.get(key='stale').completed)

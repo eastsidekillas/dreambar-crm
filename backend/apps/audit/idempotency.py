@@ -13,9 +13,14 @@
 """
 from django.db import IntegrityError
 from django.http import HttpResponse, JsonResponse
+from django.utils import timezone
 
 SAFE_METHODS = {'GET', 'HEAD', 'OPTIONS', 'TRACE'}
 HEADER = 'HTTP_IDEMPOTENCY_KEY'
+# Незавершённый claim старше этого считаем заброшенным (предыдущий запрос умер,
+# не завершив) и переклеймливаем — иначе ключ навсегда отвечал бы 409. Порог
+# заведомо больше любого реального запроса, чтобы не задвоить ещё живой.
+STALE_CLAIM_SECONDS = 60
 
 
 class IdempotencyMiddleware:
@@ -49,13 +54,17 @@ class IdempotencyMiddleware:
                 )
                 resp['Idempotent-Replay'] = 'true'
                 return resp
-            # Ещё выполняется (двойная отправка почти одновременно) — повторить позже.
-            return JsonResponse(
-                {'detail': 'Запрос уже обрабатывается, повторите позже.'},
-                status=409,
-            )
+            stale = obj and (timezone.now() - obj.created_at).total_seconds() > STALE_CLAIM_SECONDS
+            if not stale:
+                # Ещё выполняется (двойная отправка почти одновременно) — повторить позже.
+                return JsonResponse(
+                    {'detail': 'Запрос уже обрабатывается, повторите позже.'},
+                    status=409,
+                )
+            # Заброшенный claim (предыдущий запрос умер) — переклеймливаем и выполняем.
+            IdempotencyKey.objects.filter(pk=obj.pk).update(created_at=timezone.now())
 
-        # Первый раз — выполняем операцию.
+        # Первый раз (или переклейм заброшенного) — выполняем операцию.
         response = self.get_response(request)
 
         cacheable = (
