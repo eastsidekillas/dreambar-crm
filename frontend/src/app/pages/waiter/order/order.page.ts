@@ -108,21 +108,34 @@ const POLL_MS = 10_000;
         <!-- Посуда к столу — НЕ в счёте, подсказка сколько нести -->
         <glassware-stepper [order]="o" (change)="setGlass($event.kind, $event.count)" />
 
-        <!-- Депозит стола (внесён официантом) -->
-        <button (click)="depositSheet.set(true)"
-                class="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium"
-                [style.background]="o.deposit_amount > 0 ? 'var(--color-gold-light)' : 'var(--color-surface)'"
-                [style.border]="'1.5px solid ' + (o.deposit_amount > 0 ? 'var(--color-gold-mid)' : 'var(--color-border)')"
-                [style.color]="o.deposit_amount > 0 ? 'var(--color-gold-hover)' : 'var(--color-muted)'">
-          <svg lucideBanknote [size]="16" class="flex-shrink-0"></svg>
-          @if (o.deposit_amount > 0) {
-            <span>Депозит стола</span>
-            <span class="ml-auto font-bold">{{ o.deposit_amount | number:'1.0-0' }} ₽ · {{ o.deposit_method_label }}</span>
-          } @else {
+        <!-- Депозит стола: живой расчёт (счёт − депозит = к доплате / остаток) -->
+        @if (depositAvail() > 0) {
+          <button (click)="depositSheet.set(true)"
+                  class="w-full text-left px-3 py-2.5 rounded-xl"
+                  style="background:var(--color-gold-light);border:1.5px solid var(--color-gold-mid);color:var(--color-gold-hover)">
+            <div class="flex items-center gap-2 text-sm font-semibold">
+              <svg lucideBanknote [size]="16" class="flex-shrink-0"></svg>
+              <span>Депозит стола</span>
+              <span class="ml-auto font-bold">{{ depositAvail() | number:'1.0-0' }} ₽</span>
+            </div>
+            <div class="flex items-center justify-between text-xs mt-1.5" style="color:var(--color-muted)">
+              <span>Счёт {{ orderSum() | number:'1.0-0' }} ₽</span>
+              @if (depositLeftLive() > 0) {
+                <span style="color:var(--color-gold-hover)">Остаток депозита {{ depositLeftLive() | number:'1.0-0' }} ₽</span>
+              } @else {
+                <span class="font-bold" style="color:var(--color-text)">К доплате {{ toPayLive() | number:'1.0-0' }} ₽</span>
+              }
+            </div>
+          </button>
+        } @else {
+          <button (click)="depositSheet.set(true)"
+                  class="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium"
+                  style="background:var(--color-surface);border:1.5px solid var(--color-border);color:var(--color-muted)">
+            <svg lucideBanknote [size]="16" class="flex-shrink-0"></svg>
             <span>Внести депозит</span>
             <span class="ml-auto" style="font-size:1.2rem;line-height:1">＋</span>
-          }
-        </button>
+          </button>
+        }
 
         @if (o.receipts.length) {
           <div class="flex flex-wrap gap-1.5">
@@ -336,6 +349,21 @@ export class OrderPage implements OnInit, OnDestroy {
     for (let g = 1; g <= n; g++) opts.push({ no: g, label: this.gLabel(g) });
     return opts;
   });
+
+  // ── Живой расчёт депозита (видно сразу на экране заказа, не только в чеке) ──
+  /** Текущий неоплаченный счёт стола. */
+  orderSum = computed(() => { const o = this.order(); return o ? bill.unpaidTotal(o) : 0; });
+  /** Доступный депозит = депозит брони (если оплачен) + депозит заказа − уже списано. */
+  depositAvail = computed(() => {
+    const o = this.order(); if (!o) return 0;
+    const resv = o.reservation_info?.deposit_paid ? +o.reservation_info.deposit_amount : 0;
+    const used = (o.receipts ?? []).reduce((s, r) => s + (+r.deposit_amount || 0), 0);
+    return Math.max(0, resv + (+o.deposit_amount || 0) - used);
+  });
+  /** Сколько доплатить деньгами с учётом депозита. */
+  toPayLive = computed(() => Math.max(0, this.orderSum() - this.depositAvail()));
+  /** Остаток депозита, если он покрывает счёт. */
+  depositLeftLive = computed(() => Math.max(0, this.depositAvail() - this.orderSum()));
 
   /** Есть неотправленные (черновые) позиции — их ещё не видят на кухне/баре. */
   hasUnsent = computed(() => {
