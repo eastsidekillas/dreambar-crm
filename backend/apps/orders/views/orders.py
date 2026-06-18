@@ -1,4 +1,4 @@
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal, ROUND_DOWN, InvalidOperation
 
 from django.db import transaction
 from django.db.models import Sum
@@ -196,10 +196,12 @@ class OrderViewSet(viewsets.ModelViewSet):
             # min(остаток, сумма счетов), распределяя пропорционально по чекам. Возврат
             # неиспользованного депозита — только при ПОЛНОМ закрытии заказа.
             resv = order.reservation
-            total_deposit = resv.deposit_amount if (resv and resv.deposit_paid) else Decimal(0)
+            resv_deposit = resv.deposit_amount if (resv and resv.deposit_paid) else Decimal(0)
+            # Депозит брони + депозит, внесённый официантом за столом — общий баланс.
+            total_deposit = resv_deposit + (order.deposit_amount or Decimal(0))
             used = order.receipts.aggregate(s=Sum('deposit_amount'))['s'] or Decimal(0)
             remaining = max(Decimal(0), total_deposit - used)
-            deposit_method = resv.deposit_method if resv else ''
+            deposit_method = order.deposit_method or (resv.deposit_method if resv else '')
 
             bill_totals = [sum(unpaid[i].subtotal for i in bill['item_ids']) for bill in bills]
             current_total = sum(bill_totals)
@@ -375,6 +377,29 @@ class OrderViewSet(viewsets.ModelViewSet):
                 OrderGlassware.objects.filter(order=order, kind=kind).delete()
             else:
                 OrderGlassware.objects.update_or_create(order=order, kind=kind, defaults={'count': count})
+        return Response(OrderSerializer(order).data)
+
+    @action(detail=True, methods=['post'])
+    def deposit(self, request, pk=None):
+        """Депозит, внесённый официантом за столом (VIP без брони / оплата на месте).
+        Деньги уже получены. При чекауте суммируется с депозитом брони. amount=0 — снять."""
+        try:
+            amount = Decimal(str(request.data.get('amount') or 0))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({'detail': 'Некорректная сумма.'}, status=status.HTTP_400_BAD_REQUEST)
+        if amount < 0:
+            return Response({'detail': 'Сумма не может быть отрицательной.'}, status=status.HTTP_400_BAD_REQUEST)
+        method = request.data.get('method') or ''
+        if amount > 0 and method not in dict(Order.DEPOSIT_METHODS):
+            return Response({'detail': 'Укажите способ внесения депозита.'}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=pk)
+            self._check_order_access(order)
+            if order.status != 'open':
+                return Response({'detail': 'Заказ не открыт.'}, status=status.HTTP_400_BAD_REQUEST)
+            order.deposit_amount = amount
+            order.deposit_method = method if amount > 0 else ''
+            order.save(update_fields=['deposit_amount', 'deposit_method', 'updated_at'])
         return Response(OrderSerializer(order).data)
 
     @action(detail=False, methods=['get'])

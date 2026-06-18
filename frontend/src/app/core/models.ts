@@ -268,6 +268,9 @@ export interface Order {
   notes: string;
   reservation: number | null;
   reservation_info: ReservationInfo | null;
+  deposit_amount: number;
+  deposit_method: string;
+  deposit_method_label: string;
   guest_names?: Record<string, string>;
   items: OrderItem[];
   receipts: Receipt[];

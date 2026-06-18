@@ -23,6 +23,13 @@ class Order(models.Model):
         'reservations.Reservation', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='orders', verbose_name='Бронь',
     )
+    # Депозит, внесённый официантом за столом (для VIP без брони / оплаты на месте).
+    # При чекауте суммируется с депозитом брони (если есть). Деньги уже получены —
+    # отдельного флага «оплачен» не нужно.
+    DEPOSIT_METHODS = [('cash', 'Наличные'), ('transfer', 'Перевод')]
+    deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Депозит стола')
+    deposit_method = models.CharField(max_length=20, choices=DEPOSIT_METHODS, blank=True, default='',
+                                      verbose_name='Способ внесения депозита')
 
     class Meta:
         ordering = ['-created_at']

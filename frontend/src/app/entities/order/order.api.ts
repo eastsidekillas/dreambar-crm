@@ -105,6 +105,11 @@ export class OrderApi {
   setGlassware(orderId: number, kind: string, count: number): Observable<Order> {
     return this.gateway({ kind: 'setGlassware', idem: this.offline.newIdem(), orderId, glKind: kind, count });
   }
+  /** Депозит, внесённый официантом за столом (деньги). Только онлайн — как чек. */
+  setDeposit(orderId: number, amount: number, method: string): Observable<Order> {
+    return this.http.post<Order>(`${BASE}/orders/${orderId}/deposit/`, { amount, method })
+      .pipe(tap(order => this.offline.patchOrder(order)));
+  }
   closeOrder(orderId: number, paymentMethod: PaymentMethod = 'cash'): Observable<{ order: Order; receipt: Receipt }> {
     return this.http.post<{ order: Order; receipt: Receipt }>(`${BASE}/orders/${orderId}/close/`, { payment_method: paymentMethod });
   }

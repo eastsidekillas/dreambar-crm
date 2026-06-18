@@ -14,6 +14,7 @@ import { CheckoutSheet } from './checkout-sheet';
 import { OrderMenuComponent } from '../../../features/order-menu/order-menu.component';
 import { GuestBoardComponent, GuestCard } from '../../../features/guest-board/guest-board.component';
 import { OrderItemSheet } from './order-item-sheet';
+import { DepositSheet } from './deposit-sheet';
 import { AddItemSheet } from './add-item-sheet';
 import { GuestMenuSheet, GuestState } from './guest-menu-sheet';
 import { GlasswareStepper } from '../../../features/order-glassware/glassware-stepper.component';
@@ -33,7 +34,7 @@ const POLL_MS = 10_000;
   selector: 'app-order-page',
   standalone: true,
   imports: [CommonModule, MoveTableSheet, SplitGuestSheet, CheckoutSheet, OrderMenuComponent, GuestBoardComponent,
-    OrderItemSheet, AddItemSheet, GuestMenuSheet, GlasswareStepper, BdBottomSheetComponent,
+    OrderItemSheet, AddItemSheet, GuestMenuSheet, GlasswareStepper, DepositSheet, BdBottomSheetComponent,
     LucideChevronLeft, LucideArrowLeftRight, LucideX, LucideUsers,
     LucideCreditCard, LucideReceipt, LucidePlus, LucideClock,
     LucideCalendar, LucideBanknote, LucideMessageCircle,
@@ -106,6 +107,22 @@ const POLL_MS = 10_000;
 
         <!-- Посуда к столу — НЕ в счёте, подсказка сколько нести -->
         <glassware-stepper [order]="o" (change)="setGlass($event.kind, $event.count)" />
+
+        <!-- Депозит стола (внесён официантом) -->
+        <button (click)="depositSheet.set(true)"
+                class="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium"
+                [style.background]="o.deposit_amount > 0 ? 'var(--color-gold-light)' : 'var(--color-surface)'"
+                [style.border]="'1.5px solid ' + (o.deposit_amount > 0 ? 'var(--color-gold-mid)' : 'var(--color-border)')"
+                [style.color]="o.deposit_amount > 0 ? 'var(--color-gold-hover)' : 'var(--color-muted)'">
+          <svg lucideBanknote [size]="16" class="flex-shrink-0"></svg>
+          @if (o.deposit_amount > 0) {
+            <span>Депозит стола</span>
+            <span class="ml-auto font-bold">{{ o.deposit_amount | number:'1.0-0' }} ₽ · {{ o.deposit_method_label }}</span>
+          } @else {
+            <span>Внести депозит</span>
+            <span class="ml-auto" style="font-size:1.2rem;line-height:1">＋</span>
+          }
+        </button>
 
         @if (o.receipts.length) {
           <div class="flex flex-wrap gap-1.5">
@@ -183,6 +200,10 @@ const POLL_MS = 10_000;
     }
 
     <!-- ── Модалки ──────────────────────────────────────────── -->
+    @if (depositSheet() && order(); as dep) {
+      <deposit-sheet [deposit]="{ amount: dep.deposit_amount, method: dep.deposit_method }" [saving]="savingDeposit()"
+                     (save)="saveDeposit($event)" (closed)="depositSheet.set(false)" />
+    }
     @if (moveOpen() && order(); as mo) {
       <move-table-sheet [order]="mo" [zones]="zones()" [occupiedByOthers]="occupied()"
                         (moved)="onUpdated($event); moveOpen.set(false)" (closed)="moveOpen.set(false)" />
@@ -255,6 +276,8 @@ export class OrderPage implements OnInit, OnDestroy {
   splittingGuest = signal(false);
   checkoutOpen = signal(false);
   printSheet   = signal(false);
+  depositSheet = signal(false);
+  savingDeposit = signal(false);
   guestMenu       = signal<number | null>(null);   // открытое меню «…» гостя
   editItem        = signal<OrderItem | null>(null);  // редактируемая позиция (кол-во/коммент)
   savingItem      = signal(false);
@@ -553,6 +576,20 @@ export class OrderPage implements OnInit, OnDestroy {
     this.orderApi.setGlassware(this.orderId, code, count).subscribe({
       next: updated => this.onUpdated(updated),
       error: err => this.toast.apiError(err, 'Не удалось обновить посуду'),
+    });
+  }
+
+  saveDeposit(payload: { amount: number; method: string }) {
+    if (this.savingDeposit()) return;
+    this.savingDeposit.set(true);
+    this.orderApi.setDeposit(this.orderId, payload.amount, payload.method).subscribe({
+      next: updated => {
+        this.savingDeposit.set(false);
+        this.onUpdated(updated);
+        this.depositSheet.set(false);
+        this.toast.success(payload.amount > 0 ? 'Депозит внесён' : 'Депозит снят');
+      },
+      error: err => { this.savingDeposit.set(false); this.toast.apiError(err, 'Не удалось сохранить депозит'); },
     });
   }
 
