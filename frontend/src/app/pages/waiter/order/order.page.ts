@@ -391,7 +391,8 @@ export class OrderPage implements OnInit, OnDestroy {
     const t = this.addTarget();
     if (!t || this.addingItem()) return;
     this.addingItem.set(true);
-    this.orderApi.addItemToOrder(this.orderId, t.item.id, payload.quantity, t.guest, payload.modifierIds).subscribe({
+    this.orderApi.addItemToOrder(this.orderId, t.item.id, payload.quantity, t.guest, payload.modifierIds,
+      { name: t.item.name, price: t.item.price, type: t.item.category_type }).subscribe({
       next: updated => {
         this.addingItem.set(false);
         this.addTarget.set(null);
@@ -402,7 +403,8 @@ export class OrderPage implements OnInit, OnDestroy {
     });
   }
   private addToOrder(it: MenuItem, guest: number, qty: number, modifierIds: number[]) {
-    this.orderApi.addItemToOrder(this.orderId, it.id, qty, guest, modifierIds).subscribe({
+    this.orderApi.addItemToOrder(this.orderId, it.id, qty, guest, modifierIds,
+      { name: it.name, price: it.price, type: it.category_type }).subscribe({
       next: updated => {
         this.onUpdated(updated);
         this.toast.show(`${it.name} → ${this.gLabel(guest)}`, 'success', 1200);

@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { BdToastComponent } from './shared/ui/toast/toast.component';
 import { ConnectivityService } from './core/services/connectivity.service';
+import { OfflineService } from './core/services/offline.service';
 import { PwaUpdateService } from './core/services/pwa-update.service';
 import { AuthService } from './core/services/auth.service';
 import { ThemeService } from './core/services/theme.service';
@@ -14,6 +15,11 @@ import { LoggerService } from './core/services/logger.service';
     @if (connectivity.offline()) {
       <div class="offline-banner">
         ⚠ Нет связи с сервером — данные могут быть устаревшими
+        @if (offline.pendingCount() > 0) { · {{ offline.pendingCount() }} изм. ждут отправки }
+      </div>
+    } @else if (offline.pendingCount() > 0) {
+      <div class="offline-banner" style="background:#B8922A">
+        ↻ Синхронизация: {{ offline.pendingCount() }} изм.
       </div>
     }
     @if (pwa.updateReady()) {
@@ -54,6 +60,7 @@ import { LoggerService } from './core/services/logger.service';
 })
 export class App implements OnInit {
   readonly connectivity = inject(ConnectivityService);
+  readonly offline = inject(OfflineService);
   readonly pwa = inject(PwaUpdateService);
   private auth = inject(AuthService);
   private router = inject(Router);
