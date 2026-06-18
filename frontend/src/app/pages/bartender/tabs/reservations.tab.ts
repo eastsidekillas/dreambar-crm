@@ -2,7 +2,8 @@ import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChange
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReservationApi } from '../../../entities/reservation';
-import { TableApi, zoneOfTableId, zonePolicy } from '../../../entities/table';
+import { TableApi, tableSegments, zoneOfTableId, zonePolicy } from '../../../entities/table';
+import { OrderApi } from '../../../entities/order';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { TouchKeyboardDirective, TouchKeyboardService } from '../../../shared/ui';
 import { Reservation, Zone } from '../../../core/models';
@@ -166,7 +167,7 @@ import { LucideCalendar, LucidePhone, LucidePencil } from '@lucide/angular';
                 @for (z of zones(); track z.id) {
                   <optgroup [label]="z.name">
                     @for (t of z.tables; track t.id) {
-                      <option [ngValue]="t.id">{{ t.number }} ({{ t.seats }} мест)</option>
+                      <option [ngValue]="t.id">{{ tableOptionLabel(t) }}</option>
                     }
                   </optgroup>
                 }
@@ -253,6 +254,7 @@ export class BarReservationsTab implements OnInit, OnChanges {
 
   private reservationApi = inject(ReservationApi);
   private tableApi = inject(TableApi);
+  private orderApi = inject(OrderApi);
   private toast    = inject(ToastService);
   readonly kbd     = inject(TouchKeyboardService);
 
@@ -422,6 +424,22 @@ export class BarReservationsTab implements OnInit, OnChanges {
     if (!this.zones().length) {
       this.tableApi.getZones().subscribe(z => this.zones.set(z));
     }
+    // Занятые сейчас столы — чтобы в выборе стола было видно, какие заняты.
+    this.orderApi.getActiveOrders().subscribe({
+      next: orders => {
+        const s = new Set<string>();
+        for (const o of orders) for (const seg of tableSegments(o.table_number)) s.add(seg);
+        this.occupiedSet.set(s);
+      },
+      error: () => {},
+    });
+  }
+
+  occupiedSet = signal<Set<string>>(new Set());
+  /** Подпись стола в выборе: «12 (4 мест) · занят», если стол сейчас занят. */
+  tableOptionLabel(t: { number: string; seats: number }): string {
+    const base = `${t.number} (${t.seats} мест)`;
+    return this.occupiedSet().has(t.number) ? `${base} · занят` : base;
   }
 
   save() {

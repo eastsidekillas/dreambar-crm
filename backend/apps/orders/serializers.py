@@ -44,7 +44,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = ['id', 'menu_item', 'menu_item_name', 'menu_item_type',
                   'quantity', 'unit_price', 'subtotal', 'guest_no', 'receipt',
-                  'kitchen_status', 'comment', 'is_sent', 'modifiers']
+                  'kitchen_status', 'comment', 'is_sent', 'created_at', 'modifiers']
 
 
 class OrderItemCreateSerializer(serializers.ModelSerializer):
@@ -116,14 +116,20 @@ class OrderSerializer(serializers.ModelSerializer):
     is_paid = serializers.BooleanField(read_only=True)
     waiter_name = serializers.SerializerMethodField()
     reservation_info = serializers.SerializerMethodField()
+    deposit_method_label = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = ['id', 'shift', 'waiter', 'waiter_name', 'table_number', 'guests',
                   'status', 'created_at', 'updated_at', 'closed_at', 'notes',
                   'reservation', 'reservation_info', 'guest_names',
+                  'deposit_amount', 'deposit_method', 'deposit_method_label',
                   'items', 'receipts', 'glassware', 'total', 'is_paid']
-        read_only_fields = ['waiter', 'created_at', 'updated_at', 'closed_at']
+        read_only_fields = ['waiter', 'created_at', 'updated_at', 'closed_at',
+                            'deposit_amount', 'deposit_method']
+
+    def get_deposit_method_label(self, obj):
+        return obj.get_deposit_method_display() if obj.deposit_method else ''
 
     def get_waiter_name(self, obj):
         if obj.waiter:

@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PAY_OPTIONS } from '../../../shared/lib/payments';
-import { Order, PaymentMethod, ReservationInfo } from '../../../core/models';
+import { Order, PaymentMethod } from '../../../core/models';
 import { OrderApi } from '../../../entities/order';
 import { ReceiptPrintService } from '../../../features/receipt/receipt-print.service';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
@@ -98,7 +98,7 @@ import {
               <span class="text-lg font-bold">{{ totalAll() | number:'1.0-0' }} ₽</span>
             </div>
             <ng-container [ngTemplateOutlet]="depositBox" />
-            @if (toPayNow() === 0 && depositInfo()) {
+            @if (toPayNow() === 0 && hasDeposit()) {
               <div class="rounded-xl px-3 py-3 mb-4 text-center" style="background:#dcfce7;border:1px solid #86efac">
                 <span class="text-sm font-semibold flex items-center justify-center gap-1" style="color:#16a34a">
                   <svg lucideCheck [size]="16"></svg> Депозит покрывает счёт{{ refundNow() > 0 ? ' · возврат ' + (refundNow() | number:'1.0-0') + ' ₽' : '' }}
@@ -249,7 +249,7 @@ import {
               <span class="text-lg font-bold">{{ partialTotal() | number:'1.0-0' }} ₽</span>
             </div>
             <ng-container [ngTemplateOutlet]="depositBox" />
-            @if (toPayNow() === 0 && depositInfo() && partialItems().length) {
+            @if (toPayNow() === 0 && hasDeposit() && partialItems().length) {
               <div class="rounded-xl px-3 py-3 mb-4 text-center" style="background:#dcfce7;border:1px solid #86efac">
                 <span class="text-sm font-semibold flex items-center justify-center gap-1" style="color:#16a34a">
                   <svg lucideCheck [size]="16"></svg> Депозит покрывает{{ refundNow() > 0 ? ' · возврат ' + (refundNow() | number:'1.0-0') + ' ₽' : '' }}
@@ -284,11 +284,11 @@ import {
 
     <!-- ══ Понятная разбивка депозита (общий баланс стола) ════════ -->
     <ng-template #depositBox>
-      @if (depositInfo()) {
+      @if (hasDeposit()) {
         <div class="rounded-xl px-3 py-2.5 mb-3"
              style="background:var(--color-gold-light);border:1px solid var(--color-gold-mid)">
           <div class="flex items-center justify-between text-sm">
-            <span style="color:var(--color-gold-hover)">Депозит стола ({{ depositInfo()!.deposit_method_label || 'нал' }})</span>
+            <span style="color:var(--color-gold-hover)">Депозит стола ({{ depositMethodLabel() }})</span>
             <span class="font-bold" style="color:var(--color-gold-hover)">{{ depositTotal() | number:'1.0-0' }} ₽</span>
           </div>
           @if (depositUsed() > 0) {
@@ -359,13 +359,20 @@ export class CheckoutSheet {
   coItems  = computed(() => { const o = this.current(); return o ? bill.unpaidItems(o) : []; });
   totalAll = computed(() => this.coItems().reduce((s, i) => s + +i.subtotal, 0));
 
-  depositInfo = computed((): ReservationInfo | null => {
+  // ── Депозит как переходящий баланс стола (бронь + внесённый официантом) ──
+  /** Депозит брони (если оплачен). */
+  private resvDeposit  = computed(() => {
     const r = this.current()?.reservation_info;
-    if (!r || !r.deposit_paid || +r.deposit_amount <= 0) return null;
-    return r;
+    return (r && r.deposit_paid && +r.deposit_amount > 0) ? +r.deposit_amount : 0;
   });
-  // ── Депозит как переходящий баланс стола (источник — бронь) ──
-  depositTotal     = computed(() => this.depositInfo() ? +this.depositInfo()!.deposit_amount : 0);
+  /** Депозит, внесённый официантом за столом. */
+  private orderDeposit = computed(() => +(this.current()?.deposit_amount || 0));
+  /** Есть ли депозит вообще (для показа блока). */
+  hasDeposit         = computed(() => this.depositTotal() > 0);
+  /** Подпись способа: приоритет — внесённый официантом, иначе бронь. */
+  depositMethodLabel = computed(() =>
+    this.current()?.deposit_method_label || this.current()?.reservation_info?.deposit_method_label || 'нал');
+  depositTotal     = computed(() => this.resvDeposit() + this.orderDeposit());
   /** Уже списано депозита в прошлых чеках заказа. */
   depositUsed      = computed(() => (this.current()?.receipts ?? []).reduce((s, r) => s + (+r.deposit_amount || 0), 0));
   /** Доступно депозита перед этим расчётом. */

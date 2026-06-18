@@ -32,3 +32,30 @@ class DeletedOrderItem(models.Model):
     @property
     def subtotal(self):
         return self.unit_price * self.quantity
+
+
+class IdempotencyKey(models.Model):
+    """Ключ идемпотентности запроса. Повтор мутации с тем же ключом (ретрай
+    офлайн-очереди при обрыве) возвращает СОХРАНЁННЫЙ ответ, не выполняя операцию
+    заново — защита от дублей (напр. дубль открытого стола). См. IdempotencyMiddleware.
+
+    Кэшируем только успешные ответы (2xx); при ошибке клейм удаляется, чтобы
+    повтор честно выполнился снова."""
+    key             = models.CharField(max_length=128, unique=True)
+    method          = models.CharField(max_length=10)
+    path            = models.CharField(max_length=255)
+    completed       = models.BooleanField(default=False)
+    response_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    response_body   = models.TextField(blank=True)
+    content_type    = models.CharField(max_length=100, blank=True)
+    created_at      = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'audit_idempotencykey'
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['created_at'])]
+        verbose_name = 'Ключ идемпотентности'
+        verbose_name_plural = 'Ключи идемпотентности'
+
+    def __str__(self):
+        return f"{self.key} {self.method} {self.path} ({'done' if self.completed else 'pending'})"

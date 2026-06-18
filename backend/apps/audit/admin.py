@@ -1,5 +1,21 @@
 from django.contrib import admin
-from .models import DeletedOrderItem
+from .models import DeletedOrderItem, IdempotencyKey
+
+
+@admin.register(IdempotencyKey)
+class IdempotencyKeyAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'key', 'method', 'path', 'completed', 'response_status']
+    list_filter  = ['completed', 'method']
+    search_fields = ['key', 'path']
+    readonly_fields = ['key', 'method', 'path', 'completed', 'response_status',
+                       'response_body', 'content_type', 'created_at']
+    ordering = ['-created_at']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(DeletedOrderItem)

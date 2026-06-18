@@ -12,16 +12,17 @@ import { BarOrdersTab } from './tabs/orders.tab';
 import { BarKitchenMonitorTab } from './tabs/kitchen-monitor.tab';
 import { BarNewOrderTab } from './tabs/new-order.tab';
 import { BarReservationsTab } from './tabs/reservations.tab';
+import { BarTablesTab } from './tabs/bar-tables.tab';
 
 const REFRESH_MS = 6000;
 
-type Tab = 'orders' | 'kitchen' | 'new' | 'resv';
+type Tab = 'orders' | 'kitchen' | 'new' | 'resv' | 'tables';
 
 @Component({
   selector: 'app-bartender',
   standalone: true,
   imports: [CommonModule, TouchKeyboardComponent,
-    BarOrdersTab, BarKitchenMonitorTab, BarNewOrderTab, BarReservationsTab,
+    BarOrdersTab, BarKitchenMonitorTab, BarNewOrderTab, BarReservationsTab, BarTablesTab,
     LucideGlassWater, LucideUtensilsCrossed, LucideBell, LucideBellOff, LucideCalendar, LucideArrowLeftRight],
   template: `
     <div class="flex flex-col" style="height:100dvh;background:#0f172a;color:#f1f5f9">
@@ -59,6 +60,12 @@ type Tab = 'orders' | 'kitchen' | 'new' | 'resv';
                 <span class="absolute top-1 right-1 w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold"
                       style="background:#22c55e;color:white">{{ kitchenUnseenCount() }}</span>
               }
+            </button>
+            <button (click)="tab.set('tables')"
+              class="flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
+              style="min-height:52px;min-width:72px;font-size:0.82rem;border-left:1px solid #334155"
+              [style]="tab() === 'tables' ? 'background:#f59e0b;color:#0f172a' : 'background:transparent;color:#94a3b8'">
+              <span class="flex items-center gap-1"><svg lucideUtensilsCrossed [size]="14"></svg> Столы</span>
             </button>
             <button (click)="tab.set('new')"
               class="flex flex-col items-center justify-center px-4 font-semibold transition-colors flex-shrink-0"
@@ -118,6 +125,10 @@ type Tab = 'orders' | 'kitchen' | 'new' | 'resv';
 
       @if (tab() === 'kitchen') {
         <bar-kitchen-monitor-tab [active]="kitchenActive()" [ready]="kitchenReady()" [noShift]="noShift()" />
+      }
+
+      @if (tab() === 'tables') {
+        <bar-tables-tab [visible]="tab() === 'tables'" />
       }
 
       <!-- new/resv держим живыми, чтобы корзина и формы переживали смену вкладок -->

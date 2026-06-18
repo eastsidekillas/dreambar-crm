@@ -14,6 +14,7 @@ import { CheckoutSheet } from './checkout-sheet';
 import { OrderMenuComponent } from '../../../features/order-menu/order-menu.component';
 import { GuestBoardComponent, GuestCard } from '../../../features/guest-board/guest-board.component';
 import { OrderItemSheet } from './order-item-sheet';
+import { DepositSheet } from './deposit-sheet';
 import { AddItemSheet } from './add-item-sheet';
 import { GuestMenuSheet, GuestState } from './guest-menu-sheet';
 import { GlasswareStepper } from '../../../features/order-glassware/glassware-stepper.component';
@@ -33,7 +34,7 @@ const POLL_MS = 10_000;
   selector: 'app-order-page',
   standalone: true,
   imports: [CommonModule, MoveTableSheet, SplitGuestSheet, CheckoutSheet, OrderMenuComponent, GuestBoardComponent,
-    OrderItemSheet, AddItemSheet, GuestMenuSheet, GlasswareStepper, BdBottomSheetComponent,
+    OrderItemSheet, AddItemSheet, GuestMenuSheet, GlasswareStepper, DepositSheet, BdBottomSheetComponent,
     LucideChevronLeft, LucideArrowLeftRight, LucideX, LucideUsers,
     LucideCreditCard, LucideReceipt, LucidePlus, LucideClock,
     LucideCalendar, LucideBanknote, LucideMessageCircle,
@@ -106,6 +107,35 @@ const POLL_MS = 10_000;
 
         <!-- Посуда к столу — НЕ в счёте, подсказка сколько нести -->
         <glassware-stepper [order]="o" (change)="setGlass($event.kind, $event.count)" />
+
+        <!-- Депозит стола: живой расчёт (счёт − депозит = к доплате / остаток) -->
+        @if (depositAvail() > 0) {
+          <button (click)="depositSheet.set(true)"
+                  class="w-full text-left px-3 py-2.5 rounded-xl"
+                  style="background:var(--color-gold-light);border:1.5px solid var(--color-gold-mid);color:var(--color-gold-hover)">
+            <div class="flex items-center gap-2 text-sm font-semibold">
+              <svg lucideBanknote [size]="16" class="flex-shrink-0"></svg>
+              <span>Депозит стола</span>
+              <span class="ml-auto font-bold">{{ depositAvail() | number:'1.0-0' }} ₽</span>
+            </div>
+            <div class="flex items-center justify-between text-xs mt-1.5" style="color:var(--color-muted)">
+              <span>Счёт {{ orderSum() | number:'1.0-0' }} ₽</span>
+              @if (depositLeftLive() > 0) {
+                <span style="color:var(--color-gold-hover)">Остаток депозита {{ depositLeftLive() | number:'1.0-0' }} ₽</span>
+              } @else {
+                <span class="font-bold" style="color:var(--color-text)">К доплате {{ toPayLive() | number:'1.0-0' }} ₽</span>
+              }
+            </div>
+          </button>
+        } @else {
+          <button (click)="depositSheet.set(true)"
+                  class="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium"
+                  style="background:var(--color-surface);border:1.5px solid var(--color-border);color:var(--color-muted)">
+            <svg lucideBanknote [size]="16" class="flex-shrink-0"></svg>
+            <span>Внести депозит</span>
+            <span class="ml-auto" style="font-size:1.2rem;line-height:1">＋</span>
+          </button>
+        }
 
         @if (o.receipts.length) {
           <div class="flex flex-wrap gap-1.5">
@@ -183,6 +213,10 @@ const POLL_MS = 10_000;
     }
 
     <!-- ── Модалки ──────────────────────────────────────────── -->
+    @if (depositSheet() && order(); as dep) {
+      <deposit-sheet [deposit]="{ amount: dep.deposit_amount, method: dep.deposit_method }" [saving]="savingDeposit()"
+                     (save)="saveDeposit($event)" (closed)="depositSheet.set(false)" />
+    }
     @if (moveOpen() && order(); as mo) {
       <move-table-sheet [order]="mo" [zones]="zones()" [occupiedByOthers]="occupied()"
                         (moved)="onUpdated($event); moveOpen.set(false)" (closed)="moveOpen.set(false)" />
@@ -255,6 +289,8 @@ export class OrderPage implements OnInit, OnDestroy {
   splittingGuest = signal(false);
   checkoutOpen = signal(false);
   printSheet   = signal(false);
+  depositSheet = signal(false);
+  savingDeposit = signal(false);
   guestMenu       = signal<number | null>(null);   // открытое меню «…» гостя
   editItem        = signal<OrderItem | null>(null);  // редактируемая позиция (кол-во/коммент)
   savingItem      = signal(false);
@@ -313,6 +349,21 @@ export class OrderPage implements OnInit, OnDestroy {
     for (let g = 1; g <= n; g++) opts.push({ no: g, label: this.gLabel(g) });
     return opts;
   });
+
+  // ── Живой расчёт депозита (видно сразу на экране заказа, не только в чеке) ──
+  /** Текущий неоплаченный счёт стола. */
+  orderSum = computed(() => { const o = this.order(); return o ? bill.unpaidTotal(o) : 0; });
+  /** Доступный депозит = депозит брони (если оплачен) + депозит заказа − уже списано. */
+  depositAvail = computed(() => {
+    const o = this.order(); if (!o) return 0;
+    const resv = o.reservation_info?.deposit_paid ? +o.reservation_info.deposit_amount : 0;
+    const used = (o.receipts ?? []).reduce((s, r) => s + (+r.deposit_amount || 0), 0);
+    return Math.max(0, resv + (+o.deposit_amount || 0) - used);
+  });
+  /** Сколько доплатить деньгами с учётом депозита. */
+  toPayLive = computed(() => Math.max(0, this.orderSum() - this.depositAvail()));
+  /** Остаток депозита, если он покрывает счёт. */
+  depositLeftLive = computed(() => Math.max(0, this.depositAvail() - this.orderSum()));
 
   /** Есть неотправленные (черновые) позиции — их ещё не видят на кухне/баре. */
   hasUnsent = computed(() => {
@@ -391,7 +442,8 @@ export class OrderPage implements OnInit, OnDestroy {
     const t = this.addTarget();
     if (!t || this.addingItem()) return;
     this.addingItem.set(true);
-    this.orderApi.addItemToOrder(this.orderId, t.item.id, payload.quantity, t.guest, payload.modifierIds).subscribe({
+    this.orderApi.addItemToOrder(this.orderId, t.item.id, payload.quantity, t.guest, payload.modifierIds,
+      { name: t.item.name, price: t.item.price, type: t.item.category_type }).subscribe({
       next: updated => {
         this.addingItem.set(false);
         this.addTarget.set(null);
@@ -402,7 +454,8 @@ export class OrderPage implements OnInit, OnDestroy {
     });
   }
   private addToOrder(it: MenuItem, guest: number, qty: number, modifierIds: number[]) {
-    this.orderApi.addItemToOrder(this.orderId, it.id, qty, guest, modifierIds).subscribe({
+    this.orderApi.addItemToOrder(this.orderId, it.id, qty, guest, modifierIds,
+      { name: it.name, price: it.price, type: it.category_type }).subscribe({
       next: updated => {
         this.onUpdated(updated);
         this.toast.show(`${it.name} → ${this.gLabel(guest)}`, 'success', 1200);
@@ -551,6 +604,20 @@ export class OrderPage implements OnInit, OnDestroy {
     this.orderApi.setGlassware(this.orderId, code, count).subscribe({
       next: updated => this.onUpdated(updated),
       error: err => this.toast.apiError(err, 'Не удалось обновить посуду'),
+    });
+  }
+
+  saveDeposit(payload: { amount: number; method: string }) {
+    if (this.savingDeposit()) return;
+    this.savingDeposit.set(true);
+    this.orderApi.setDeposit(this.orderId, payload.amount, payload.method).subscribe({
+      next: updated => {
+        this.savingDeposit.set(false);
+        this.onUpdated(updated);
+        this.depositSheet.set(false);
+        this.toast.success(payload.amount > 0 ? 'Депозит внесён' : 'Депозит снят');
+      },
+      error: err => { this.savingDeposit.set(false); this.toast.apiError(err, 'Не удалось сохранить депозит'); },
     });
   }
 
