@@ -9,13 +9,14 @@ import { ShiftApi } from '../../../entities/shift';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../shared/ui';
 import { Shift } from '../../../core/models';
-import { LucideLogOut, LucideKeyRound, LucideArrowLeftRight } from '@lucide/angular';
+import { RouterLink } from '@angular/router';
+import { LucideLogOut, LucideKeyRound, LucideArrowLeftRight, LucideReceipt, LucideChevronRight } from '@lucide/angular';
 import { ROLE_LABEL } from '../../../shared/lib/roles';
 
 @Component({
   selector: 'app-waiter-profile',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideLogOut, LucideKeyRound, LucideArrowLeftRight],
+  imports: [CommonModule, FormsModule, RouterLink, LucideLogOut, LucideKeyRound, LucideArrowLeftRight, LucideReceipt, LucideChevronRight],
   styles: [`
     .profile-avatar {
       width: 64px; height: 64px; border-radius: 50%;
@@ -33,6 +34,13 @@ import { ROLE_LABEL } from '../../../shared/lib/roles';
       font-size: 1.1rem; letter-spacing: 0.4em; text-align: center;
     }
     .pin-field:focus { border-color: var(--color-gold); outline: none; }
+    .nav-row { transition: transform .08s ease; }
+    .nav-row:active { transform: scale(0.985); }
+    .nav-row-icon {
+      width: 40px; height: 40px; border-radius: 0.75rem; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--color-gold-light); color: var(--color-gold-hover);
+    }
   `],
   template: `
     <div class="space-y-3 max-w-md mx-auto">
@@ -67,6 +75,18 @@ import { ROLE_LABEL } from '../../../shared/lib/roles';
           </p>
         }
       </div>
+
+      <!-- ── Мои чеки ──────────────────────────────────── -->
+      <a routerLink="/waiter/history" class="card flex items-center gap-3 nav-row"
+         style="text-decoration:none;color:var(--color-text)"
+         title="Мои чеки за смену — просмотр и печать">
+        <div class="nav-row-icon"><svg lucideReceipt [size]="20"></svg></div>
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold text-sm">Мои чеки</p>
+          <p class="text-xs" style="color:var(--color-muted)">Просмотр и печать чеков смены</p>
+        </div>
+        <svg lucideChevronRight [size]="18" style="color:var(--color-muted);flex-shrink:0"></svg>
+      </a>
 
       <!-- ── PIN ───────────────────────────────────────── -->
       <div class="card">

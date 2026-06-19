@@ -156,9 +156,10 @@ export class OrderApi {
   }
 
   // ── Receipts ─────────────────────────────────────────────────────
-  getReceipts(shiftId?: number): Observable<Receipt[]> {
+  getReceipts(shiftId?: number, orderId?: number): Observable<Receipt[]> {
     let params = new HttpParams().set('page_size', '500');
     if (shiftId) params = params.set('shift', shiftId);
+    if (orderId) params = params.set('order', orderId);
     return unpage(this.http.get<Receipt[] | Paginated<Receipt>>(`${BASE}/receipts/`, { params }));
   }
   /** Аппаратная печать чека на термопринтере (ATOL RP-326). printerId — необязательно. */
