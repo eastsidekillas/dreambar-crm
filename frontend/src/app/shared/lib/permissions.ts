@@ -29,6 +29,7 @@ export const Perm = {
   EMPLOYEE_MANAGE:    'employee.manage',
   ANALYTICS_FINANCE:  'analytics.finance',
   PRINTER_MANAGE:     'printer.manage',
+  SYSTEM_CONTROL:     'system.control',
 } as const;
 
 export type Permission = typeof Perm[keyof typeof Perm];

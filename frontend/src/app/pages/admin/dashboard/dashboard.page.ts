@@ -6,6 +6,7 @@ import { AnalyticsApi } from '../../../entities/analytics';
 import { DashboardData, ShiftAnalytics, TopItem, Shift } from '../../../core/models';
 import { Chart, registerables, ChartConfiguration } from 'chart.js';
 import { LucideClock, LucideDownload } from '@lucide/angular';
+import { SystemControlWidget } from '../../../widgets/system-control/system-control.widget';
 
 Chart.register(...registerables);
 
@@ -42,7 +43,7 @@ const donutCenter = {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, LucideClock, LucideDownload],
+  imports: [CommonModule, RouterModule, LucideClock, LucideDownload, SystemControlWidget],
   styles: [`
     .kpi-card {
       display: block; text-decoration: none; color: inherit;
@@ -68,6 +69,8 @@ const donutCenter = {
   `],
   template: `
     <div class="space-y-5">
+
+      <app-system-control />
 
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <h1 class="text-xl font-bold">Аналитика</h1>

@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'apps.exports',
     'apps.reservations',
     'apps.tables',
+    'apps.system',
 ]
 
 MIDDLEWARE = [

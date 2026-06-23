@@ -67,6 +67,9 @@ class Perm:
     # Принтеры
     PRINTER_MANAGE = 'printer.manage'
 
+    # Система
+    SYSTEM_CONTROL = 'system.control'   # удалённая остановка/запуск всего приложения
+
 
 # Право-джокер: даёт доступ ко всему. Назначается админам (is_staff/superuser).
 WILDCARD = '*'

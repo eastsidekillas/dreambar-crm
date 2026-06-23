@@ -49,4 +49,5 @@ urlpatterns = [
     path('api/', include('apps.audit.urls')),
     path('api/', include('apps.reservations.urls')),
     path('api/tables/', include('apps.tables.urls')),
+    path('api/system/', include('apps.system.urls')),
 ]

@@ -1,5 +1,13 @@
 export type Role = 'admin' | 'waiter' | 'bartender' | 'kitchen' | 'wardrobe';
 
+/** Глобальное состояние системы («рубильник» удалённой остановки). */
+export interface SystemStatus {
+  is_stopped: boolean;
+  message: string;
+  updated_at?: string;
+  updated_by_name?: string | null;
+}
+
 export interface VenueTable {
   id: number;
   zone: number;
