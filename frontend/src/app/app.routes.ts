@@ -130,6 +130,10 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/admin/printers/printers.page').then(m => m.PrintersPage)
       },
       {
+        path: 'system',
+        loadComponent: () => import('./pages/admin/system/system.page').then(m => m.SystemPage)
+      },
+      {
         path: 'reports',
         loadComponent: () => import('./pages/admin/reports/reports.page').then(m => m.ReportsComponent)
       },
