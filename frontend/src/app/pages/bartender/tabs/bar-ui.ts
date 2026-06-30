@@ -19,6 +19,11 @@ export const BAR = {
   blueLight:  '#60a5fa',
 } as const;
 
+/** Моноширинный стек с табличными цифрами — «докетная» типографика бара
+ *  (номера, количества, объёмы, таймер выравниваются по разрядам). */
+export const MONO =
+  "font-family:ui-monospace,'SF Mono','JetBrains Mono',Menlo,monospace;font-variant-numeric:tabular-nums";
+
 /** Стиль хоста вкладки-списка: тёмный фон до низа + внутренний скролл
  *  (иначе при переполнении скроллится <body> и из-под низа виден светлый фон темы). */
 export const LIST_TAB_HOST =
@@ -44,11 +49,11 @@ export function urgencyColor(min: number, kind: UrgencyKind = 'drink'): string {
   return BAR.green;
 }
 
-/** Фон позиции в тикете «Заказы» по статусу приготовления. */
-export function itemBg(status: string): string {
-  if (status === 'cooking') return BAR.amberDeep;
-  if (status === 'ready')   return BAR.greenDeep;
-  return BAR.bg;
+/** Цвет статусного рейла позиции (левый кантик строки в леджере). */
+export function itemRail(status: string): string {
+  if (status === 'cooking') return BAR.amber;
+  if (status === 'ready')   return BAR.green;
+  return BAR.border;
 }
 
 /** Чип статуса позиции в мониторе кухни: «готовится» / «ожидает». */
