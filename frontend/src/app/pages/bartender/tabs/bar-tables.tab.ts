@@ -5,6 +5,7 @@ import { TableApi, tableSegments } from '../../../entities/table';
 import { ReservationApi } from '../../../entities/reservation';
 import { bill } from '../../../entities/order';
 import { Order, Zone, Reservation } from '../../../core/models';
+import { LIST_TAB_HOST } from './bar-ui';
 
 const POLL_MS = 10_000;
 
@@ -14,6 +15,7 @@ const POLL_MS = 10_000;
   selector: 'bar-tables-tab',
   standalone: true,
   imports: [CommonModule],
+  host: { style: LIST_TAB_HOST },
   template: `
     <div class="px-3 py-3" style="color:#e2e8f0">
       @for (z of zones(); track z.id) {

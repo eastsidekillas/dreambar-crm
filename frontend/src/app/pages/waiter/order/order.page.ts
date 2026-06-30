@@ -454,6 +454,25 @@ export class OrderPage implements OnInit, OnDestroy {
     });
   }
   private addToOrder(it: MenuItem, guest: number, qty: number, modifierIds: number[]) {
+    // То же блюдо без модификаторов и без комментария, ещё не отправленное тому же
+    // гостю — наращиваем количество существующей позиции, а не плодим новую.
+    // (С модификаторами не сливаем: разные добавки = разный напиток; отправленное
+    //  на бар/кухню не трогаем, чтобы не менять уже принятую позицию.)
+    if (!modifierIds.length) {
+      const existing = this.order()?.items.find(x =>
+        x.menu_item === it.id && x.guest_no === guest && x.is_sent === false && !x.comment);
+      if (existing) {
+        const total = existing.quantity + qty;
+        this.orderApi.updateOrderItem(this.orderId, existing.id, { quantity: total }).subscribe({
+          next: updated => {
+            this.onUpdated(updated);
+            this.toast.show(`${it.name} ×${total} → ${this.gLabel(guest)}`, 'success', 1200);
+          },
+          error: err => this.toast.apiError(err, 'Не удалось добавить позицию'),
+        });
+        return;
+      }
+    }
     this.orderApi.addItemToOrder(this.orderId, it.id, qty, guest, modifierIds,
       { name: it.name, price: it.price, type: it.category_type }).subscribe({
       next: updated => {

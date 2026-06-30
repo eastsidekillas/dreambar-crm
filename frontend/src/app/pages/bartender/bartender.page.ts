@@ -28,7 +28,7 @@ type Tab = 'orders' | 'kitchen' | 'new' | 'resv' | 'tables';
     <div class="flex flex-col" style="height:100dvh;background:#0f172a;color:#f1f5f9">
 
       <!-- ── Header ──────────────────────────────────────────────────── -->
-      <header class="sticky top-0 z-30 px-4 pb-3 flex items-center justify-between"
+      <header class="flex-shrink-0 z-30 px-4 pb-3 flex items-center justify-between"
               style="padding-top:calc(0.75rem + env(safe-area-inset-top,0px));background:#0a0f1e;border-bottom:1px solid #1e293b">
         <div class="flex items-center gap-3">
           <svg lucideGlassWater [size]="24" style="color:#f1f5f9"></svg>

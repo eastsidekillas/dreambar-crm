@@ -2,14 +2,14 @@ import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { KitchenTicket } from '../../../core/models';
 import { LucideCircleCheck, LucideClock } from '@lucide/angular';
-import { tableChips } from './bar-ui';
+import { tableChips, urgencyColor, kitchenItemStatusChip, LIST_TAB_HOST } from './bar-ui';
 
 /** Вкладка «Кухня» — read-only монитор готовности блюд для бармена. */
 @Component({
   selector: 'bar-kitchen-monitor-tab',
   standalone: true,
   imports: [CommonModule, LucideCircleCheck, LucideClock],
-  host: { style: 'display: contents' },
+  host: { style: LIST_TAB_HOST },
   template: `
     @if (noShift) {
       <div class="flex-1 flex flex-col items-center justify-center text-center px-4">
@@ -62,24 +62,21 @@ import { tableChips } from './bar-ui';
             @for (t of active; track t.order_id) {
               <div class="rounded-xl p-3"
                    style="background:#1e293b;border:2px solid"
-                   [style.border-color]="urgency(t.elapsed_min)">
+                   [style.border-color]="urgencyColor(t.elapsed_min, 'food')">
                 <div class="flex items-center gap-1.5 mb-2 flex-wrap">
                   <span class="font-bold" style="color:#f59e0b">#{{ t.order_id }}</span>
                   @for (chip of tableChips(t.table_number); track chip) {
                     <span class="text-sm font-semibold px-2 py-0.5 rounded whitespace-nowrap"
                           style="background:#334155;color:#f1f5f9">{{ chip }}</span>
                   }
-                  <span class="text-xs font-bold ml-auto whitespace-nowrap" [style.color]="urgency(t.elapsed_min)">
+                  <span class="text-xs font-bold ml-auto whitespace-nowrap" [style.color]="urgencyColor(t.elapsed_min, 'food')">
                     <svg lucideClock [size]="12" class="inline-block mr-0.5"></svg> {{ t.elapsed_min }} мин
                   </span>
                 </div>
                 @for (it of t.items; track it.id) {
                   <div class="flex items-center justify-between text-sm py-0.5">
                     <span>{{ it.quantity }}× {{ it.name }}</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full"
-                          [style]="it.kitchen_status === 'cooking'
-                            ? 'background:#f59e0b22;color:#f59e0b'
-                            : 'background:#1e293b;color:#64748b'">
+                    <span class="text-xs px-2 py-0.5 rounded-full" [style]="kitchenItemStatusChip(it.kitchen_status)">
                       {{ it.kitchen_status === 'cooking' ? 'готовится' : 'ожидает' }}
                     </span>
                   </div>
@@ -97,11 +94,7 @@ export class BarKitchenMonitorTab {
   @Input({ required: true }) ready: KitchenTicket[] = [];
   @Input() noShift = false;
 
-  tableChips = tableChips;
-
-  urgency(min: number): string {
-    if (min >= 15) return '#ef4444';
-    if (min >= 8)  return '#f59e0b';
-    return '#22c55e';
-  }
+  tableChips            = tableChips;
+  urgencyColor          = urgencyColor;
+  kitchenItemStatusChip = kitchenItemStatusChip;
 }
