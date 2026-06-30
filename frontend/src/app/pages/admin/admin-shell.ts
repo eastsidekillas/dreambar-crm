@@ -41,6 +41,7 @@ const PAGE_META: { prefix: string; title: string; desc: string }[] = [
   { prefix: '/admin/employees',      title: 'Сотрудники',      desc: 'Роли, PIN-коды и права доступа' },
   { prefix: '/admin/audit',          title: 'Аудит',           desc: 'Журнал удалённых позиций заказов' },
   { prefix: '/admin/printers',       title: 'Принтеры',        desc: 'Чековые принтеры и настройка печати' },
+  { prefix: '/admin/system',         title: 'Состояние системы', desc: 'Удалённая остановка и запуск приложения' },
 ];
 
 @Component({
@@ -333,6 +334,7 @@ export class AdminShell {
       desc: 'Оборудование и система',
       children: [
         { path: '/admin/printers', label: 'Принтеры', desc: 'Чековые принтеры' },
+        { path: '/admin/system',   label: 'Состояние системы', desc: 'Остановка и запуск приложения' },
       ],
     },
   ];
@@ -360,7 +362,7 @@ export class AdminShell {
       if (url.includes('/admin/inventory') || url.includes('/admin/purchases')) expand('Управление складом');
       if (url.includes('/admin/menu') || url.includes('/admin/modifiers')) expand('Меню');
       if (url.includes('/admin/reports') || url.includes('/admin/forecast') || url.includes('/admin/export')) expand('Аналитика');
-      if (url.includes('/admin/printers')) expand('Настройки');
+      if (url.includes('/admin/printers') || url.includes('/admin/system')) expand('Настройки');
     });
   }
 
