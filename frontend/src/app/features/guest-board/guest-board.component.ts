@@ -41,7 +41,8 @@ export interface GuestCard { guest: number; items: OrderItem[]; total: number; }
             <span class="rounded-full flex-shrink-0" title="Не отправлено"
                   style="width:7px;height:7px;background:var(--color-amber)"></span>
           }
-          <span class="text-sm font-semibold" style="color:var(--color-muted);min-width:18px">{{ item.quantity }}</span>
+          <span class="text-sm font-bold flex-shrink-0 text-center" style="min-width:28px"
+                [style.color]="item.quantity > 1 ? 'var(--color-gold-hover)' : 'var(--color-muted)'">{{ item.quantity }}<span style="opacity:0.55;font-weight:600">×</span></span>
           <span class="flex-1 min-w-0">
             <span class="text-sm truncate block"
                   [style.color]="item.kitchen_status === 'ready' ? '#16a34a' : null"
