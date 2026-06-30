@@ -8,6 +8,7 @@ import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { TouchKeyboardDirective, TouchKeyboardService } from '../../../shared/ui';
 import { Reservation, Zone } from '../../../core/models';
 import { LucideCalendar, LucidePhone, LucidePencil } from '@lucide/angular';
+import { reservationStatusStyle } from './bar-ui';
 
 /**
  * Вкладка «Брони»: список на день или диапазон дат + шторка создания/редактирования.
@@ -519,11 +520,5 @@ export class BarReservationsTab implements OnInit, OnChanges {
     });
   }
 
-  statusStyle(status: string): string {
-    if (status === 'pending')   return 'background:#f59e0b22;color:#f59e0b';
-    if (status === 'confirmed') return 'background:#22c55e22;color:#4ade80';
-    if (status === 'arrived')   return 'background:#3b82f622;color:#60a5fa';
-    if (status === 'cancelled') return 'background:#ef444422;color:#ef4444';
-    return 'background:#334155;color:#94a3b8';
-  }
+  statusStyle = reservationStatusStyle;
 }

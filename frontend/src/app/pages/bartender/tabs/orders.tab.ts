@@ -7,14 +7,14 @@ import {
   LucideCheck, LucideCheckCheck, LucideX, LucideCircleCheck, LucideClock, LucidePlay,
   LucideMessageSquare,
 } from '@lucide/angular';
-import { tableChips } from './bar-ui';
+import { tableChips, urgencyColor, itemBg, LIST_TAB_HOST } from './bar-ui';
 
 /** Вкладка «Заказы» — KDS бара: активные тикеты и готовые к выдаче. */
 @Component({
   selector: 'bar-orders-tab',
   standalone: true,
   imports: [CommonModule, LucideCheck, LucideCheckCheck, LucideX, LucideCircleCheck, LucideClock, LucidePlay, LucideMessageSquare],
-  host: { style: 'display: contents' },
+  host: { style: LIST_TAB_HOST },
   template: `
     @if (noShift) {
       <div class="flex-1 flex flex-col items-center justify-center text-center px-4">
@@ -203,6 +203,8 @@ export class BarOrdersTab {
   showReady     = signal(false);
   confirmDelete = signal<number | null>(null);
   tableChips    = tableChips;
+  urgencyColor  = urgencyColor;
+  itemBg        = itemBg;
 
   setStatus(item: KitchenItem, status: KitchenStatus) {
     item.kitchen_status = status;
@@ -227,15 +229,4 @@ export class BarOrdersTab {
     });
   }
 
-  itemBg(status: string): string {
-    if (status === 'cooking') return '#422006';
-    if (status === 'ready')   return '#14532d';
-    return '#0f172a';
-  }
-
-  urgencyColor(min: number): string {
-    if (min >= 10) return '#ef4444';
-    if (min >= 5)  return '#f59e0b';
-    return '#22c55e';
-  }
 }
