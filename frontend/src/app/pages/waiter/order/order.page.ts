@@ -547,6 +547,7 @@ export class OrderPage implements OnInit, OnDestroy {
         this.splittingGuest.set(false);
         this.splitGuestNo.set(null);
         this.onUpdated(res.order);
+        this.trimGuestSlots();          // перенесённый гость опустел — убрать его слот
         this.toast.success(`Гость перенесён на стол ${tableNumber}`);
       },
       error: err => { this.splittingGuest.set(false); this.toast.apiError(err, 'Не удалось перенести'); },
@@ -562,7 +563,14 @@ export class OrderPage implements OnInit, OnDestroy {
       this.removeItemsSeq(card.items.map(i => i.id), guest);
       return;
     }
-    // пустой гость — убрать слот (снизить число гостей, не ниже макс. гостя с позициями)
+    // пустой гость — убрать слот
+    this.trimGuestSlots();
+    this.toast.success(`${this.gLabel(guest)} удалён`);
+  }
+  /** Снять освободившийся (пустой) слот гостя: уменьшить число гостей до фактического,
+   * но не ниже макс. гостя, у которого ещё есть позиции. Один вызов убирает один хвостовой слот. */
+  private trimGuestSlots() {
+    const cards = this.guestCards();
     const maxWithItems = cards.filter(c => c.items.length).reduce((m, c) => Math.max(m, c.guest), 0);
     const displayed = cards.filter(c => c.guest > 0).length;
     const newCount = Math.max(maxWithItems, displayed - 1);
@@ -570,11 +578,9 @@ export class OrderPage implements OnInit, OnDestroy {
     const o = this.order();
     if (o && (o.guests ?? 0) > newCount) {
       this.orderApi.updateOrder(this.orderId, { guests: newCount }).subscribe({
-        next: u => { this.onUpdated(u); this.toast.success(`${this.gLabel(guest)} удалён`); },
-        error: err => this.toast.apiError(err, 'Не удалось удалить гостя'),
+        next: u => this.onUpdated(u),
+        error: err => this.toast.apiError(err, 'Не удалось обновить число гостей'),
       });
-    } else {
-      this.toast.success(`${this.gLabel(guest)} удалён`);
     }
   }
   private removeItemsSeq(ids: number[], guest: number) {

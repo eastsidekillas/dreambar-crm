@@ -9,6 +9,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { RefreshService } from '../../../core/services/refresh.service';
 import { Order, Zone, Reservation, VenueTable } from '../../../core/models';
 import { WaiterViewService } from '../waiter-view.service';
+import { ToastService } from '../../../shared/ui';
 import { ReservationsSheet } from './reservations-sheet';
 import { NewTableSheet } from './new-table-sheet';
 import { TableTile } from './table-tile';
@@ -90,7 +91,7 @@ const POLL_MS = 10_000;
 
     <!-- ── Reservations sheet ────────────────────────────────────── -->
     @if (resvSheet()) {
-      <reservations-sheet [reservations]="resvSorted()" (closed)="resvSheet.set(false)" />
+      <reservations-sheet [reservations]="resvSorted()" (arrive)="markArrived($event)" (closed)="resvSheet.set(false)" />
     }
 
     <!-- ── New table dialog ──────────────────────────────────────── -->
@@ -108,6 +109,7 @@ export class TablesPage implements OnInit, OnDestroy {
   private tableApi = inject(TableApi);
   private auth   = inject(AuthService);
   private router = inject(Router);
+  private toast  = inject(ToastService);
   view = inject(WaiterViewService);
 
   orders = signal<Order[]>([]);
@@ -228,6 +230,17 @@ export class TablesPage implements OnInit, OnDestroy {
     this.reservationApi.getReservations({ date: today }).subscribe({
       next: r => this.todayReservations.set(r.filter(x => ['pending', 'confirmed', 'arrived'].includes(x.status))),
       error: () => {},
+    });
+  }
+
+  /** Официант отмечает, что гость по брони пришёл. */
+  markArrived(r: Reservation) {
+    this.reservationApi.setReservationStatus(r.id, 'arrived').subscribe({
+      next: u => {
+        this.todayReservations.update(list => list.map(x => x.id === u.id ? u : x));
+        this.toast.success(`Гость пришёл — ${u.name}`);
+      },
+      error: err => this.toast.apiError(err, 'Не удалось отметить приход'),
     });
   }
 

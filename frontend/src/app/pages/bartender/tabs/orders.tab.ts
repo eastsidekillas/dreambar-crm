@@ -100,6 +100,12 @@ import { tableChips } from './bar-ui';
                         }
                       </div>
                     }
+                    @if (it.comment) {
+                      <div class="flex items-start gap-1.5 mt-1.5 text-sm font-semibold" style="color:#fbbf24">
+                        <svg lucideMessageSquare [size]="13" class="flex-shrink-0 mt-0.5"></svg>
+                        <span style="white-space:pre-wrap;word-break:break-word">{{ it.comment }}</span>
+                      </div>
+                    }
                   </div>
                   <div class="flex-shrink-0 flex items-center gap-2">
                     @if (it.kitchen_status === 'new') {

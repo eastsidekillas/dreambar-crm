@@ -9,7 +9,10 @@ export type GuestState = 'empty' | 'active' | 'ready';
 /** Меню гостя («…»). Набор пунктов зависит от [state]:
  *  - empty  → Переименовать, Удалить (убрать пустой слот)
  *  - active → Переименовать, Распечатать счёт, Перенести в новый заказ, Удалить
- *  - ready  → только Переименовать (блюда готовы — менять нельзя). */
+ *  - ready  → Переименовать, Перенести в новый заказ (блюда готовы — менять состав нельзя,
+ *             но гостя можно увести на новый стол).
+ *  «Перенести» доступен при любых неоплаченных позициях (active/ready); для empty скрыт —
+ *  переносить нечего, backend вернёт 400. */
 @Component({
   selector: 'guest-menu-sheet',
   standalone: true,
@@ -39,6 +42,8 @@ export type GuestState = 'empty' | 'active' | 'ready';
                     style="border-top:1px solid var(--color-border)">
               <svg lucideReceipt [size]="17" style="color:var(--color-muted)"></svg> Распечатать счёт
             </button>
+          }
+          @if (state !== 'empty') {
             <button (click)="split.emit()"
                     class="w-full flex items-center gap-3 px-4 py-3.5 text-left text-sm font-medium"
                     style="border-top:1px solid var(--color-border)">

@@ -56,7 +56,7 @@ class ReservationAccessTest(APITestCase):
         r = self.client.post('/api/reservations/', self._payload(), format='json')
         self.assertEqual(r.status_code, 403)
 
-    # ── Смена статуса / депозит: бармен — да; официант — нет ──────────────
+    # ── Смена статуса / депозит: бармен — любой статус; официант — только «пришёл» ──
     def test_bartender_can_set_status(self):
         self.client.force_authenticate(self.barman)
         r = self.client.post(f'/api/reservations/{self.res.id}/set_status/',
@@ -65,7 +65,17 @@ class ReservationAccessTest(APITestCase):
         self.res.refresh_from_db()
         self.assertEqual(self.res.status, 'confirmed')
 
-    def test_waiter_cannot_set_status(self):
+    def test_waiter_can_mark_arrived(self):
+        """Официант отмечает приход гостя по брони (status → arrived)."""
+        self.client.force_authenticate(self.waiter)
+        r = self.client.post(f'/api/reservations/{self.res.id}/set_status/',
+                             {'status': 'arrived'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.res.refresh_from_db()
+        self.assertEqual(self.res.status, 'arrived')
+
+    def test_waiter_cannot_set_other_status(self):
+        """Официант не может ставить произвольный статус — только «пришёл»."""
         self.client.force_authenticate(self.waiter)
         r = self.client.post(f'/api/reservations/{self.res.id}/set_status/',
                              {'status': 'cancelled'}, format='json')
