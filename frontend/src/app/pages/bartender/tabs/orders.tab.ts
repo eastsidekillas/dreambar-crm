@@ -36,7 +36,7 @@ import { tableChips, urgencyColor, itemBg, LIST_TAB_HOST } from './bar-ui';
       </div>
     } @else {
       <main class="p-3 grid gap-3"
-            style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));align-content:start">
+            style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));align-content:start;align-items:start">
         @for (t of active; track t.order_id) {
           <div class="rounded-xl overflow-hidden flex flex-col"
                style="background:#1e293b;border:2px solid"
