@@ -143,6 +143,12 @@ const REFRESH_MS = 8000;
                           }
                         </div>
                       }
+                      @if (it.comment) {
+                        <div class="flex items-start gap-1.5 mb-2 text-sm font-semibold" style="color:#FBBF24">
+                          <svg lucideMessageSquare [size]="13" class="flex-shrink-0 mt-0.5"></svg>
+                          <span style="white-space:pre-wrap;word-break:break-word">{{ it.comment }}</span>
+                        </div>
+                      }
                       <div class="flex gap-2">
                         @if (it.kitchen_status === 'new') {
                           <button (click)="setStatus(it, 'cooking')"

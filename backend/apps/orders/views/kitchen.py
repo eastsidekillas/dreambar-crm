@@ -86,6 +86,7 @@ class KitchenOrdersView(APIView):
                 'quantity': it.quantity,
                 'kitchen_status': it.kitchen_status,
                 'modifiers': [om.modifier.name for om in it.selected_modifiers.all()],
+                'comment': it.comment or '',
             })
             if it.kitchen_status != 'ready':
                 t['_all_ready'] = False
