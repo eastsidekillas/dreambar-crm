@@ -55,8 +55,9 @@ class Perm:
     TICKET_MANAGE = 'ticket.manage'      # редактировать/удалять билеты
 
     # Брони
-    RESERVATION_VIEW   = 'reservation.view'      # видеть брони (официанту для занятости столов)
-    RESERVATION_MANAGE = 'reservation.manage'    # создавать/править/отменять/удалять брони
+    RESERVATION_VIEW         = 'reservation.view'          # видеть брони (официанту для занятости столов)
+    RESERVATION_MARK_ARRIVED = 'reservation.mark_arrived'  # отметить, что гость по брони пришёл
+    RESERVATION_MANAGE       = 'reservation.manage'        # создавать/править/отменять/удалять брони
 
     # Персонал
     EMPLOYEE_MANAGE = 'employee.manage'
@@ -84,13 +85,14 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         Perm.ORDER_CREATE,
         # смену официант не открывает и не закрывает — это делает бармен/гардероб/админ
         Perm.TICKET_SELL,
-        Perm.RESERVATION_VIEW,   # столы официанта показывают занятость/инфо по броням
+        Perm.RESERVATION_VIEW,           # столы официанта показывают занятость/инфо по броням
+        Perm.RESERVATION_MARK_ARRIVED,   # официант отмечает приход гостя по брони
     },
     'bartender': {
         Perm.ORDER_CREATE,
         Perm.KITCHEN_VIEW, Perm.KITCHEN_UPDATE,
         Perm.SHIFT_OPEN, Perm.SHIFT_CLOSE,
-        Perm.RESERVATION_VIEW, Perm.RESERVATION_MANAGE,
+        Perm.RESERVATION_VIEW, Perm.RESERVATION_MARK_ARRIVED, Perm.RESERVATION_MANAGE,
         Perm.MENU_TOGGLE_STOCK,   # бармен помечает позиции бара «стоп»
     },
     'kitchen': {

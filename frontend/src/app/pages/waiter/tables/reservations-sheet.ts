@@ -1,10 +1,10 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Reservation } from '../../../core/models';
 import { BdBottomSheetComponent } from '../../../shared/ui';
 import {
   LucideArmchair, LucideUsers,
-  LucideTriangleAlert, LucideBanknote, LucideMessageCircle,
+  LucideTriangleAlert, LucideBanknote, LucideMessageCircle, LucideUserCheck,
 } from '@lucide/angular';
 
 const RESV_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
@@ -20,7 +20,7 @@ const RESV_META: Record<string, { label: string; color: string; bg: string; bord
   selector: 'reservations-sheet',
   standalone: true,
   imports: [CommonModule, BdBottomSheetComponent, LucideArmchair, LucideUsers,
-            LucideTriangleAlert, LucideBanknote, LucideMessageCircle],
+            LucideTriangleAlert, LucideBanknote, LucideMessageCircle, LucideUserCheck],
   template: `
     <bd-bottom-sheet title="Брони на сегодня" maxHeight="80dvh" (closed)="closed.emit()">
       <div class="px-4 py-3 space-y-2">
@@ -54,6 +54,13 @@ const RESV_META: Record<string, { label: string; color: string; bg: string; bord
               @if (r.wishes) {
                 <p class="text-xs mt-0.5 truncate flex items-center gap-0.5" style="color:var(--color-muted)"><svg lucideMessageCircle [size]="12"></svg> {{ r.wishes }}</p>
               }
+              @if (canArrive(r.status)) {
+                <button (click)="onArrive(r)" [disabled]="busy().has(r.id)"
+                        class="mt-2 w-full rounded-lg font-semibold text-sm flex items-center justify-center gap-1.5"
+                        style="height:38px;background:#f0fdf4;color:#166534;border:1px solid #86efac">
+                  <svg lucideUserCheck [size]="15"></svg> {{ busy().has(r.id) ? '...' : 'Гость пришёл' }}
+                </button>
+              }
             </div>
           </div>
         }
@@ -63,7 +70,20 @@ const RESV_META: Record<string, { label: string; color: string; bg: string; bord
 })
 export class ReservationsSheet {
   @Input() reservations: Reservation[] = [];
+  @Output() arrive = new EventEmitter<Reservation>();
   @Output() closed = new EventEmitter<void>();
+
+  /** id броней с отправленной отметкой «пришли» — чтобы не дёргать дважды. */
+  busy = signal<Set<number>>(new Set());
+
+  /** Отметить можно бронь, гость по которой ещё не пришёл и она не завершена/отменена. */
+  canArrive(status: string): boolean { return status === 'pending' || status === 'confirmed'; }
+
+  onArrive(r: Reservation) {
+    if (this.busy().has(r.id)) return;
+    this.busy.update(s => new Set(s).add(r.id));
+    this.arrive.emit(r);
+  }
 
   fmtTime(t: string): string { return t?.slice(0, 5) ?? ''; }
   cardStyle(status: string): string {

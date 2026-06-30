@@ -2,7 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.users.permissions_matrix import HasPerm, Perm
+from apps.users.permissions_matrix import HasPerm, Perm, has_perm
 from .models import Reservation
 from .serializers import ReservationSerializer
 
@@ -15,6 +15,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
         # Чтение — официант (занятость столов), бармен, админ.
         if self.action in ('list', 'retrieve'):
             return [HasPerm(Perm.RESERVATION_VIEW)]
+        # Смена статуса — облегчённое право: официант может отметить приход гостя
+        # (но только статус 'arrived' — проверка внутри set_status).
+        if self.action == 'set_status':
+            return [HasPerm(Perm.RESERVATION_MARK_ARRIVED)]
         # Создание/правка/отмена/удаление/депозит — бармен и админ.
         return [HasPerm(Perm.RESERVATION_MANAGE)]
 
@@ -38,6 +42,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
         valid = [s[0] for s in Reservation.STATUS_CHOICES]
         if new_status not in valid:
             return Response({'detail': f'Допустимые статусы: {valid}'}, status=status.HTTP_400_BAD_REQUEST)
+        # Официант (без полного управления бронями) может только отметить приход гостя.
+        if new_status != 'arrived' and not has_perm(request.user, Perm.RESERVATION_MANAGE):
+            return Response({'detail': 'Можно отметить только приход гостя.'},
+                            status=status.HTTP_403_FORBIDDEN)
         reservation.status = new_status
         reservation.save(update_fields=['status'])
         return Response(ReservationSerializer(reservation).data)
